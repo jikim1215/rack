@@ -81,6 +81,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
   const [fieldForm, setFieldForm] = useState({
     field_key: "", field_label: "", field_type: "text", options: "", asset_types: "",
   });
+  const [editFieldId, setEditFieldId] = useState<number | null>(null);
 
   const filtered = assets.filter((a) => {
     if (typeFilter && a.asset_type !== typeFilter) return false;
@@ -180,11 +181,43 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
     }
   }
 
+  async function saveCustomField() {
+    if (!editFieldId || !fieldForm.field_label) return;
+    const res = await fetch(`/api/custom-fields/${editFieldId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fieldForm),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setCustomFields((prev) => prev.map((f) => (f.id === editFieldId ? { ...f, ...data } : f)));
+      setEditFieldId(null);
+      setFieldForm({ field_key: "", field_label: "", field_type: "text", options: "", asset_types: "" });
+    }
+  }
+
+  function startEditField(f: CustomField) {
+    setEditFieldId(f.id);
+    setFieldForm({
+      field_key: f.field_key,
+      field_label: f.field_label,
+      field_type: f.field_type,
+      options: f.options,
+      asset_types: f.asset_types,
+    });
+  }
+
+  function cancelEditField() {
+    setEditFieldId(null);
+    setFieldForm({ field_key: "", field_label: "", field_type: "text", options: "", asset_types: "" });
+  }
+
   async function deleteCustomField(id: number) {
     if (!confirm("이 커스텀 필드를 비활성화하시겠습니까?")) return;
     const res = await fetch(`/api/custom-fields/${id}`, { method: "DELETE" });
     if (res.ok) {
       setCustomFields((prev) => prev.filter((f) => f.id !== id));
+      if (editFieldId === id) cancelEditField();
     }
   }
 
@@ -236,23 +269,54 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
           {customFields.length > 0 && (
             <div className="mb-4 space-y-1">
               {customFields.map((f) => (
-                <div key={f.id} className="flex items-center justify-between bg-white rounded px-3 py-2 text-sm">
-                  <div>
-                    <span className="font-medium">{f.field_label}</span>
-                    <span className="text-slate-400 ml-2">({f.field_key})</span>
-                    <span className="text-xs ml-2 px-1.5 py-0.5 bg-slate-100 rounded">{f.field_type}</span>
-                    {f.asset_types && <span className="text-xs ml-2 text-blue-600">{f.asset_types}</span>}
-                    {f.options && <span className="text-xs ml-2 text-green-600">옵션: {f.options}</span>}
+                editFieldId === f.id ? (
+                  <div key={f.id} className="grid grid-cols-2 md:grid-cols-6 gap-2 bg-blue-50 rounded px-3 py-2 items-center">
+                    <input value={fieldForm.field_key} disabled
+                      className="form-input text-xs bg-slate-100 cursor-not-allowed" title="키는 변경 불가" />
+                    <input placeholder="표시 라벨" value={fieldForm.field_label}
+                      onChange={(e) => setFieldForm({ ...fieldForm, field_label: e.target.value })} className="form-input text-xs" />
+                    <select value={fieldForm.field_type}
+                      onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })} className="form-input text-xs">
+                      <option value="text">텍스트</option>
+                      <option value="number">숫자</option>
+                      <option value="date">날짜</option>
+                      <option value="select">선택</option>
+                      <option value="textarea">텍스트영역</option>
+                    </select>
+                    <input placeholder="옵션 (콤마구분)" value={fieldForm.options}
+                      onChange={(e) => setFieldForm({ ...fieldForm, options: e.target.value })} className="form-input text-xs" />
+                    <input placeholder="적용 유형 (빈칸=전체)" value={fieldForm.asset_types}
+                      onChange={(e) => setFieldForm({ ...fieldForm, asset_types: e.target.value })} className="form-input text-xs" />
+                    <div className="flex gap-1">
+                      <button onClick={saveCustomField} className="flex-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 py-1.5">저장</button>
+                      <button onClick={cancelEditField} className="flex-1 border rounded-lg text-xs hover:bg-white py-1.5">취소</button>
+                    </div>
                   </div>
-                  <button onClick={() => deleteCustomField(f.id)} className="text-slate-400 hover:text-red-600">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                ) : (
+                  <div key={f.id} className="flex items-center justify-between bg-white rounded px-3 py-2 text-sm">
+                    <div>
+                      <span className="font-medium">{f.field_label}</span>
+                      <span className="text-slate-400 ml-2">({f.field_key})</span>
+                      <span className="text-xs ml-2 px-1.5 py-0.5 bg-slate-100 rounded">{f.field_type}</span>
+                      {f.asset_types && <span className="text-xs ml-2 text-blue-600">{f.asset_types}</span>}
+                      {f.options && <span className="text-xs ml-2 text-green-600">옵션: {f.options}</span>}
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => startEditField(f)} className="text-slate-400 hover:text-blue-600">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => deleteCustomField(f.id)} className="text-slate-400 hover:text-red-600">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )
               ))}
             </div>
           )}
 
           {/* 새 필드 추가 */}
+          {!editFieldId && (
           <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
             <input placeholder="필드 키 (영문)" value={fieldForm.field_key}
               onChange={(e) => setFieldForm({ ...fieldForm, field_key: e.target.value })} className="form-input text-xs" />
@@ -272,6 +336,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
               onChange={(e) => setFieldForm({ ...fieldForm, asset_types: e.target.value })} className="form-input text-xs" />
             <button onClick={addCustomField} className="bg-amber-600 text-white rounded-lg text-xs hover:bg-amber-700">추가</button>
           </div>
+          )}
         </div>
       )}
 
@@ -319,16 +384,54 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
 
           {/* 랙 배치 */}
           <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">랙 배치</h4>
+          {(() => {
+            const selectedRack = racks.find((r: any) => r.id === form.rack_id);
+            const maxU = selectedRack?.total_units ?? 42;
+            const maxStart = Math.max(1, maxU - (form.rack_unit_size ?? 1) + 1);
+            const maxSize = form.rack_unit_start ? Math.max(1, maxU - form.rack_unit_start + 1) : maxU;
+            return (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
             <FormField label="설치 랙">
-              <select value={form.rack_id ?? ""} onChange={(e) => setForm({ ...form, rack_id: e.target.value ? Number(e.target.value) : null })} className="form-input">
+              <select value={form.rack_id ?? ""} onChange={(e) => {
+                const newRackId = e.target.value ? Number(e.target.value) : null;
+                setForm({ ...form, rack_id: newRackId, rack_unit_start: null, rack_unit_size: 1 });
+              }} className="form-input">
                 <option value="">미설치</option>
-                {racks.map((r: any) => <option key={r.id} value={r.id}>{r.name} ({r.location_name})</option>)}
+                {racks.map((r: any) => <option key={r.id} value={r.id}>{r.name} ({r.location_name}) — {r.total_units}U</option>)}
               </select>
             </FormField>
-            <FormField label="시작 U"><input type="number" value={form.rack_unit_start ?? ""} onChange={(e) => setForm({ ...form, rack_unit_start: e.target.value ? Number(e.target.value) : null })} className="form-input" /></FormField>
-            <FormField label="크기 (U)"><input type="number" value={form.rack_unit_size} onChange={(e) => setForm({ ...form, rack_unit_size: Number(e.target.value) || 1 })} className="form-input" /></FormField>
+            <FormField label={`시작 U${selectedRack ? ` (1~${maxStart})` : ""}`}>
+              <input type="number" min={1} max={maxStart}
+                value={form.rack_unit_start ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value ? Math.min(Math.max(1, Number(e.target.value)), maxStart) : null;
+                  setForm({ ...form, rack_unit_start: v });
+                }}
+                disabled={!form.rack_id}
+                className="form-input" placeholder={form.rack_id ? `1~${maxStart}` : "랙 선택 필요"} />
+            </FormField>
+            <FormField label={`크기 U${selectedRack ? ` (1~${maxSize})` : ""}`}>
+              <input type="number" min={1} max={maxSize}
+                value={form.rack_unit_size}
+                onChange={(e) => {
+                  const v = Math.min(Math.max(1, Number(e.target.value) || 1), maxSize);
+                  setForm({ ...form, rack_unit_size: v });
+                }}
+                disabled={!form.rack_id}
+                className="form-input" placeholder={form.rack_id ? `1~${maxSize}` : "랙 선택 필요"} />
+            </FormField>
+            {selectedRack && (
+              <div className="flex items-end pb-1">
+                <span className="text-xs text-slate-400">
+                  {form.rack_unit_start && form.rack_unit_size
+                    ? `${form.rack_unit_start}U ~ ${form.rack_unit_start + form.rack_unit_size - 1}U 사용`
+                    : "배치 위치를 지정하세요"}
+                </span>
+              </div>
+            )}
           </div>
+            );
+          })()}
 
           {/* 커스텀 필드 */}
           {getFieldsForType(form.asset_type).length > 0 && (

@@ -30,7 +30,7 @@ interface Asset {
 }
 
 export function RackView({ locations, racks, assets }: { locations: any[]; racks: any[]; assets: Asset[] }) {
-  const [selectedLocation, setSelectedLocation] = useState<number | "">(locations[0]?.id ?? "");
+  const [selectedLocation, setSelectedLocation] = useState<number | "">("");
   const [hoveredAsset, setHoveredAsset] = useState<Asset | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 

@@ -12,7 +12,7 @@ export default function AssetsPage() {
   `).all() as any[];
 
   const racks = db.prepare(`
-    SELECT r.id, r.name, l.name as location_name
+    SELECT r.id, r.name, r.total_units, l.name as location_name
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id
     ORDER BY r.name
   `).all() as any[];

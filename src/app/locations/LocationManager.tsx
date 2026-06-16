@@ -163,7 +163,22 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
               <label className="block"><span className="text-xs text-slate-500">이름</span>
                 <input value={rackForm.name} onChange={(e) => setRackForm({ ...rackForm, name: e.target.value })} className="form-input" /></label>
               <label className="block"><span className="text-xs text-slate-500">총 유닛 수</span>
-                <input type="number" value={rackForm.total_units} onChange={(e) => setRackForm({ ...rackForm, total_units: Number(e.target.value) })} className="form-input" /></label>
+                <select value={rackForm.total_units} onChange={(e) => setRackForm({ ...rackForm, total_units: Number(e.target.value) })} className="form-input">
+                  <option value={4}>4U (소형)</option>
+                  <option value={9}>9U</option>
+                  <option value={12}>12U</option>
+                  <option value={15}>15U</option>
+                  <option value={18}>18U</option>
+                  <option value={22}>22U</option>
+                  <option value={24}>24U (하프랙)</option>
+                  <option value={27}>27U</option>
+                  <option value={32}>32U</option>
+                  <option value={37}>37U</option>
+                  <option value={42}>42U (표준랙)</option>
+                  <option value={45}>45U</option>
+                  <option value={47}>47U</option>
+                  <option value={48}>48U</option>
+                </select></label>
               <label className="block"><span className="text-xs text-slate-500">설명</span>
                 <input value={rackForm.description} onChange={(e) => setRackForm({ ...rackForm, description: e.target.value })} className="form-input" /></label>
             </div>
