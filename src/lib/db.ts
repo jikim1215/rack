@@ -37,7 +37,7 @@ function initSchema(db: Database.Database) {
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
-    -- 자산 유형: server, network, security, storage, etc.
+    -- 자산
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_type TEXT NOT NULL CHECK(asset_type IN ('server','network','security','storage','other')),
@@ -51,11 +51,40 @@ function initSchema(db: Database.Database) {
       purchase_date TEXT DEFAULT '',
       warranty_date TEXT DEFAULT '',
       description TEXT DEFAULT '',
+      -- 확장 고정 필드
+      os TEXT DEFAULT '',
+      access_ip TEXT DEFAULT '',
+      user_name TEXT DEFAULT '',
+      admin_name TEXT DEFAULT '',
+      department TEXT DEFAULT '',
+      -- 랙 배치
       rack_id INTEGER REFERENCES racks(id) ON DELETE SET NULL,
       rack_unit_start INTEGER,
       rack_unit_size INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 커스텀 필드 정의 (사용자가 동적으로 추가할 수 있는 필드)
+    CREATE TABLE IF NOT EXISTS custom_fields (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      field_key TEXT NOT NULL UNIQUE,
+      field_label TEXT NOT NULL,
+      field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN ('text','number','date','select','textarea')),
+      options TEXT DEFAULT '',
+      asset_types TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 커스텀 필드 값
+    CREATE TABLE IF NOT EXISTS custom_values (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      field_id INTEGER NOT NULL REFERENCES custom_fields(id) ON DELETE CASCADE,
+      value TEXT DEFAULT '',
+      UNIQUE(asset_id, field_id)
     );
 
     -- 네트워크 장비 포트
@@ -77,5 +106,23 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);
     CREATE INDEX IF NOT EXISTS idx_ports_asset ON ports(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ports_connected ON ports(connected_to_port_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_values_asset ON custom_values(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_custom_values_field ON custom_values(field_id);
   `);
+
+  // 기존 DB에 새 컬럼이 없으면 추가 (마이그레이션)
+  const cols = db.prepare("PRAGMA table_info(assets)").all() as any[];
+  const colNames = new Set(cols.map((c: any) => c.name));
+  const newCols = [
+    ["os", "TEXT DEFAULT ''"],
+    ["access_ip", "TEXT DEFAULT ''"],
+    ["user_name", "TEXT DEFAULT ''"],
+    ["admin_name", "TEXT DEFAULT ''"],
+    ["department", "TEXT DEFAULT ''"],
+  ];
+  for (const [name, def] of newCols) {
+    if (!colNames.has(name)) {
+      db.exec(`ALTER TABLE assets ADD COLUMN ${name} ${def}`);
+    }
+  }
 }

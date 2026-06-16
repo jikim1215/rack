@@ -16,7 +16,7 @@
 body {
   background: var(--bg);
   color: var(--text-primary);
-  font-family: "Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
 }
 
 .form-input {

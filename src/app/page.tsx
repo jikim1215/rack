@@ -20,13 +20,25 @@ function getStats() {
   `).all() as any[];
 
   const recentAssets = db.prepare(`
-    SELECT id, name, asset_type, status, ip_address, created_at
+    SELECT id, name, asset_type, status, ip_address, os, admin_name, department, created_at
     FROM assets ORDER BY created_at DESC LIMIT 5
+  `).all() as any[];
+
+  const byDepartment = db.prepare(`
+    SELECT department, COUNT(*) as c FROM assets WHERE department != '' GROUP BY department ORDER BY c DESC
+  `).all() as any[];
+
+  const byAdmin = db.prepare(`
+    SELECT admin_name, COUNT(*) as c FROM assets WHERE admin_name != '' GROUP BY admin_name ORDER BY c DESC
+  `).all() as any[];
+
+  const byOs = db.prepare(`
+    SELECT os, COUNT(*) as c FROM assets WHERE os != '' GROUP BY os ORDER BY c DESC LIMIT 8
   `).all() as any[];
 
   return {
     totalAssets, byType, activeAssets, totalRacks, totalPorts, usedPorts,
-    totalLocations, rackUsage, recentAssets,
+    totalLocations, rackUsage, recentAssets, byDepartment, byAdmin, byOs,
   };
 }
 
@@ -114,6 +126,46 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* 부서별 / 관리자별 / OS별 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold mb-4">부서별 자산</h3>
+          <div className="space-y-2">
+            {stats.byDepartment.map((d: any) => (
+              <div key={d.department} className="flex items-center justify-between text-sm">
+                <span>{d.department}</span>
+                <span className="font-semibold">{d.c}대</span>
+              </div>
+            ))}
+            {stats.byDepartment.length === 0 && <p className="text-slate-400 text-sm">데이터 없음</p>}
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold mb-4">관리자별 자산</h3>
+          <div className="space-y-2">
+            {stats.byAdmin.map((d: any) => (
+              <div key={d.admin_name} className="flex items-center justify-between text-sm">
+                <span>{d.admin_name}</span>
+                <span className="font-semibold">{d.c}대</span>
+              </div>
+            ))}
+            {stats.byAdmin.length === 0 && <p className="text-slate-400 text-sm">데이터 없음</p>}
+          </div>
+        </div>
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold mb-4">OS / 펌웨어 분포</h3>
+          <div className="space-y-2">
+            {stats.byOs.map((d: any) => (
+              <div key={d.os} className="flex items-center justify-between text-sm">
+                <span className="truncate mr-2">{d.os}</span>
+                <span className="font-semibold shrink-0">{d.c}대</span>
+              </div>
+            ))}
+            {stats.byOs.length === 0 && <p className="text-slate-400 text-sm">데이터 없음</p>}
+          </div>
+        </div>
+      </div>
+
       {/* 최근 등록 자산 */}
       <div className="bg-white rounded-lg border p-5">
         <h3 className="font-semibold mb-4">최근 등록 자산</h3>
@@ -123,8 +175,10 @@ export default function DashboardPage() {
               <th className="pb-2">이름</th>
               <th className="pb-2">유형</th>
               <th className="pb-2">IP</th>
+              <th className="pb-2">OS</th>
+              <th className="pb-2">관리자</th>
+              <th className="pb-2">부서</th>
               <th className="pb-2">상태</th>
-              <th className="pb-2">등록일</th>
             </tr>
           </thead>
           <tbody>
@@ -137,12 +191,14 @@ export default function DashboardPage() {
                   </span>
                 </td>
                 <td className="py-2 text-slate-500 font-mono text-xs">{a.ip_address}</td>
+                <td className="py-2 text-slate-500 text-xs">{a.os || "-"}</td>
+                <td className="py-2 text-slate-500 text-xs">{a.admin_name || "-"}</td>
+                <td className="py-2 text-slate-500 text-xs">{a.department || "-"}</td>
                 <td className="py-2">
                   <span className={`text-xs ${a.status === "active" ? "text-green-600" : "text-slate-400"}`}>
                     {statusLabels[a.status]}
                   </span>
                 </td>
-                <td className="py-2 text-slate-400 text-xs">{a.created_at}</td>
               </tr>
             ))}
           </tbody>
