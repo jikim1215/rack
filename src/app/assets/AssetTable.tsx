@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Search, Pencil, Trash2, X, Save, ChevronDown, ChevronUp, Settings } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, X, Save, ChevronDown, ChevronUp, Settings, Upload, Download, FileSpreadsheet, AlertCircle } from "lucide-react";
 
 const typeLabels: Record<string, string> = {
   server: "서버", network: "네트워크", security: "정보보호", storage: "스토리지", other: "기타",
@@ -82,6 +82,9 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
     field_key: "", field_label: "", field_type: "text", options: "", asset_types: "",
   });
   const [editFieldId, setEditFieldId] = useState<number | null>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [importing, setImporting] = useState(false);
 
   const filtered = assets.filter((a) => {
     if (typeFilter && a.asset_type !== typeFilter) return false;
@@ -257,6 +260,18 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
         >
           <Settings size={16} /> 확장필드
         </button>
+        <button
+          onClick={() => { setShowBulkImport(true); setImportResult(null); }}
+          className="flex items-center gap-1.5 border px-3 py-2 rounded-lg text-sm hover:bg-slate-50 transition-colors text-slate-600"
+        >
+          <Upload size={16} /> 일괄등록
+        </button>
+        <a
+          href="/api/assets/export"
+          className="flex items-center gap-1.5 border px-3 py-2 rounded-lg text-sm hover:bg-slate-50 transition-colors text-slate-600"
+        >
+          <Download size={16} /> 내보내기
+        </a>
       </div>
 
       {/* 커스텀 필드 관리 */}
@@ -337,6 +352,124 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
             <button onClick={addCustomField} className="bg-amber-600 text-white rounded-lg text-xs hover:bg-amber-700">추가</button>
           </div>
           )}
+        </div>
+      )}
+      
+      {/* 일괄등록 모달 */}
+      {showBulkImport && (
+        <div className="bg-white border rounded-lg p-5 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <FileSpreadsheet size={18} /> 자산 일괄등록
+            </h3>
+            <button onClick={() => setShowBulkImport(false)} className="text-slate-400 hover:text-slate-600">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* Step 1: 양식 다운로드 */}
+            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+              <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+              <div>
+                <p className="text-sm font-medium">양식 다운로드</p>
+                <p className="text-xs text-slate-500 mt-1">엑셀 양식을 다운로드하여 자산 정보를 입력합니다.</p>
+                <a
+                  href="/api/assets/template"
+                  className="inline-flex items-center gap-1.5 mt-2 bg-blue-600 text-white px-3 py-1.5 rounded text-xs hover:bg-blue-700"
+                >
+                  <Download size={14} /> 양식 다운로드 (.xlsx)
+                </a>
+              </div>
+            </div>
+
+            {/* Step 2: 파일 업로드 */}
+            <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+              <span className="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium">양식 업로드</p>
+                <p className="text-xs text-slate-500 mt-1">작성한 엑셀 파일을 업로드하면 자동으로 자산이 등록됩니다.</p>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setImporting(true);
+                    setImportResult(null);
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    try {
+                      const res = await fetch("/api/assets/import", { method: "POST", body: formData });
+                      const data = await res.json();
+                      setImportResult(data);
+                      if (data.imported > 0) {
+                        // 자산 목록 새로고침
+                        const assetsRes = await fetch("/api/assets");
+                        if (assetsRes.ok) {
+                          const newAssets = await assetsRes.json();
+                          setAssets(newAssets);
+                        }
+                      }
+                    } catch {
+                      setImportResult({ success: false, error: "업로드에 실패했습니다." });
+                    } finally {
+                      setImporting(false);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="mt-2 text-sm"
+                  disabled={importing}
+                />
+                {importing && <p className="text-xs text-blue-600 mt-2">업로드 중...</p>}
+              </div>
+            </div>
+
+            {/* 결과 표시 */}
+            {importResult && (
+              <div className={`p-4 rounded-lg ${importResult.errors?.length > 0 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {importResult.errors?.length > 0 ? (
+                    <AlertCircle size={16} className="text-red-600" />
+                  ) : (
+                    <FileSpreadsheet size={16} className="text-green-600" />
+                  )}
+                  <span className="font-medium text-sm">
+                    {importResult.imported > 0 && `${importResult.imported}건 등록 성공`}
+                    {importResult.imported > 0 && importResult.errors?.length > 0 && " / "}
+                    {importResult.errors?.length > 0 && `${importResult.errors.length}건 오류`}
+                    {importResult.error && importResult.error}
+                  </span>
+                </div>
+
+                {/* 오류 목록 */}
+                {importResult.errors?.length > 0 && (
+                  <div className="mt-3 max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-slate-500 border-b">
+                          <th className="pb-1 pr-2">행</th>
+                          <th className="pb-1 pr-2">컬럼</th>
+                          <th className="pb-1 pr-2">값</th>
+                          <th className="pb-1">오류 내용</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importResult.errors.map((err: any, i: number) => (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="py-1 pr-2 text-red-600 font-mono">{err.row}</td>
+                            <td className="py-1 pr-2 font-medium">{err.column}</td>
+                            <td className="py-1 pr-2 text-slate-500 truncate max-w-[150px]">{err.value || "-"}</td>
+                            <td className="py-1 text-red-600">{err.error}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
