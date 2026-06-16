@@ -1,0 +1,26 @@
+{
+  "run_id": "2026-06-16-1043-2994",
+  "skill": "ralplan",
+  "active": true,
+  "current_phase": "planner",
+  "version": 2,
+  "updated_at": "2026-06-16T10:43:44.959Z",
+  "receipt": {
+    "version": 1,
+    "skill": "ralplan",
+    "owner": "gjc-runtime",
+    "command": "gjc ralplan persist-run-id",
+    "state_path": "D:\\gajea\\rack\\.gjc\\state\\skill-active-state.json",
+    "storage_path": "D:\\gajea\\rack\\.gjc\\state\\ralplan-state.json",
+    "mutated_at": "2026-06-16T10:43:44.960Z",
+    "fresh_until": "2026-06-16T11:13:44.960Z",
+    "status": "fresh",
+    "mutation_id": "ralplan:2026-06-16T10:43:44.960Z",
+    "content_sha256": {
+      "algorithm": "sha256",
+      "value": "a7568c740bd51b7ef78b60920cbd8e61eb9f666765a4907d2ee28e5223403a92",
+      "covered_path": "D:\\gajea\\rack\\.gjc\\state\\ralplan-state.json",
+      "computed_at": "2026-06-16T10:43:44.960Z"
+    }
+  }
+}

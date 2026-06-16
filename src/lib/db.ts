@@ -17,7 +17,18 @@ export function getDb(): Database.Database {
 
 function initSchema(db: Database.Database) {
   db.exec(`
-    -- 위치(건물/층/서버실)
+    -- 사용자
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT DEFAULT '',
+      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin','user','viewer')),
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 위치
     CREATE TABLE IF NOT EXISTS locations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -47,17 +58,16 @@ function initSchema(db: Database.Database) {
       serial_number TEXT DEFAULT '',
       ip_address TEXT DEFAULT '',
       asset_tag TEXT DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive','maintenance','decommissioned')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive','maintenance','decommissioned','eos')),
       purchase_date TEXT DEFAULT '',
       warranty_date TEXT DEFAULT '',
+      eos_date TEXT DEFAULT '',
       description TEXT DEFAULT '',
-      -- 확장 고정 필드
       os TEXT DEFAULT '',
       access_ip TEXT DEFAULT '',
       user_name TEXT DEFAULT '',
       admin_name TEXT DEFAULT '',
       department TEXT DEFAULT '',
-      -- 랙 배치
       rack_id INTEGER REFERENCES racks(id) ON DELETE SET NULL,
       rack_unit_start INTEGER,
       rack_unit_size INTEGER DEFAULT 1,
@@ -65,7 +75,44 @@ function initSchema(db: Database.Database) {
       updated_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
-    -- 커스텀 필드 정의 (사용자가 동적으로 추가할 수 있는 필드)
+    -- 자산별 다중 IP
+    CREATE TABLE IF NOT EXISTS asset_ips (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      ip_address TEXT NOT NULL,
+      ip_type TEXT DEFAULT 'service' CHECK(ip_type IN ('management','service','backup','vip','other')),
+      interface_name TEXT DEFAULT '',
+      subnet_mask TEXT DEFAULT '',
+      gateway TEXT DEFAULT '',
+      is_primary INTEGER DEFAULT 0,
+      description TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 자산 사진
+    CREATE TABLE IF NOT EXISTS asset_photos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      filename TEXT NOT NULL,
+      original_name TEXT DEFAULT '',
+      mime_type TEXT DEFAULT 'image/jpeg',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 자산 변경 이력
+    CREATE TABLE IF NOT EXISTS asset_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER,
+      asset_name TEXT DEFAULT '',
+      action TEXT NOT NULL CHECK(action IN ('create','update','delete')),
+      changed_by TEXT DEFAULT '',
+      changed_fields TEXT DEFAULT '[]',
+      old_values TEXT DEFAULT '{}',
+      new_values TEXT DEFAULT '{}',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 커스텀 필드 정의
     CREATE TABLE IF NOT EXISTS custom_fields (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       field_key TEXT NOT NULL UNIQUE,
@@ -87,7 +134,36 @@ function initSchema(db: Database.Database) {
       UNIQUE(asset_id, field_id)
     );
 
-    -- 네트워크 장비 포트
+    -- 배선반 (MDF/TPS 110블록 등)
+    CREATE TABLE IF NOT EXISTS dist_frames (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+      rack_id INTEGER REFERENCES racks(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      frame_type TEXT NOT NULL DEFAULT '110block' CHECK(frame_type IN ('110block','patch_panel','optical','other')),
+      total_pairs INTEGER NOT NULL DEFAULT 50,
+      rack_unit_start INTEGER,
+      rack_unit_size INTEGER DEFAULT 2,
+      description TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 배선반 페어
+    CREATE TABLE IF NOT EXISTS frame_pairs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      frame_id INTEGER NOT NULL REFERENCES dist_frames(id) ON DELETE CASCADE,
+      pair_number INTEGER NOT NULL,
+      status TEXT DEFAULT 'unused' CHECK(status IN ('used','unused','reserved','faulty')),
+      label TEXT DEFAULT '',
+      source TEXT DEFAULT '',
+      destination TEXT DEFAULT '',
+      cable_id TEXT DEFAULT '',
+      user_info TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      UNIQUE(frame_id, pair_number)
+    );
+
+    -- 네트워크 포트
     CREATE TABLE IF NOT EXISTS ports (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
@@ -104,23 +180,25 @@ function initSchema(db: Database.Database) {
     -- 인덱스
     CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
     CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);
+    CREATE INDEX IF NOT EXISTS idx_asset_ips_asset ON asset_ips(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_asset_photos_asset ON asset_photos(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ports_asset ON ports(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ports_connected ON ports(connected_to_port_id);
     CREATE INDEX IF NOT EXISTS idx_custom_values_asset ON custom_values(asset_id);
     CREATE INDEX IF NOT EXISTS idx_custom_values_field ON custom_values(field_id);
+    CREATE INDEX IF NOT EXISTS idx_dist_frames_location ON dist_frames(location_id);
+    CREATE INDEX IF NOT EXISTS idx_frame_pairs_frame ON frame_pairs(frame_id);
   `);
 
-  // 기존 DB에 새 컬럼이 없으면 추가 (마이그레이션)
+  // 기존 DB 마이그레이션
   const cols = db.prepare("PRAGMA table_info(assets)").all() as any[];
   const colNames = new Set(cols.map((c: any) => c.name));
-  const newCols = [
-    ["os", "TEXT DEFAULT ''"],
-    ["access_ip", "TEXT DEFAULT ''"],
-    ["user_name", "TEXT DEFAULT ''"],
-    ["admin_name", "TEXT DEFAULT ''"],
-    ["department", "TEXT DEFAULT ''"],
-  ];
-  for (const [name, def] of newCols) {
+  for (const [name, def] of [
+    ["os", "TEXT DEFAULT ''"], ["access_ip", "TEXT DEFAULT ''"],
+    ["user_name", "TEXT DEFAULT ''"], ["admin_name", "TEXT DEFAULT ''"],
+    ["department", "TEXT DEFAULT ''"], ["eos_date", "TEXT DEFAULT ''"],
+  ]) {
     if (!colNames.has(name)) {
       db.exec(`ALTER TABLE assets ADD COLUMN ${name} ${def}`);
     }

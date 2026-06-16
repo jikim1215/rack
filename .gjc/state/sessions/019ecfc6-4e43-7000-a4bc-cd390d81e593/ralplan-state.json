@@ -1,0 +1,27 @@
+{
+  "active": true,
+  "version": 2,
+  "current_phase": "planner",
+  "skill": "ralplan",
+  "cwd": "D:\\gajea\\rack",
+  "updated_at": "2026-06-16T10:33:15.807Z",
+  "session_id": "019ecfc6-4e43-7000-a4bc-cd390d81e593",
+  "receipt": {
+    "version": 1,
+    "skill": "ralplan",
+    "owner": "gjc-hook",
+    "command": "gjc-skill-invocation",
+    "state_path": "D:\\gajea\\rack\\.gjc\\state\\sessions\\019ecfc6-4e43-7000-a4bc-cd390d81e593\\skill-active-state.json",
+    "storage_path": "D:\\gajea\\rack\\.gjc\\state\\sessions\\019ecfc6-4e43-7000-a4bc-cd390d81e593\\ralplan-state.json",
+    "mutated_at": "2026-06-16T10:33:15.807Z",
+    "fresh_until": "2026-06-16T11:03:15.807Z",
+    "status": "fresh",
+    "mutation_id": "ralplan:2026-06-16T10:33:15.807Z",
+    "content_sha256": {
+      "algorithm": "sha256",
+      "value": "5daae244efb29c93093c2a69b794369c5febf2c201c72cad97fec50683131f88",
+      "covered_path": "D:\\gajea\\rack\\.gjc\\state\\sessions\\019ecfc6-4e43-7000-a4bc-cd390d81e593\\ralplan-state.json",
+      "computed_at": "2026-06-16T10:33:15.808Z"
+    }
+  }
+}

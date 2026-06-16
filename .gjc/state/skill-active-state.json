@@ -2,22 +2,38 @@
   "version": 1,
   "active": true,
   "skill": "ralplan",
-  "keyword": "/skill:ralplan",
   "phase": "planner",
-  "activated_at": "2026-06-16T09:31:52.935Z",
-  "updated_at": "2026-06-16T09:31:52.935Z",
-  "source": "gjc-skill-invocation",
-  "session_id": "019ecfc5-b68e-7000-ba7c-12969d414aed",
-  "initialized_mode": "ralplan",
-  "initialized_state_path": "D:\\gajea\\rack\\.gjc\\state\\sessions\\019ecfc5-b68e-7000-ba7c-12969d414aed\\ralplan-state.json",
+  "updated_at": "2026-06-16T10:55:38.799Z",
   "active_skills": [
     {
       "skill": "ralplan",
       "phase": "planner",
       "active": true,
-      "activated_at": "2026-06-16T09:31:52.935Z",
-      "updated_at": "2026-06-16T09:31:52.935Z",
-      "session_id": "019ecfc5-b68e-7000-ba7c-12969d414aed"
+      "activated_at": "2026-06-16T10:55:38.799Z",
+      "updated_at": "2026-06-16T10:55:38.799Z",
+      "hud": {
+        "version": 1,
+        "summary": "persisted planner stage 13",
+        "chips": [
+          {
+            "label": "stage",
+            "value": "planner",
+            "priority": 10
+          },
+          {
+            "label": "iter",
+            "value": "13",
+            "priority": 30
+          },
+          {
+            "label": "stages",
+            "value": "P",
+            "priority": 35
+          }
+        ],
+        "updated_at": "2026-06-16T10:55:38.797Z"
+      }
     }
-  ]
+  ],
+  "active_subskills": []
 }
