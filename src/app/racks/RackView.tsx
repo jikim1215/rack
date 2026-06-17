@@ -6,14 +6,14 @@ const typeColors: Record<string, string> = {
   server: "#3b82f6",
   network: "#22c55e",
   security: "#ef4444",
-  storage: "#a855f7",
+  telecom: "#f97316",
   other: "#6b7280",
 };
 const typeLabels: Record<string, string> = {
-  server: "서버", network: "네트워크", security: "보안", storage: "스토리지", other: "기타",
+  server: "서버", network: "네트워크", security: "정보보호", telecom: "전화설비", other: "기타",
 };
 const statusLabels: Record<string, string> = {
-  active: "운용중", inactive: "미사용", maintenance: "점검중", decommissioned: "폐기",
+  active: "운용중", inactive: "미사용", maintenance: "점검중", decommissioned: "폐기", eos: "EoS(단종)",
 };
 
 interface Asset {

@@ -7,13 +7,13 @@ import {
 } from "lucide-react";
 
 const typeLabels: Record<string, string> = {
-  server: "서버", network: "네트워크", security: "정보보호", storage: "스토리지", other: "기타",
+  server: "서버", network: "네트워크", security: "정보보호", telecom: "전화설비", other: "기타",
 };
 const typeColors: Record<string, string> = {
   server: "bg-blue-100 text-blue-700",
   network: "bg-green-100 text-green-700",
   security: "bg-red-100 text-red-700",
-  storage: "bg-purple-100 text-purple-700",
+  telecom: "bg-orange-100 text-orange-700",
   other: "bg-gray-100 text-gray-700",
 };
 const statusLabels: Record<string, string> = {

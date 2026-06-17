@@ -64,7 +64,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS assets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    asset_type TEXT NOT NULL CHECK(asset_type IN ('server','network','security','storage','other')),
+    asset_type TEXT NOT NULL CHECK(asset_type IN ('server','network','security','telecom','other')),
     name TEXT NOT NULL,
     manufacturer TEXT DEFAULT '',
     model TEXT DEFAULT '',
@@ -308,11 +308,11 @@ insertAsset.run("security", "NAC", "Genian", "NAC 5.0", "SEC-2024-004", "10.10.0
   "2020-04-01", "2025-03-31", "2027-06-30",
   rack3, 5, 1, "네트워크접근제어");
 
-// 스토리지
-const sanId = insertAsset.run("storage", "SAN스토리지", "NetApp", "FAS2750", "STR-2024-001", "10.10.1.50", "ST-001", "active",
-  "ONTAP 9.13", "10.10.1.50", "", "박데이터", "정보운영과",
-  "2021-12-01", "2026-11-30", "2029-03-31",
-  rack1, 9, 4, "SAN 스토리지").lastInsertRowid;
+// 전화설비
+const pbxId = insertAsset.run("telecom", "전화교환기", "Samsung", "SCM-8000", "TEL-2024-001", "10.10.5.1", "PBX-001", "active",
+  "SCM v3.2", "10.10.5.1", "", "최네트", "정보운영과",
+  "2021-12-01", "2026-11-30", "",
+  rack1, 9, 4, "IP-PBX 전화교환기").lastInsertRowid;
 
 // ============================================================
 // asset_ips (다중 IP)
@@ -347,10 +347,9 @@ insertIp.run(fwId, "10.10.0.100", "management", "mgmt", 1, "관리 IP");
 insertIp.run(fwId, "10.10.100.1", "service", "eth1-1", 0, "외부 서비스");
 insertIp.run(fwId, "10.10.200.1", "service", "eth1-2", 0, "내부 서비스");
 
-// SAN스토리지
-insertIp.run(sanId, "10.10.1.50", "management", "mgmt", 1, "관리 IP");
-insertIp.run(sanId, "10.10.3.50", "service", "iscsi0", 0, "iSCSI 경로 1");
-insertIp.run(sanId, "10.10.3.51", "backup", "iscsi1", 0, "iSCSI 경로 2");
+// 전화교환기
+insertIp.run(pbxId, "10.10.5.1", "management", "eth0", 1, "관리 IP");
+insertIp.run(pbxId, "10.10.5.2", "service", "eth1", 0, "서비스 IP");
 
 // ============================================================
 // custom_fields

@@ -51,7 +51,7 @@ function initSchema(db: Database.Database) {
     -- 자산
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      asset_type TEXT NOT NULL CHECK(asset_type IN ('server','network','security','storage','other')),
+      asset_type TEXT NOT NULL CHECK(asset_type IN ('server','network','security','telecom','other')),
       name TEXT NOT NULL,
       manufacturer TEXT DEFAULT '',
       model TEXT DEFAULT '',

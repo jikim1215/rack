@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
-const VALID_TYPES = ["server", "network", "security", "storage", "other"];
+const VALID_TYPES = ["server", "network", "security", "telecom", "other"];
 const VALID_STATUSES = ["active", "inactive", "maintenance", "decommissioned", "eos"];
 
 // 고정 필드 인덱스 (키 행 기반)
