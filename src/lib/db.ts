@@ -89,16 +89,6 @@ function initSchema(db: Database.Database) {
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
-    -- 자산 사진
-    CREATE TABLE IF NOT EXISTS asset_photos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
-      filename TEXT NOT NULL,
-      original_name TEXT DEFAULT '',
-      mime_type TEXT DEFAULT 'image/jpeg',
-      created_at TEXT DEFAULT (datetime('now','localtime'))
-    );
-
     -- 자산 변경 이력
     CREATE TABLE IF NOT EXISTS asset_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,7 +175,6 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
     CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);
     CREATE INDEX IF NOT EXISTS idx_asset_ips_asset ON asset_ips(asset_id);
-    CREATE INDEX IF NOT EXISTS idx_asset_photos_asset ON asset_photos(asset_id);
     CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ports_asset ON ports(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ports_connected ON ports(connected_to_port_id);

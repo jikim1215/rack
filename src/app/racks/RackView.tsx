@@ -85,7 +85,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
           const usagePercent = Math.round((usedUnits / rack.total_units) * 100);
 
           return (
-            <div key={rack.id} className="bg-white border rounded-lg p-4">
+            <div key={rack.id} className="bg-white border rounded-lg p-4 hover-card">
               <div className="text-center mb-3">
                 <h3 className="font-bold text-sm">{rack.name}</h3>
                 <p className="text-xs text-slate-400">{rack.location_name}</p>
@@ -109,7 +109,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
                     return (
                       <div
                         key={unit}
-                        className="flex items-center rounded-sm cursor-pointer transition-opacity hover:opacity-80 relative"
+                        className="flex items-center rounded-sm cursor-pointer hover-rack-item relative"
                         style={{
                           height,
                           backgroundColor: typeColors[asset.asset_type] || typeColors.other,

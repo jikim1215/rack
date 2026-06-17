@@ -150,7 +150,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
                     onMouseLeave={() => setHoveredPort(null)}
                   >
                     <div
-                      className={`w-10 h-10 rounded flex flex-col items-center justify-center cursor-pointer transition-transform hover:scale-110 ${portStatusColors[port.status]}`}
+                      className={`w-10 h-10 rounded flex flex-col items-center justify-center cursor-pointer hover-cell ${portStatusColors[port.status]}`}
                     >
                       <span className="text-[9px] font-bold text-white">{port.port_number}</span>
                       <span className="text-[7px] text-white/70">{portTypeLabels[port.port_type]?.slice(0, 3) || ""}</span>

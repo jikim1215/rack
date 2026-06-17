@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Plus, Search, Pencil, Trash2, X, Save, ChevronDown, ChevronUp,
-  Settings, Upload, Download, FileSpreadsheet, AlertCircle, QrCode, History, Camera,
+  Settings, Upload, Download, FileSpreadsheet, AlertCircle, History,
 } from "lucide-react";
 
 const typeLabels: Record<string, string> = {
@@ -101,8 +101,6 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
   const [importResult, setImportResult] = useState<any>(null);
   const [importing, setImporting] = useState(false);
 
-  // QR 모달
-  const [qrAsset, setQrAsset] = useState<Asset | null>(null);
 
   // 테이블에 표시할 커스텀 필드
   const tableCustomFields = customFields.filter((f) => f.show_in_table);
@@ -596,7 +594,6 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
                 <TableRow key={a.id} asset={a} expanded={expandedId === a.id}
                   onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
                   onEdit={() => startEdit(a)} onDelete={() => handleDelete(a.id)}
-                  onQR={() => setQrAsset(a)}
                   tableCustomFields={tableCustomFields} allCustomFields={customFields}
                   cvMap={cvMap} renderCustomValue={renderCustomValue}
                   getFieldsForType={getFieldsForType} />
@@ -610,17 +607,15 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
         <div className="border-t p-3 text-xs text-slate-400">총 {filtered.length}건</div>
       </div>
 
-      {/* QR 모달 — 동적 로딩 */}
-      {qrAsset && <QRModalInline asset={qrAsset} onClose={() => setQrAsset(null)} />}
     </div>
   );
 }
 
 // --- 테이블 행 ---
-function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete, onQR,
+function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete,
   tableCustomFields, allCustomFields, cvMap, renderCustomValue, getFieldsForType,
 }: {
-  asset: Asset; expanded: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void; onQR: () => void;
+  asset: Asset; expanded: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void;
   tableCustomFields: CustomField[]; allCustomFields: CustomField[];
   cvMap: Record<number, Record<number, string>>;
   renderCustomValue: (f: CustomField, v: string | undefined) => string;
@@ -628,7 +623,7 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete, onQR,
 }) {
   return (
     <>
-      <tr className="border-b last:border-0 hover:bg-slate-50 cursor-pointer" onClick={onToggle}>
+      <tr className="border-b last:border-0 hover-row cursor-pointer" onClick={onToggle}>
         <td className="p-3 text-slate-400">{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
         <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded ${typeColors[a.asset_type]}`}>{typeLabels[a.asset_type]}</span></td>
         <td className="p-3 font-medium">{a.name}</td>
@@ -645,7 +640,6 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete, onQR,
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex gap-0.5">
             <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="수정"><Pencil size={14} /></button>
-            <button onClick={onQR} className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded" title="QR"><QrCode size={14} /></button>
             <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
           </div>
         </td>
@@ -676,11 +670,10 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete, onQR,
                 </div>
               ));
             })()}
-            {/* 사진 + 이력 (lazy loaded) */}
-            <div className="flex gap-2 mt-3">
-              <ExpandSection title="사진" icon={<Camera size={14} />} assetId={a.id} type="photos" />
-              <ExpandSection title="변경이력" icon={<History size={14} />} assetId={a.id} type="logs" />
-            </div>
+            {/* 변경이력 */}
+            <div className="mt-3">
+              <ExpandSection title="변경이력" icon={<History size={14} />} assetId={a.id} />
+          </div>
           </td>
         </tr>
       )}
@@ -688,35 +681,24 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete, onQR,
   );
 }
 
-// --- 확장 섹션 (사진/이력 lazy load) ---
-function ExpandSection({ title, icon, assetId, type }: { title: string; icon: React.ReactNode; assetId: number; type: "photos" | "logs" }) {
+// --- 변경이력 lazy load ---
+function ExpandSection({ title, icon, assetId }: { title: string; icon: React.ReactNode; assetId: number }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<any[] | null>(null);
 
   async function load() {
     if (data !== null) { setOpen(!open); return; }
-    const url = type === "photos" ? `/api/assets/${assetId}/photos` : `/api/assets/${assetId}/logs`;
-    const res = await fetch(url);
+    const res = await fetch(`/api/assets/${assetId}/logs`);
     if (res.ok) setData(await res.json());
     setOpen(true);
   }
 
   return (
-    <div className="flex-1">
+    <div>
       <button onClick={load} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 mb-2">
         {icon} {title} {open ? "▲" : "▼"}
       </button>
-      {open && data && type === "photos" && (
-        <div className="flex flex-wrap gap-2">
-          {data.length === 0 && <p className="text-xs text-slate-400">등록된 사진 없음</p>}
-          {data.map((p: any) => (
-            <img key={p.id} src={`/api/uploads/${p.filename}`} alt={p.original_name}
-              className="w-20 h-20 object-cover rounded border cursor-pointer hover:opacity-80"
-              onClick={() => window.open(`/api/uploads/${p.filename}`, "_blank")} />
-          ))}
-        </div>
-      )}
-      {open && data && type === "logs" && (
+      {open && data && (
         <div className="space-y-2 max-h-48 overflow-y-auto">
           {data.length === 0 && <p className="text-xs text-slate-400">변경 이력 없음</p>}
           {data.map((log: any) => (
@@ -740,35 +722,6 @@ function ExpandSection({ title, icon, assetId, type }: { title: string; icon: Re
   );
 }
 
-// --- QR 모달 (인라인) ---
-function QRModalInline({ asset, onClose }: { asset: Asset; onClose: () => void }) {
-  const [qrData, setQrData] = useState<any>(null);
-  useState(() => {
-    fetch(`/api/assets/${asset.id}/qrcode`).then((r) => r.json()).then(setQrData);
-  });
-  return (
-    <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">QR 라벨</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
-        </div>
-        {qrData?.qrDataUrl ? (
-          <div className="text-center print-area">
-            <img src={qrData.qrDataUrl} alt="QR" className="w-48 h-48 mx-auto" />
-            <p className="font-bold mt-3">{asset.name}</p>
-            <p className="text-sm text-slate-500">{asset.asset_tag}</p>
-            <p className="text-xs text-slate-400">{asset.manufacturer} {asset.model}</p>
-            <p className="text-xs text-slate-400">{asset.serial_number}</p>
-          </div>
-        ) : (
-          <p className="text-center text-slate-400 text-sm py-8">QR 생성 중...</p>
-        )}
-        <button onClick={() => window.print()} className="mt-4 w-full bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700">인쇄</button>
-      </div>
-    </div>
-  );
-}
 
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (

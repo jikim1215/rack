@@ -270,7 +270,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                 <button
                   key={f.id}
                   onClick={() => setSelectedFrame(f.id)}
-                  className={`bg-white border rounded-lg p-5 text-left transition-all hover:shadow-md ${
+                  className={`bg-white border rounded-lg p-5 text-left hover-card ${
                     selectedFrame === f.id ? "ring-2 ring-blue-500 border-blue-300" : ""
                   }`}
                 >
@@ -337,7 +337,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                   return (
                     <div
                       key={pairNum}
-                      className={`relative w-9 h-9 rounded flex items-center justify-center cursor-pointer transition-transform hover:scale-110 ${colorCls}`}
+                      className={`relative w-9 h-9 rounded flex items-center justify-center cursor-pointer hover-cell ${colorCls}`}
                       onMouseEnter={() => pair && setHoveredPair(pair)}
                       onMouseLeave={() => setHoveredPair(null)}
                       onClick={() => {

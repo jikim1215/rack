@@ -26,10 +26,62 @@ body {
   border-radius: 0.5rem;
   font-size: 0.875rem;
   outline: none;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, border-color 0.15s;
 }
 
 .form-input:focus {
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
   border-color: var(--accent);
+}
+
+/* 호버 강조 공통 */
+.hover-card {
+  transition: box-shadow 0.15s, transform 0.1s, border-color 0.15s;
+}
+.hover-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.hover-row {
+  transition: background-color 0.1s;
+}
+.hover-row:hover {
+  background-color: #eff6ff !important;
+}
+
+/* 랙 장비 호버 */
+.hover-rack-item {
+  transition: opacity 0.1s, outline 0.1s;
+}
+.hover-rack-item:hover {
+  opacity: 0.85;
+  outline: 2px solid #fff;
+  outline-offset: -1px;
+  z-index: 1;
+}
+
+/* 포트/배선 셀 호버 */
+.hover-cell {
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.hover-cell:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+/* 사이드바 메뉴 호버 */
+.hover-nav {
+  transition: background-color 0.15s, padding-left 0.15s;
+}
+.hover-nav:hover {
+  padding-left: 1.25rem;
+}
+
+/* 인쇄 시 모달만 표시 */
+@media print {
+  body > * { display: none !important; }
+  .print-area { display: block !important; }
 }
