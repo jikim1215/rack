@@ -12,6 +12,7 @@ import {
   GitBranch,
   LogOut,
   User,
+  Settings,
 } from "lucide-react";
 
 const nav = [
@@ -21,6 +22,7 @@ const nav = [
   { href: "/portmap", label: "포트맵", icon: Cable },
   { href: "/distribution", label: "배선관리", icon: GitBranch },
   { href: "/locations", label: "위치관리", icon: MapPin },
+  { href: "/settings", label: "설정", icon: Settings },
 ];
 
 const roleBadge: Record<string, string> = {

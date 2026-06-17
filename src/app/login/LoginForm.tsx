@@ -4,6 +4,12 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 
+async function sha512(message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(message);
+  const hash = await crypto.subtle.digest('SHA-512', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -18,10 +24,11 @@ export function LoginForm() {
     setLoading(true);
 
     try {
+      const hashedPassword = await sha512(password);
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password: hashedPassword }),
       });
       const data = await res.json();
 

@@ -117,10 +117,14 @@ function initSchema(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       field_key TEXT NOT NULL UNIQUE,
       field_label TEXT NOT NULL,
-      field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN ('text','number','date','select','textarea')),
+      field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN ('text','number','date','select','textarea','multi-text')),
+      field_group TEXT DEFAULT '기본',
       options TEXT DEFAULT '',
       asset_types TEXT DEFAULT '',
       sort_order INTEGER DEFAULT 0,
+      is_required INTEGER DEFAULT 0,
+      show_in_table INTEGER DEFAULT 0,
+      show_in_detail INTEGER DEFAULT 1,
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
@@ -201,6 +205,20 @@ function initSchema(db: Database.Database) {
   ]) {
     if (!colNames.has(name)) {
       db.exec(`ALTER TABLE assets ADD COLUMN ${name} ${def}`);
+    }
+  }
+
+  // custom_fields 마이그레이션
+  const cfCols = db.prepare("PRAGMA table_info(custom_fields)").all() as any[];
+  const cfColNames = new Set(cfCols.map((c: any) => c.name));
+  for (const [name, def] of [
+    ["field_group", "TEXT DEFAULT '기본'"],
+    ["is_required", "INTEGER DEFAULT 0"],
+    ["show_in_table", "INTEGER DEFAULT 0"],
+    ["show_in_detail", "INTEGER DEFAULT 1"],
+  ]) {
+    if (!cfColNames.has(name)) {
+      db.exec(`ALTER TABLE custom_fields ADD COLUMN ${name} ${def}`);
     }
   }
 }

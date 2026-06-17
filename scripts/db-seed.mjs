@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
-import { scryptSync, randomBytes } from "crypto";
+import { scryptSync, randomBytes, createHash } from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = path.join(__dirname, "..", "data.db");
@@ -9,9 +9,11 @@ const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
+function sha512(str) { return createHash('sha512').update(str).digest('hex'); }
 function hashPw(pw) {
+  const hashed = sha512(pw);
   const salt = randomBytes(16).toString("hex");
-  return salt + ":" + scryptSync(pw, salt, 64).toString("hex");
+  return salt + ":" + scryptSync(hashed, salt, 64).toString("hex");
 }
 
 // ============================================================
@@ -124,10 +126,14 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     field_key TEXT NOT NULL UNIQUE,
     field_label TEXT NOT NULL,
-    field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN ('text','number','date','select','textarea')),
+    field_type TEXT NOT NULL DEFAULT 'text' CHECK(field_type IN ('text','number','date','select','textarea','multi-text')),
+    field_group TEXT DEFAULT '기본',
     options TEXT DEFAULT '',
     asset_types TEXT DEFAULT '',
     sort_order INTEGER DEFAULT 0,
+    is_required INTEGER DEFAULT 0,
+    show_in_table INTEGER DEFAULT 0,
+    show_in_detail INTEGER DEFAULT 1,
     is_active INTEGER DEFAULT 1,
     created_at TEXT DEFAULT (datetime('now','localtime'))
   );
@@ -349,34 +355,66 @@ insertIp.run(sanId, "10.10.3.51", "backup", "iscsi1", 0, "iSCSI 경로 2");
 // ============================================================
 // custom_fields
 // ============================================================
-const insertField = db.prepare(`INSERT INTO custom_fields (field_key, field_label, field_type, options, asset_types, sort_order) VALUES (?,?,?,?,?,?)`);
-const cf1 = insertField.run("cpu_spec", "CPU 사양", "text", "", "server", 1).lastInsertRowid;
-const cf2 = insertField.run("ram_gb", "메모리(GB)", "number", "", "server", 2).lastInsertRowid;
-const cf3 = insertField.run("disk_spec", "디스크 구성", "text", "", "server,storage", 3).lastInsertRowid;
-const cf4 = insertField.run("firmware_ver", "펌웨어 버전", "text", "", "", 4).lastInsertRowid;
-const cf5 = insertField.run("service_contract", "유지보수 계약", "select", "AMT,자체,미체결", "", 5).lastInsertRowid;
-const cf6 = insertField.run("purpose", "용도", "textarea", "", "", 6).lastInsertRowid;
+const insertField = db.prepare(`INSERT INTO custom_fields
+  (field_key, field_label, field_type, field_group, options, asset_types, sort_order, is_required, show_in_table, show_in_detail)
+  VALUES (?,?,?,?,?,?,?,?,?,?)`);
+
+// 기본 그룹
+const cf1 = insertField.run('cpu_spec', 'CPU 사양', 'text', '기본', '', 'server', 1, 0, 1, 1).lastInsertRowid;
+const cf2 = insertField.run('ram_gb', '메모리(GB)', 'number', '기본', '', 'server', 2, 0, 1, 1).lastInsertRowid;
+const cf3 = insertField.run('disk_spec', '디스크 구성', 'text', '기본', '', 'server,storage', 3, 0, 0, 1).lastInsertRowid;
+
+// 운영 그룹
+const cf4 = insertField.run('firmware_ver', '펌웨어 버전', 'text', '운영', '', '', 4, 0, 0, 1).lastInsertRowid;
+const cf5 = insertField.run('purpose', '용도', 'textarea', '운영', '', '', 5, 0, 0, 1).lastInsertRowid;
+
+// 계약/날짜 그룹
+const cf6 = insertField.run('purchase_date', '구매일', 'date', '계약', '', '', 10, 0, 0, 1).lastInsertRowid;
+const cf7 = insertField.run('warranty_date', '보증만료일', 'date', '계약', '', '', 11, 0, 1, 1).lastInsertRowid;
+const cf8 = insertField.run('eos_date', 'EoS 일자', 'date', '계약', '', '', 12, 0, 1, 1).lastInsertRowid;
+const cf9 = insertField.run('maint_contract', '유지보수 계약', 'select', '계약', 'AMT,자체,미체결', '', 13, 0, 0, 1).lastInsertRowid;
+
+// 네트워크 그룹
+const cf10 = insertField.run('additional_ips', '추가 IP', 'multi-text', '네트워크', '', 'server,network,security', 20, 0, 0, 1).lastInsertRowid;
 
 // ============================================================
 // custom_values
 // ============================================================
-const insertValue = db.prepare(`INSERT INTO custom_values (asset_id, field_id, value) VALUES (?,?,?)`);
-insertValue.run(srv1, cf1, "Xeon Gold 6248R x2");
-insertValue.run(srv1, cf2, "256");
-insertValue.run(srv1, cf3, "SSD 960GB x2 RAID1 + HDD 2TB x4 RAID5");
-insertValue.run(srv1, cf5, "AMT");
-insertValue.run(srv1, cf6, "기관 홈페이지, 대민포털 서비스");
+const insertValue = db.prepare('INSERT INTO custom_values (asset_id, field_id, value) VALUES (?,?,?)');
 
-insertValue.run(srv2, cf1, "Xeon Gold 6248R x2");
-insertValue.run(srv2, cf2, "128");
-insertValue.run(srv2, cf3, "SSD 960GB x2 RAID1");
-insertValue.run(srv2, cf5, "AMT");
+// 웹서버-01
+insertValue.run(srv1, cf1, 'Xeon Gold 6248R x2');
+insertValue.run(srv1, cf2, '256');
+insertValue.run(srv1, cf3, 'SSD 960GB x2 RAID1 + HDD 2TB x4 RAID5');
+insertValue.run(srv1, cf5, '기관 홈페이지, 대민포털 서비스');
+insertValue.run(srv1, cf6, '2022-03-15');
+insertValue.run(srv1, cf7, '2027-03-14');
+insertValue.run(srv1, cf8, '2029-12-31');
+insertValue.run(srv1, cf9, 'AMT');
+insertValue.run(srv1, cf10, JSON.stringify(['10.10.2.11', '10.10.99.11']));
 
-insertValue.run(srv3, cf1, "Xeon Gold 6230 x2");
-insertValue.run(srv3, cf2, "512");
-insertValue.run(srv3, cf3, "SSD 960GB x2 RAID1 + HDD 4TB x8 RAID6");
-insertValue.run(srv3, cf5, "AMT");
-insertValue.run(srv3, cf6, "Oracle DB 19c, 행정정보 DB");
+// 웹서버-02
+insertValue.run(srv2, cf1, 'Xeon Gold 6248R x2');
+insertValue.run(srv2, cf2, '128');
+insertValue.run(srv2, cf3, 'SSD 960GB x2 RAID1');
+insertValue.run(srv2, cf6, '2022-03-15');
+insertValue.run(srv2, cf7, '2027-03-14');
+insertValue.run(srv2, cf9, 'AMT');
+insertValue.run(srv2, cf10, JSON.stringify(['10.10.2.12', '10.10.99.12']));
+
+// DB서버-01
+insertValue.run(srv3, cf1, 'Xeon Gold 6230 x2');
+insertValue.run(srv3, cf2, '512');
+insertValue.run(srv3, cf3, 'SSD 960GB x2 RAID1 + HDD 4TB x8 RAID6');
+insertValue.run(srv3, cf5, 'Oracle DB 19c, 행정정보 DB');
+insertValue.run(srv3, cf6, '2021-06-01');
+insertValue.run(srv3, cf7, '2026-05-31');
+insertValue.run(srv3, cf9, 'AMT');
+insertValue.run(srv3, cf10, JSON.stringify(['10.10.2.21', '10.10.99.21']));
+
+// 백업서버
+insertValue.run(srv4, cf6, '2020-11-01');
+insertValue.run(srv4, cf7, '2025-10-31');
 
 // ============================================================
 // ports (코어 스위치 48+2포트)
