@@ -21,6 +21,6 @@ export async function POST(req: NextRequest) {
     floor: body.floor || "",
     room: body.room || "",
   });
-  const loc = db.prepare("SELECT * FROM locations WHERE id = ?").get(result.lastInsertRowid);
+  const loc = db.prepare("SELECT *, 0 as rack_count, 0 as asset_count FROM locations WHERE id = ?").get(result.lastInsertRowid);
   return NextResponse.json(loc, { status: 201 });
 }

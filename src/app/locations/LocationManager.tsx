@@ -48,7 +48,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       if (editLocId) {
         setLocations((prev) => prev.map((l) => (l.id === editLocId ? { ...l, ...data } : l)));
       } else {
-        setLocations((prev) => [...prev, { ...data, rack_count: 0, asset_count: 0 }]);
+        setLocations((prev) => [...prev, data]);
       }
       setShowLocForm(false);
       setEditLocId(null);
@@ -306,6 +306,26 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
                             <span className="text-slate-400">{k}:</span>{" "}
                             <span className="text-red-500 line-through">{String(log.old_values[k])}</span>{" → "}
                             <span className="text-green-600">{String(log.new_values?.[k] ?? "")}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {log.action === "create" && log.new_values && Object.keys(log.new_values).length > 0 && (
+                      <div className="mt-1 text-xs space-y-0.5">
+                        {Object.keys(log.new_values).map((k: string) => (
+                          <div key={k}>
+                            <span className="text-slate-400">{k}:</span>{" "}
+                            <span className="text-green-600">{String(log.new_values[k])}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {log.action === "delete" && log.old_values && Object.keys(log.old_values).length > 0 && (
+                      <div className="mt-1 text-xs space-y-0.5">
+                        {Object.keys(log.old_values).map((k: string) => (
+                          <div key={k}>
+                            <span className="text-slate-400">{k}:</span>{" "}
+                            <span className="text-red-500 line-through">{String(log.old_values[k])}</span>
                           </div>
                         ))}
                       </div>
