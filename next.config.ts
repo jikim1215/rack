@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["better-sqlite3", "xlsx"],
   // 폐쇄망: 외부 요청 차단
   images: { unoptimized: true },
   eslint: { ignoreDuringBuilds: true },
