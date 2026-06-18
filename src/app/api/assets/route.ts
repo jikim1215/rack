@@ -1,5 +1,8 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
+import { logAssetChange } from "@/lib/audit";
+import { getSession } from "@/lib/auth";
+
 
 export async function GET() {
   const db = getDb();
@@ -14,6 +17,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const db = getDb();
   const result = db.prepare(`
@@ -49,6 +54,13 @@ export async function POST(req: NextRequest) {
   });
 
   const assetId = result.lastInsertRowid;
+  logAssetChange(db, {
+    assetId: Number(assetId),
+    assetName: body.asset_name || body.name || '',
+    action: 'create',
+    changedBy: session?.username || 'system',
+    newData: { asset_type: body.asset_type, asset_name: body.asset_name, manufacturer: body.manufacturer, model: body.model, ip_address: body.ip_address, status: body.status },
+  });
 
   // 다중 IP 저장
   if (body.ips && Array.isArray(body.ips)) {

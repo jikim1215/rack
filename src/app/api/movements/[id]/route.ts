@@ -27,7 +27,7 @@ export async function PUT(
   }
 
   const updates: string[] = [];
-  const values: Record<string, unknown> = { id };
+  const values: Record<string, unknown> = { id: Number(id) };
 
   if (body.status) {
     updates.push("status = @status");
@@ -76,7 +76,7 @@ export async function PUT(
     FROM asset_movements m
     LEFT JOIN assets a ON m.asset_id = a.id
     WHERE m.id = ?
-  `).get(id);
+  `).get(Number(id));
 
   return NextResponse.json(updated);
 }
@@ -92,6 +92,6 @@ export async function DELETE(
   }
 
   const db = getDb();
-  db.prepare("DELETE FROM asset_movements WHERE id = ?").run(id);
+  db.prepare("DELETE FROM asset_movements WHERE id = ?").run(Number(id));
   return NextResponse.json({ success: true });
 }

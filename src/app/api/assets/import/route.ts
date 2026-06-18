@@ -1,6 +1,9 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { logAssetChange } from "@/lib/audit";
+import { getSession } from "@/lib/auth";
+
 
 const VALID_TYPES = ["server", "network", "security", "telecom", "other"];
 const VALID_STATUSES = ["active", "inactive", "maintenance", "decommissioned", "eos"];
@@ -21,6 +24,8 @@ interface ImportError {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
 
@@ -182,6 +187,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 트랜잭션으로 일괄 INSERT
+
   const insertAll = db.transaction(() => {
     const assetStmt = db.prepare(`
       INSERT INTO assets (asset_type, asset_name, manufacturer, model, serial_number, ip_address, asset_tag,
@@ -201,6 +207,13 @@ export async function POST(req: NextRequest) {
       for (const cv of customValues) {
         cvStmt.run(assetId, cv.fieldId, cv.value);
       }
+      logAssetChange(db, {
+        assetId: Number(assetId),
+        assetName: asset.asset_name,
+        action: 'create',
+        changedBy: session?.username || 'system',
+        newData: asset,
+      });
     }
   });
 

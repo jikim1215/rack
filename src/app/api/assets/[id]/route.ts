@@ -1,5 +1,8 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
+import { logAssetChange } from "@/lib/audit";
+import { getSession } from "@/lib/auth";
+
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,9 +26,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const body = await req.json();
   const db = getDb();
+  const oldAsset = db.prepare('SELECT * FROM assets WHERE id = ?').get(Number(id)) as any;
+
 
   db.prepare(`
     UPDATE assets SET
@@ -49,6 +56,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     rack_id: body.rack_id || null, rack_unit_start: body.rack_unit_start || null,
     rack_unit_size: body.rack_unit_size || 1, description: body.description || "",
   });
+  logAssetChange(db, {
+    assetId: Number(id),
+    assetName: body.asset_name || oldAsset?.asset_name || '',
+    action: 'update',
+    changedBy: session?.username || 'system',
+    oldData: oldAsset || {},
+    newData: body,
+  });
+
 
   // 다중 IP 교체
   if (body.ips && Array.isArray(body.ips)) {
@@ -95,8 +111,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
   const db = getDb();
+  const oldAsset = db.prepare('SELECT * FROM assets WHERE id = ?').get(Number(id)) as any;
   db.prepare("DELETE FROM assets WHERE id = ?").run(Number(id));
+  logAssetChange(db, {
+    assetId: Number(id),
+    assetName: oldAsset?.asset_name || '',
+    action: 'delete',
+    changedBy: session?.username || 'system',
+    oldData: oldAsset || {},
+  });
   return NextResponse.json({ ok: true });
 }

@@ -40,12 +40,16 @@ interface Asset {
   user_name: string;
   admin_name: string;
   department: string;
+  purchase_date: string;
+  warranty_date: string;
+  eos_date: string;
   rack_id: number | null;
   rack_name: string | null;
   location_name: string | null;
   rack_unit_start: number | null;
   rack_unit_size: number;
   description: string;
+
 }
 
 interface CustomField {
@@ -64,12 +68,13 @@ interface CustomField {
 
 const emptyAsset = {
   asset_type: "server", asset_name: "", manufacturer: "", model: "",
-
   serial_number: "", ip_address: "", asset_tag: "", status: "active",
   os: "", access_ip: "", user_name: "", admin_name: "", department: "",
+  purchase_date: "", warranty_date: "", eos_date: "",
   rack_id: null as number | null, rack_unit_start: null as number | null,
   rack_unit_size: 1, description: "",
 };
+
 
 interface Props {
   assets: Asset[];
@@ -179,13 +184,14 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
   function startEdit(asset: Asset) {
     setForm({
       asset_type: asset.asset_type, asset_name: asset.asset_name, manufacturer: asset.manufacturer,
-
       model: asset.model, serial_number: asset.serial_number, ip_address: asset.ip_address,
       asset_tag: asset.asset_tag, status: asset.status, os: asset.os,
       access_ip: asset.access_ip, user_name: asset.user_name, admin_name: asset.admin_name,
-      department: asset.department, rack_id: asset.rack_id, rack_unit_start: asset.rack_unit_start,
+      department: asset.department, purchase_date: asset.purchase_date, warranty_date: asset.warranty_date,
+      eos_date: asset.eos_date, rack_id: asset.rack_id, rack_unit_start: asset.rack_unit_start,
       rack_unit_size: asset.rack_unit_size, description: asset.description,
     });
+
     setCustomValues(cvMap[asset.id] || {});
     setEditId(asset.id);
     setShowForm(true);
@@ -546,6 +552,14 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
               </div>
             );
           })()}
+          {/* 날짜 / 계약 */}
+          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">날짜 / 계약</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <FormField label="구매일"><input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} className="form-input" /></FormField>
+            <FormField label="보증만료"><input type="date" value={form.warranty_date} onChange={(e) => setForm({ ...form, warranty_date: e.target.value })} className="form-input" /></FormField>
+            <FormField label="EoS 일자"><input type="date" value={form.eos_date} onChange={(e) => setForm({ ...form, eos_date: e.target.value })} className="form-input" /></FormField>
+          </div>
+
 
           {/* 커스텀 필드 — 그룹별 섹션 */}
           {(() => {
@@ -660,6 +674,9 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete,
               <DetailItem label="접근 IP" value={a.access_ip} />
               <DetailItem label="사용자" value={a.user_name} />
               <DetailItem label="설명" value={a.description} />
+              <DetailItem label="구매일" value={a.purchase_date} />
+              <DetailItem label="보증만료" value={a.warranty_date} />
+              <DetailItem label="EoS" value={a.eos_date} />
             </div>
             {/* 커스텀 필드 상세 — 그룹별 */}
             {(() => {

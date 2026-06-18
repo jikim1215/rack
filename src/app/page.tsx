@@ -2,7 +2,9 @@ import { getDb } from "@/lib/db";
 import {
   Server, Network, Shield, Phone, Cable,
   AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Package, Activity, Wrench, XCircle, Archive,
+  ArrowLeftRight, FileText,
 } from "lucide-react";
+
 
 
 function getStats() {
@@ -76,12 +78,32 @@ function getStats() {
       SUM(CASE WHEN os = '' THEN 1 ELSE 0 END) as no_os
     FROM assets
   `).get() as any;
+  // 반입/반출 현황
+  const pendingMovements = (db.prepare("SELECT COUNT(*) as c FROM asset_movements WHERE status='requested'").get() as any).c;
+  const recentMovements = db.prepare(
+    "SELECT m.*, a.asset_name FROM asset_movements m LEFT JOIN assets a ON m.asset_id = a.id ORDER BY m.created_at DESC LIMIT 5"
+  ).all() as any[];
+
+  // 유지보수 현황
+  const openMaintenance = (db.prepare("SELECT COUNT(*) as c FROM maintenance_logs WHERE status IN ('open','in_progress')").get() as any).c;
+  const recentMaintenance = db.prepare(
+    "SELECT ml.*, a.asset_name FROM maintenance_logs ml LEFT JOIN assets a ON ml.asset_id = a.id ORDER BY ml.created_at DESC LIMIT 5"
+  ).all() as any[];
+
+  // 계약 만료 현황
+  const expiringContracts = db.prepare(
+    `SELECT c.*, v.vendor_name FROM contracts c LEFT JOIN vendors v ON c.vendor_id = v.id
+     WHERE c.status = 'active' AND c.end_date != '' AND c.end_date <= ? ORDER BY c.end_date LIMIT 5`
+  ).all(days90) as any[];
+
 
   return {
     totalAssets, byType, activeAssets, totalRacks, totalPorts, usedPorts,
     totalLocations, rackUsage, recentAssets, byDepartment, byAdmin, byOs,
     byStatus, eosWarnings, warrantyWarnings, dataQuality,
+    pendingMovements, recentMovements, openMaintenance, recentMaintenance, expiringContracts,
   };
+
 
 }
 
@@ -101,6 +123,11 @@ const typeColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   active: "운용중", inactive: "미사용", maintenance: "점검중", decommissioned: "폐기", eos: "EoS(단종)",
 };
+const movementLabels: Record<string, string> = { bring_in: '반입', bring_out: '반출', return: '반납' };
+const movementColors: Record<string, string> = { bring_in: 'text-blue-600', bring_out: 'text-orange-600', return: 'text-green-600' };
+const severityLabels: Record<string, string> = { critical: '심각', major: '주요', minor: '경미' };
+const severityColors: Record<string, string> = { critical: 'text-red-600 bg-red-50', major: 'text-amber-600 bg-amber-50', minor: 'text-blue-600 bg-blue-50' };
+
 
 
 export default function DashboardPage() {
@@ -387,6 +414,94 @@ export default function DashboardPage() {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* 운영 현황 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* 반입/반출 */}
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <ArrowLeftRight size={18} className="text-blue-500" />
+            반입/반출
+          </h3>
+          <p className="text-sm text-slate-600 mb-3">대기 승인: <span className="font-bold text-blue-600">{stats.pendingMovements}건</span></p>
+          {stats.recentMovements.length > 0 ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {stats.recentMovements.map((m: any, i: number) => (
+                <div key={m.id ?? i} className="flex items-center justify-between text-sm border-b last:border-0 pb-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-slate-400 shrink-0">{(m.created_at || '').slice(0, 10)}</span>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${movementColors[m.movement_type] || 'text-slate-600'}`}>
+                      {movementLabels[m.movement_type] || m.movement_type}
+                    </span>
+                    <span className="truncate">{m.asset_name || '-'}</span>
+                  </div>
+                  <span className="text-xs text-slate-400 shrink-0 ml-2">{m.status}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-400 text-sm">내역 없음</p>
+          )}
+        </div>
+
+        {/* 유지보수/장애 */}
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <Wrench size={18} className="text-amber-500" />
+            유지보수/장애
+          </h3>
+          <p className="text-sm text-slate-600 mb-3">미해결: <span className="font-bold text-amber-600">{stats.openMaintenance}건</span></p>
+          {stats.recentMaintenance.length > 0 ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {stats.recentMaintenance.map((ml: any, i: number) => (
+                <div key={ml.id ?? i} className="flex items-center justify-between text-sm border-b last:border-0 pb-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs text-slate-400 shrink-0">{(ml.created_at || '').slice(0, 10)}</span>
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${severityColors[ml.severity] || ''}`}>
+                      {severityLabels[ml.severity] || ml.severity || '-'}
+                    </span>
+                    <span className="truncate">{ml.asset_name || '-'}</span>
+                  </div>
+                  <span className="text-xs text-slate-400 shrink-0 ml-2">{ml.status}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-400 text-sm">내역 없음</p>
+          )}
+        </div>
+
+        {/* 계약 만료 임박 */}
+        <div className="bg-white rounded-lg border p-5">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <FileText size={18} className="text-red-500" />
+            계약 만료 임박
+          </h3>
+          {stats.expiringContracts.length > 0 ? (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {stats.expiringContracts.map((c: any, i: number) => {
+                const d = Math.ceil((new Date(c.end_date).getTime() - new Date(today).getTime()) / 86400000);
+                return (
+                  <div key={c.id ?? i} className="flex items-center justify-between text-sm border-b last:border-0 pb-1.5">
+                    <div className="min-w-0">
+                      <span className="font-medium truncate block">{c.contract_name || '-'}</span>
+                      <span className="text-xs text-slate-400">{c.vendor_name || '-'} · {c.end_date}</span>
+                    </div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-semibold shrink-0 ml-2 ${d <= 0 ? 'bg-red-100 text-red-700' : d <= 30 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {d <= 0 ? '만료' : `D-${d}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-green-600 text-sm">
+              <CheckCircle size={16} />
+              만료 임박 계약 없음 ✓
+            </div>
+          )}
         </div>
       </div>
 
