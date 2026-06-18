@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET() {
   const db = getDb();
   const frames = db.prepare(`
-    SELECT df.*, l.name as location_name, l.building, l.floor
+    SELECT df.*, l.location_name, l.building, l.floor
     FROM dist_frames df
     LEFT JOIN locations l ON df.location_id = l.id
-    ORDER BY l.building, l.floor, df.name
+    ORDER BY l.building, l.floor, df.frame_name
   `).all();
   return NextResponse.json(frames);
 }
@@ -18,12 +18,12 @@ export async function POST(req: NextRequest) {
 
   const insert = db.transaction(() => {
     const result = db.prepare(`
-      INSERT INTO dist_frames (location_id, rack_id, name, frame_type, total_pairs, description)
-      VALUES (@location_id, @rack_id, @name, @frame_type, @total_pairs, @description)
+      INSERT INTO dist_frames (location_id, rack_id, frame_name, frame_type, total_pairs, description)
+      VALUES (@location_id, @rack_id, @frame_name, @frame_type, @total_pairs, @description)
     `).run({
       location_id: body.location_id,
       rack_id: body.rack_id || null,
-      name: body.name,
+      frame_name: body.frame_name || body.name,
       frame_type: body.frame_type || "110block",
       total_pairs: body.total_pairs || 50,
       description: body.description || "",

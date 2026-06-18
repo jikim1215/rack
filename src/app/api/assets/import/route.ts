@@ -7,7 +7,7 @@ const VALID_STATUSES = ["active", "inactive", "maintenance", "decommissioned", "
 
 // 고정 필드 인덱스 (키 행 기반)
 const FIXED_KEYS = [
-  "asset_type", "name", "manufacturer", "model", "serial_number",
+  "asset_type", "asset_name", "manufacturer", "model", "serial_number",
   "ip_address", "asset_tag", "status", "os", "access_ip",
   "user_name", "admin_name", "department",
   "rack_name", "rack_unit_start", "rack_unit_size", "description",
@@ -83,8 +83,8 @@ export async function POST(req: NextRequest) {
   }
 
   // 랙 매핑
-  const allRacks = db.prepare("SELECT id, name FROM racks").all() as any[];
-  const rackMap = new Map(allRacks.map((r: any) => [r.name, r.id]));
+  const allRacks = db.prepare("SELECT id, rack_name FROM racks").all() as any[];
+  const rackMap = new Map(allRacks.map((r: any) => [r.rack_name, r.id]));
 
   // 커스텀 필드 유효성 확인
   const validFieldIds = new Set(
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     const rowNum = i + 3; // 1-indexed + header + keyrow
     const rowErrors: ImportError[] = [];
 
-    const name = getVal(r, "name");
+    const name = getVal(r, "asset_name");
     if (!name) {
       rowErrors.push({ row: rowNum, column: "이름", value: "", error: "이름은 필수입니다" });
     }
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
     } else {
       validRows.push({
         asset: {
-          asset_type, name, manufacturer: getVal(r, "manufacturer"), model: getVal(r, "model"),
+          asset_type, asset_name: name, manufacturer: getVal(r, "manufacturer"), model: getVal(r, "model"),
           serial_number: getVal(r, "serial_number"), ip_address: getVal(r, "ip_address"),
           asset_tag: getVal(r, "asset_tag"), status,
           os: getVal(r, "os"), access_ip: getVal(r, "access_ip"),
@@ -184,10 +184,10 @@ export async function POST(req: NextRequest) {
   // 트랜잭션으로 일괄 INSERT
   const insertAll = db.transaction(() => {
     const assetStmt = db.prepare(`
-      INSERT INTO assets (asset_type, name, manufacturer, model, serial_number, ip_address, asset_tag,
+      INSERT INTO assets (asset_type, asset_name, manufacturer, model, serial_number, ip_address, asset_tag,
         status, os, access_ip, user_name, admin_name, department,
         rack_id, rack_unit_start, rack_unit_size, description)
-      VALUES (@asset_type, @name, @manufacturer, @model, @serial_number, @ip_address, @asset_tag,
+      VALUES (@asset_type, @asset_name, @manufacturer, @model, @serial_number, @ip_address, @asset_tag,
         @status, @os, @access_ip, @user_name, @admin_name, @department,
         @rack_id, @rack_unit_start, @rack_unit_size, @description)
     `);

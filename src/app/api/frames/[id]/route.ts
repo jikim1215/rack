@@ -30,7 +30,7 @@ export async function PUT(
     UPDATE dist_frames SET
       location_id = @location_id,
       rack_id = @rack_id,
-      name = @name,
+      frame_name = @frame_name,
       frame_type = @frame_type,
       total_pairs = @total_pairs,
       description = @description
@@ -39,7 +39,7 @@ export async function PUT(
     id: Number(id),
     location_id: body.location_id,
     rack_id: body.rack_id || null,
-    name: body.name,
+    frame_name: body.frame_name || body.name,
     frame_type: body.frame_type || "110block",
     total_pairs: body.total_pairs || 50,
     description: body.description || "",

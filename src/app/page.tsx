@@ -16,7 +16,8 @@ function getStats() {
   const totalLocations = (db.prepare("SELECT COUNT(*) as c FROM locations").get() as any).c;
 
   const rackUsage = db.prepare(`
-    SELECT r.id, r.name, r.total_units,
+    SELECT r.id, r.rack_name, r.total_units,
+
       COALESCE(SUM(a.rack_unit_size), 0) as used_units
     FROM racks r
     LEFT JOIN assets a ON a.rack_id = r.id
@@ -24,7 +25,8 @@ function getStats() {
   `).all() as any[];
 
   const recentAssets = db.prepare(`
-    SELECT id, name, asset_type, status, ip_address, os, admin_name, department, created_at
+    SELECT id, asset_name, asset_type, status, ip_address, os, admin_name, department, created_at
+
     FROM assets ORDER BY created_at DESC LIMIT 5
   `).all() as any[];
 
@@ -49,7 +51,8 @@ function getStats() {
   const today = new Date().toISOString().slice(0, 10);
   const days90 = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
   const eosWarnings = db.prepare(`
-    SELECT id, name, asset_type, eos_date FROM assets
+    SELECT id, asset_name, asset_type, eos_date FROM assets
+
     WHERE eos_date != '' AND eos_date <= ?
     ORDER BY eos_date
     LIMIT 10
@@ -57,7 +60,8 @@ function getStats() {
 
   // 보증만료 경고
   const warrantyWarnings = db.prepare(`
-    SELECT id, name, asset_type, warranty_date FROM assets
+    SELECT id, asset_name, asset_type, warranty_date FROM assets
+
     WHERE warranty_date != '' AND warranty_date <= ?
     ORDER BY warranty_date
     LIMIT 10
@@ -203,7 +207,8 @@ export default function DashboardPage() {
               return (
                 <div key={r.id}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span>{r.name}</span>
+                    <span>{r.rack_name}</span>
+
                     <span className="text-slate-500">{r.used_units}U / {r.total_units}U ({pct}%)</span>
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -331,7 +336,8 @@ export default function DashboardPage() {
               {allWarnings.map((w: any, i: number) => (
                 <div key={`${w.warnType}-${w.id}-${i}`} className="flex items-center justify-between text-sm border-b last:border-0 pb-2">
                   <div>
-                    <span className="font-medium">{w.name}</span>
+                    <span className="font-medium">{w.asset_name}</span>
+
                     <span className="text-xs text-slate-400 ml-2">{typeLabels[w.asset_type] || w.asset_type}</span>
                     <span className="text-xs text-slate-400 ml-2">[{w.warnType}]</span>
                   </div>
@@ -402,7 +408,7 @@ export default function DashboardPage() {
           <tbody>
             {stats.recentAssets.map((a: any) => (
               <tr key={a.id} className="border-b last:border-0">
-                <td className="py-2 font-medium">{a.name}</td>
+                <td className="py-2 font-medium">{a.asset_name}</td>
                 <td className="py-2">
                   <span className={`text-xs px-2 py-0.5 rounded ${typeColors[a.asset_type]}`}>
                     {typeLabels[a.asset_type]}

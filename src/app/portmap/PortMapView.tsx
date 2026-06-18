@@ -66,7 +66,8 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
                     selectedAsset === a.id ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50"
                   }`}
                 >
-                  <div className="font-medium">{a.name}</div>
+                  <div className="font-medium">{a.asset_name}</div>
+
                   <div className="text-xs text-slate-400">
                     {a.ip_address} · {usedCount}/{aPorts.length} 포트
                   </div>
@@ -85,7 +86,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
             <div className="bg-white border rounded-lg p-4 mb-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-lg">{selectedDevice.name}</h3>
+                  <h3 className="font-bold text-lg">{selectedDevice.asset_name}</h3>
                   <p className="text-sm text-slate-500">
                     {selectedDevice.manufacturer} {selectedDevice.model} · {selectedDevice.ip_address}
                   </p>

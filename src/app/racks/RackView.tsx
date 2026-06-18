@@ -18,7 +18,8 @@ const statusLabels: Record<string, string> = {
 
 interface Asset {
   id: number;
-  name: string;
+  asset_name: string;
+
   asset_type: string;
   rack_id: number;
   rack_unit_start: number;
@@ -60,7 +61,8 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
         >
           <option value="">전체</option>
           {locations.map((l: any) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
+            <option key={l.id} value={l.id}>{l.location_name}</option>
+
           ))}
         </select>
         <div className="flex gap-3 ml-auto text-xs">
@@ -87,7 +89,8 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
           return (
             <div key={rack.id} className="bg-white border rounded-lg p-4 hover-card">
               <div className="text-center mb-3">
-                <h3 className="font-bold text-sm">{rack.name}</h3>
+                <h3 className="font-bold text-sm">{rack.rack_name}</h3>
+
                 <p className="text-xs text-slate-400">{rack.location_name}</p>
                 <p className="text-xs text-slate-500 mt-1">
                   {usedUnits}U / {rack.total_units}U ({usagePercent}%)
@@ -125,7 +128,8 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
                         onMouseLeave={() => setHoveredAsset(null)}
                       >
                         <span className="text-[10px] text-white/60 w-7 text-center shrink-0">{unit}U</span>
-                        <span className="text-xs text-white font-medium truncate px-1">{asset.name}</span>
+                        <span className="text-xs text-white font-medium truncate px-1">{asset.asset_name}</span>
+
                         <span className="text-[10px] text-white/60 ml-auto pr-1 shrink-0">{asset.rack_unit_size}U</span>
                       </div>
                     );
@@ -161,7 +165,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
           className="fixed z-50 bg-slate-900 text-white p-3 rounded-lg shadow-xl text-xs max-w-xs pointer-events-none"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
-          <div className="font-bold mb-1">{hoveredAsset.name}</div>
+          <div className="font-bold mb-1">{hoveredAsset.asset_name}</div>
           <div className="space-y-0.5 text-slate-300">
             <div>유형: {typeLabels[hoveredAsset.asset_type]}</div>
             <div>제조사: {hoveredAsset.manufacturer} {hoveredAsset.model}</div>

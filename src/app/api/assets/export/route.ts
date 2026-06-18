@@ -15,7 +15,7 @@ export async function GET() {
 
   // 자산 전체 조회
   const assets = db.prepare(`
-    SELECT a.*, r.name as rack_name, l.name as location_name
+    SELECT a.*, r.rack_name, l.location_name
     FROM assets a
     LEFT JOIN racks r ON a.rack_id = r.id
     LEFT JOIN locations l ON r.location_id = l.id
@@ -48,7 +48,7 @@ export async function GET() {
 
   // 키 행 (import 호환)
   const keyRow = [
-    "asset_type", "name", "manufacturer", "model", "serial_number",
+    "asset_type", "asset_name", "manufacturer", "model", "serial_number",
     "ip_address", "asset_tag", "status", "os", "access_ip",
     "user_name", "admin_name", "department",
     "rack_name", "rack_unit_start", "rack_unit_size", "description",
@@ -58,7 +58,7 @@ export async function GET() {
   // 데이터 행
   const data = assets.map((a: any) => {
     const fixedData = [
-      a.asset_type, a.name, a.manufacturer, a.model, a.serial_number,
+      a.asset_type, a.asset_name, a.manufacturer, a.model, a.serial_number,
       a.ip_address, a.asset_tag, a.status, a.os, a.access_ip,
       a.user_name, a.admin_name, a.department,
       a.rack_name || "", a.rack_unit_start ?? "", a.rack_unit_size ?? "",

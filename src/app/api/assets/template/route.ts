@@ -40,7 +40,7 @@ export async function GET() {
 
   // 필드 키 매핑 행 (2번째 행 — import 시 매핑용, 숨김)
   const keyRow = [
-    "asset_type", "name", "manufacturer", "model", "serial_number",
+    "asset_type", "asset_name", "manufacturer", "model", "serial_number",
     "ip_address", "asset_tag", "status", "os", "access_ip",
     "user_name", "admin_name", "department",
     "rack_name", "rack_unit_start", "rack_unit_size", "description",

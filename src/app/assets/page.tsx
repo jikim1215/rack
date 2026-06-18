@@ -4,7 +4,8 @@ import { AssetTable } from "./AssetTable";
 export default function AssetsPage() {
   const db = getDb();
   const assets = db.prepare(`
-    SELECT a.*, r.name as rack_name, l.name as location_name
+    SELECT a.*, r.rack_name, l.location_name
+
     FROM assets a
     LEFT JOIN racks r ON a.rack_id = r.id
     LEFT JOIN locations l ON r.location_id = l.id
@@ -12,9 +13,9 @@ export default function AssetsPage() {
   `).all() as any[];
 
   const racks = db.prepare(`
-    SELECT r.id, r.name, r.total_units, l.name as location_name
+    SELECT r.id, r.rack_name, r.total_units, l.location_name
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id
-    ORDER BY r.name
+    ORDER BY r.rack_name
   `).all() as any[];
 
   const customFields = db.prepare(`

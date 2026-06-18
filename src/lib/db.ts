@@ -31,7 +31,7 @@ function initSchema(db: Database.Database) {
     -- 위치
     CREATE TABLE IF NOT EXISTS locations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
+      location_name TEXT NOT NULL,
       building TEXT DEFAULT '',
       floor TEXT DEFAULT '',
       room TEXT DEFAULT '',
@@ -42,7 +42,7 @@ function initSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS racks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
+      rack_name TEXT NOT NULL,
       total_units INTEGER NOT NULL DEFAULT 42,
       description TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now','localtime'))
@@ -52,7 +52,7 @@ function initSchema(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_type TEXT NOT NULL CHECK(asset_type IN ('server','network','security','telecom','other')),
-      name TEXT NOT NULL,
+      asset_name TEXT NOT NULL,
       manufacturer TEXT DEFAULT '',
       model TEXT DEFAULT '',
       serial_number TEXT DEFAULT '',
@@ -133,7 +133,7 @@ function initSchema(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
       rack_id INTEGER REFERENCES racks(id) ON DELETE SET NULL,
-      name TEXT NOT NULL,
+      frame_name TEXT NOT NULL,
       frame_type TEXT NOT NULL DEFAULT '110block' CHECK(frame_type IN ('110block','patch_panel','optical','other')),
       total_pairs INTEGER NOT NULL DEFAULT 50,
       rack_unit_start INTEGER,

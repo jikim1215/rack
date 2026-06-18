@@ -39,7 +39,8 @@ interface Frame {
   id: number;
   location_id: number;
   rack_id: number | null;
-  name: string;
+  frame_name: string;
+
   frame_type: string;
   total_pairs: number;
   description: string;
@@ -99,7 +100,8 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
       const q = searchQuery.toLowerCase();
       result = result.filter(
         (f) =>
-          f.name.toLowerCase().includes(q) ||
+          f.frame_name.toLowerCase().includes(q) ||
+
           f.location_name?.toLowerCase().includes(q)
       );
     }
@@ -275,7 +277,8 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="font-semibold text-sm">{f.name}</div>
+                    <div className="font-semibold text-sm">{f.frame_name}</div>
+
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                       {frameTypeLabels[f.frame_type] || f.frame_type}
                     </span>
@@ -309,7 +312,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
             <div className="bg-white border rounded-lg p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold">
-                  {currentFrame.name} — 페어 그리드
+                  {currentFrame.frame_name} — 페어 그리드
                   <span className="text-xs font-normal text-slate-500 ml-2">
                     ({currentFrame.total_pairs}페어)
                   </span>

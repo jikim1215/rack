@@ -6,7 +6,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = getDb();
 
   const asset = db.prepare(`
-    SELECT a.*, r.name as rack_name, l.name as location_name
+    SELECT a.*, r.rack_name, l.location_name
     FROM assets a LEFT JOIN racks r ON a.rack_id = r.id
     LEFT JOIN locations l ON r.location_id = l.id WHERE a.id = ?
   `).get(Number(id));
@@ -29,7 +29,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   db.prepare(`
     UPDATE assets SET
-      asset_type=@asset_type, name=@name, manufacturer=@manufacturer, model=@model,
+      asset_type=@asset_type, asset_name=@asset_name, manufacturer=@manufacturer, model=@model,
       serial_number=@serial_number, ip_address=@ip_address, asset_tag=@asset_tag, status=@status,
       os=@os, access_ip=@access_ip, user_name=@user_name, admin_name=@admin_name, department=@department,
       purchase_date=@purchase_date, warranty_date=@warranty_date, eos_date=@eos_date,
@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       description=@description, updated_at=datetime('now','localtime')
     WHERE id=@id
   `).run({
-    id: Number(id), asset_type: body.asset_type, name: body.name,
+    id: Number(id), asset_type: body.asset_type, asset_name: body.asset_name || body.name,
     manufacturer: body.manufacturer || "", model: body.model || "",
     serial_number: body.serial_number || "", ip_address: body.ip_address || "",
     asset_tag: body.asset_tag || "", status: body.status || "active",
@@ -86,7 +86,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const asset = db.prepare(`
-    SELECT a.*, r.name as rack_name, l.name as location_name
+    SELECT a.*, r.rack_name, l.location_name
     FROM assets a LEFT JOIN racks r ON a.rack_id = r.id
     LEFT JOIN locations l ON r.location_id = l.id WHERE a.id = ?
   `).get(Number(id));

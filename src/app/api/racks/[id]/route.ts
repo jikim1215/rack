@@ -6,16 +6,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
   const db = getDb();
   db.prepare(
-    "UPDATE racks SET location_id = @location_id, name = @name, total_units = @total_units, description = @description WHERE id = @id"
+    "UPDATE racks SET location_id = @location_id, rack_name = @rack_name, total_units = @total_units, description = @description WHERE id = @id"
   ).run({
     id: Number(id),
     location_id: body.location_id,
-    name: body.name,
+    rack_name: body.rack_name || body.name,
     total_units: body.total_units || 42,
     description: body.description || "",
   });
   const rack = db.prepare(`
-    SELECT r.*, l.name as location_name
+    SELECT r.*, l.location_name
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id
     WHERE r.id = ?
   `).get(Number(id));

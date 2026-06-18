@@ -9,16 +9,17 @@ export default function LocationsPage() {
       (SELECT COUNT(*) FROM racks WHERE location_id = l.id) as rack_count,
       (SELECT COUNT(*) FROM assets a JOIN racks r ON a.rack_id = r.id WHERE r.location_id = l.id) as asset_count
     FROM locations l
-    ORDER BY l.name
+    ORDER BY l.location_name
+
   `).all() as any[];
 
   const racks = db.prepare(`
-    SELECT r.*, l.name as location_name,
+    SELECT r.*, l.location_name,
       (SELECT COUNT(*) FROM assets WHERE rack_id = r.id) as asset_count,
       COALESCE((SELECT SUM(rack_unit_size) FROM assets WHERE rack_id = r.id), 0) as used_units
     FROM racks r
     LEFT JOIN locations l ON r.location_id = l.id
-    ORDER BY l.name, r.name
+    ORDER BY l.location_name, r.rack_name
   `).all() as any[];
 
   return (

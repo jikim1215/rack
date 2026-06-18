@@ -46,7 +46,8 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS locations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
+    location_name TEXT NOT NULL,
+
     building TEXT DEFAULT '',
     floor TEXT DEFAULT '',
     room TEXT DEFAULT '',
@@ -56,7 +57,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS racks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
+    rack_name TEXT NOT NULL,
+
     total_units INTEGER NOT NULL DEFAULT 42,
     description TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now','localtime'))
@@ -65,7 +67,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS assets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     asset_type TEXT NOT NULL CHECK(asset_type IN ('server','network','security','telecom','other')),
-    name TEXT NOT NULL,
+    asset_name TEXT NOT NULL,
+
     manufacturer TEXT DEFAULT '',
     model TEXT DEFAULT '',
     serial_number TEXT DEFAULT '',
@@ -150,7 +153,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     location_id INTEGER NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
     rack_id INTEGER REFERENCES racks(id) ON DELETE SET NULL,
-    name TEXT NOT NULL,
+    frame_name TEXT NOT NULL,
+
     frame_type TEXT NOT NULL DEFAULT '110block' CHECK(frame_type IN ('110block','patch_panel','optical','other')),
     total_pairs INTEGER NOT NULL DEFAULT 50,
     rack_unit_start INTEGER,
@@ -228,12 +232,14 @@ insertUser.run("viewer", hashPw("viewer123"), "열람자", "viewer");
 // ============================================================
 // locations + racks
 // ============================================================
-const insertLocation = db.prepare("INSERT INTO locations (name, building, floor, room) VALUES (?,?,?,?)");
+const insertLocation = db.prepare("INSERT INTO locations (location_name, building, floor, room) VALUES (?,?,?,?)");
+
 const loc1 = insertLocation.run("본관 전산실", "본관", "B1", "전산실A").lastInsertRowid;
 const loc2 = insertLocation.run("별관 서버실", "별관", "3F", "서버실B").lastInsertRowid;
 const locMdf = insertLocation.run("본원 MDF실", "본원", "B1", "MDF실").lastInsertRowid;
 
-const insertRack = db.prepare("INSERT INTO racks (location_id, name, total_units, description) VALUES (?,?,?,?)");
+const insertRack = db.prepare("INSERT INTO racks (location_id, rack_name, total_units, description) VALUES (?,?,?,?)");
+
 const rack1 = insertRack.run(loc1, "A-01", 42, "메인 서버랙").lastInsertRowid;
 const rack2 = insertRack.run(loc1, "A-02", 42, "네트워크 장비랙").lastInsertRowid;
 const rack3 = insertRack.run(loc1, "A-03", 42, "보안 장비랙").lastInsertRowid;
@@ -244,7 +250,8 @@ const rackMdf = insertRack.run(locMdf, "M-01", 42, "MDF 메인랙").lastInsertRo
 // assets (14대 기존)
 // ============================================================
 const insertAsset = db.prepare(`INSERT INTO assets
-  (asset_type, name, manufacturer, model, serial_number, ip_address, asset_tag, status,
+  (asset_type, asset_name, manufacturer, model, serial_number, ip_address, asset_tag, status,
+
    os, access_ip, user_name, admin_name, department,
    purchase_date, warranty_date, eos_date,
    rack_id, rack_unit_start, rack_unit_size, description)
@@ -519,7 +526,8 @@ for (const bldg of tpsBuildings) {
 // ============================================================
 // dist_frames + frame_pairs — MDF실
 // ============================================================
-const insertFrame = db.prepare(`INSERT INTO dist_frames (location_id, rack_id, name, frame_type, total_pairs, rack_unit_start, rack_unit_size, description) VALUES (?,?,?,?,?,?,?,?)`);
+const insertFrame = db.prepare(`INSERT INTO dist_frames (location_id, rack_id, frame_name, frame_type, total_pairs, rack_unit_start, rack_unit_size, description) VALUES (?,?,?,?,?,?,?,?)`);
+
 const insertPair = db.prepare(`INSERT INTO frame_pairs (frame_id, pair_number, status, label, source, destination) VALUES (?,?,?,?,?,?)`);
 
 // MDF실 — 외선 110블록 (50pairs)
@@ -565,7 +573,7 @@ for (let i = 1; i <= 50; i++) {
 // dist_frames + frame_pairs — 각 TPS실 110블록
 // ============================================================
 for (const tps of tpsAssets) {
-  const tpsLocId = db.prepare("SELECT l.id FROM locations l WHERE l.name = ?").get(`${tps.bldg} ${tps.floor} TPS실`)?.id;
+  const tpsLocId = db.prepare("SELECT l.id FROM locations l WHERE l.location_name = ?").get(`${tps.bldg} ${tps.floor} TPS실`)?.id;
   const tpsRackId = db.prepare("SELECT r.id FROM racks r WHERE r.location_id = ?").get(tpsLocId)?.id;
 
   if (tpsLocId && tpsRackId) {

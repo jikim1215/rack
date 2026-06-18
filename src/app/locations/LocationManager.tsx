@@ -5,7 +5,8 @@ import { Plus, MapPin, HardDrive, Pencil, Trash2, X, Save } from "lucide-react";
 
 interface Location {
   id: number;
-  name: string;
+  location_name: string;
+
   building: string;
   floor: string;
   room: string;
@@ -16,7 +17,8 @@ interface Location {
 interface Rack {
   id: number;
   location_id: number;
-  name: string;
+  rack_name: string;
+
   total_units: number;
   description: string;
   location_name: string;
@@ -29,8 +31,9 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
   const [racks, setRacks] = useState(initRacks);
   const [showLocForm, setShowLocForm] = useState(false);
   const [showRackForm, setShowRackForm] = useState(false);
-  const [locForm, setLocForm] = useState({ name: "", building: "", floor: "", room: "" });
-  const [rackForm, setRackForm] = useState({ location_id: 0, name: "", total_units: 42, description: "" });
+  const [locForm, setLocForm] = useState({ location_name: "", building: "", floor: "", room: "" });
+  const [rackForm, setRackForm] = useState({ location_id: 0, rack_name: "", total_units: 42, description: "" });
+
   const [editLocId, setEditLocId] = useState<number | null>(null);
   const [editRackId, setEditRackId] = useState<number | null>(null);
 
@@ -47,7 +50,8 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       }
       setShowLocForm(false);
       setEditLocId(null);
-      setLocForm({ name: "", building: "", floor: "", room: "" });
+      setLocForm({ location_name: "", building: "", floor: "", room: "" });
+
     }
   }
 
@@ -73,7 +77,8 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       }
       setShowRackForm(false);
       setEditRackId(null);
-      setRackForm({ location_id: 0, name: "", total_units: 42, description: "" });
+      setRackForm({ location_id: 0, rack_name: "", total_units: 42, description: "" });
+
     }
   }
 
@@ -91,7 +96,8 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-lg flex items-center gap-2"><MapPin size={18} /> 위치 목록</h3>
-          <button onClick={() => { setShowLocForm(true); setEditLocId(null); setLocForm({ name: "", building: "", floor: "", room: "" }); }}
+          <button onClick={() => { setShowLocForm(true); setEditLocId(null); setLocForm({ location_name: "", building: "", floor: "", room: "" }); }}
+
             className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">
             <Plus size={14} /> 추가
           </button>
@@ -105,7 +111,8 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block col-span-2"><span className="text-xs text-slate-500">이름</span>
-                <input value={locForm.name} onChange={(e) => setLocForm({ ...locForm, name: e.target.value })} className="form-input" /></label>
+                <input value={locForm.location_name} onChange={(e) => setLocForm({ ...locForm, location_name: e.target.value })} className="form-input" /></label>
+
               <label className="block"><span className="text-xs text-slate-500">건물</span>
                 <input value={locForm.building} onChange={(e) => setLocForm({ ...locForm, building: e.target.value })} className="form-input" /></label>
               <label className="block"><span className="text-xs text-slate-500">층</span>
@@ -124,12 +131,14 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
           {locations.map((loc) => (
             <div key={loc.id} className="bg-white border rounded-lg p-4 flex items-center justify-between">
               <div>
-                <div className="font-medium">{loc.name}</div>
+                <div className="font-medium">{loc.location_name}</div>
+
                 <div className="text-xs text-slate-400">{loc.building} {loc.floor} {loc.room}</div>
                 <div className="text-xs text-slate-500 mt-1">랙 {loc.rack_count}개 · 자산 {loc.asset_count}대</div>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => { setEditLocId(loc.id); setLocForm({ name: loc.name, building: loc.building, floor: loc.floor, room: loc.room }); setShowLocForm(true); }}
+                <button onClick={() => { setEditLocId(loc.id); setLocForm({ location_name: loc.location_name, building: loc.building, floor: loc.floor, room: loc.room }); setShowLocForm(true); }}
+
                   className="p-1.5 text-slate-400 hover:text-blue-600 rounded"><Pencil size={14} /></button>
                 <button onClick={() => deleteLoc(loc.id)}
                   className="p-1.5 text-slate-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>
@@ -143,7 +152,8 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-lg flex items-center gap-2"><HardDrive size={18} /> 랙 목록</h3>
-          <button onClick={() => { setShowRackForm(true); setEditRackId(null); setRackForm({ location_id: locations[0]?.id ?? 0, name: "", total_units: 42, description: "" }); }}
+          <button onClick={() => { setShowRackForm(true); setEditRackId(null); setRackForm({ location_id: locations[0]?.id ?? 0, rack_name: "", total_units: 42, description: "" }); }}
+
             className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">
             <Plus size={14} /> 추가
           </button>
@@ -158,10 +168,12 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
             <div className="grid grid-cols-2 gap-3">
               <label className="block"><span className="text-xs text-slate-500">위치</span>
                 <select value={rackForm.location_id} onChange={(e) => setRackForm({ ...rackForm, location_id: Number(e.target.value) })} className="form-input">
-                  {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  {locations.map((l) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
+
                 </select></label>
               <label className="block"><span className="text-xs text-slate-500">이름</span>
-                <input value={rackForm.name} onChange={(e) => setRackForm({ ...rackForm, name: e.target.value })} className="form-input" /></label>
+                <input value={rackForm.rack_name} onChange={(e) => setRackForm({ ...rackForm, rack_name: e.target.value })} className="form-input" /></label>
+
               <label className="block"><span className="text-xs text-slate-500">총 유닛 수</span>
                 <select value={rackForm.total_units} onChange={(e) => setRackForm({ ...rackForm, total_units: Number(e.target.value) })} className="form-input">
                   <option value={4}>4U (소형)</option>
@@ -196,14 +208,15 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
               <div key={rack.id} className="bg-white border rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="font-medium">{rack.name}</div>
+                    <div className="font-medium">{rack.rack_name}</div>
+
                     <div className="text-xs text-slate-400">{rack.location_name}</div>
                     <div className="text-xs text-slate-500 mt-1">
                       {rack.used_units}U / {rack.total_units}U ({pct}%) · {rack.asset_count}대
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, name: rack.name, total_units: rack.total_units, description: rack.description }); setShowRackForm(true); }}
+                    <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, rack_name: rack.rack_name, total_units: rack.total_units, description: rack.description }); setShowRackForm(true); }}
                       className="p-1.5 text-slate-400 hover:text-blue-600 rounded"><Pencil size={14} /></button>
                     <button onClick={() => deleteRack(rack.id)}
                       className="p-1.5 text-slate-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>

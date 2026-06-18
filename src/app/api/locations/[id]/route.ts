@@ -6,8 +6,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
   const db = getDb();
   db.prepare(
-    "UPDATE locations SET name = @name, building = @building, floor = @floor, room = @room WHERE id = @id"
-  ).run({ id: Number(id), name: body.name, building: body.building || "", floor: body.floor || "", room: body.room || "" });
+    "UPDATE locations SET location_name = @location_name, building = @building, floor = @floor, room = @room WHERE id = @id"
+  ).run({ id: Number(id), location_name: body.location_name || body.name, building: body.building || "", floor: body.floor || "", room: body.room || "" });
   const loc = db.prepare("SELECT * FROM locations WHERE id = ?").get(Number(id));
   return NextResponse.json(loc);
 }

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET() {
   const db = getDb();
-  const locations = db.prepare("SELECT * FROM locations ORDER BY name").all();
+  const locations = db.prepare("SELECT * FROM locations ORDER BY location_name").all();
   return NextResponse.json(locations);
 }
 
@@ -11,9 +11,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const db = getDb();
   const result = db.prepare(
-    "INSERT INTO locations (name, building, floor, room) VALUES (@name, @building, @floor, @room)"
+    "INSERT INTO locations (location_name, building, floor, room) VALUES (@location_name, @building, @floor, @room)"
   ).run({
-    name: body.name,
+    location_name: body.location_name || body.name,
     building: body.building || "",
     floor: body.floor || "",
     room: body.room || "",

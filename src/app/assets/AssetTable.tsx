@@ -27,7 +27,8 @@ const statusColors: Record<string, string> = {
 interface Asset {
   id: number;
   asset_type: string;
-  name: string;
+  asset_name: string;
+
   manufacturer: string;
   model: string;
   serial_number: string;
@@ -62,7 +63,8 @@ interface CustomField {
 }
 
 const emptyAsset = {
-  asset_type: "server", name: "", manufacturer: "", model: "",
+  asset_type: "server", asset_name: "", manufacturer: "", model: "",
+
   serial_number: "", ip_address: "", asset_tag: "", status: "active",
   os: "", access_ip: "", user_name: "", admin_name: "", department: "",
   rack_id: null as number | null, rack_unit_start: null as number | null,
@@ -110,7 +112,8 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
     if (search) {
       const q = search.toLowerCase();
       return (
-        a.name.toLowerCase().includes(q) ||
+        a.asset_name.toLowerCase().includes(q) ||
+
         a.ip_address.toLowerCase().includes(q) ||
         a.manufacturer.toLowerCase().includes(q) ||
         a.model.toLowerCase().includes(q) ||
@@ -175,7 +178,8 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
 
   function startEdit(asset: Asset) {
     setForm({
-      asset_type: asset.asset_type, name: asset.name, manufacturer: asset.manufacturer,
+      asset_type: asset.asset_type, asset_name: asset.asset_name, manufacturer: asset.manufacturer,
+
       model: asset.model, serial_number: asset.serial_number, ip_address: asset.ip_address,
       asset_tag: asset.asset_tag, status: asset.status, os: asset.os,
       access_ip: asset.access_ip, user_name: asset.user_name, admin_name: asset.admin_name,
@@ -488,7 +492,8 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
                 {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </FormField>
-            <FormField label="이름 *"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="form-input" /></FormField>
+            <FormField label="이름 *"><input value={form.asset_name} onChange={(e) => setForm({ ...form, asset_name: e.target.value })} className="form-input" /></FormField>
+
             <FormField label="제조사"><input value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} className="form-input" /></FormField>
             <FormField label="모델"><input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} className="form-input" /></FormField>
             <FormField label="시리얼"><input value={form.serial_number} onChange={(e) => setForm({ ...form, serial_number: e.target.value })} className="form-input" /></FormField>
@@ -524,7 +529,8 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
                 <FormField label="설치 랙">
                   <select value={form.rack_id ?? ""} onChange={(e) => setForm({ ...form, rack_id: e.target.value ? Number(e.target.value) : null, rack_unit_start: null, rack_unit_size: 1 })} className="form-input">
                     <option value="">미설치</option>
-                    {racks.map((r: any) => <option key={r.id} value={r.id}>{r.name} ({r.location_name}) — {r.total_units}U</option>)}
+                    {racks.map((r: any) => <option key={r.id} value={r.id}>{r.rack_name} ({r.location_name}) — {r.total_units}U</option>)}
+
                   </select>
                 </FormField>
                 <FormField label={`시작 U${selectedRack ? ` (1~${maxStart})` : ""}`}>
@@ -626,7 +632,7 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete,
       <tr className="border-b last:border-0 hover-row cursor-pointer" onClick={onToggle}>
         <td className="p-3 text-slate-400">{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
         <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded ${typeColors[a.asset_type]}`}>{typeLabels[a.asset_type]}</span></td>
-        <td className="p-3 font-medium">{a.name}</td>
+        <td className="p-3 font-medium">{a.asset_name}</td>
         <td className="p-3 text-slate-500 text-xs">{a.manufacturer} {a.model}</td>
         <td className="p-3 font-mono text-xs text-slate-500">{a.ip_address}</td>
         <td className="p-3 text-xs text-slate-500">{a.os || "-"}</td>

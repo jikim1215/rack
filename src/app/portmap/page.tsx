@@ -5,19 +5,20 @@ export default function PortMapPage() {
   const db = getDb();
 
   const networkAssets = db.prepare(`
-    SELECT a.id, a.name, a.manufacturer, a.model, a.ip_address, a.asset_type,
-      r.name as rack_name, l.name as location_name
+    SELECT a.id, a.asset_name, a.manufacturer, a.model, a.ip_address, a.asset_type,
+      r.rack_name, l.location_name
     FROM assets a
     LEFT JOIN racks r ON a.rack_id = r.id
     LEFT JOIN locations l ON r.location_id = l.id
     WHERE a.asset_type IN ('network', 'server', 'security')
-    ORDER BY a.asset_type, a.name
+    ORDER BY a.asset_type, a.asset_name
+
   `).all() as any[];
 
   const ports = db.prepare(`
-    SELECT p.*, a.name as asset_name,
+    SELECT p.*, a.asset_name as asset_name,
       cp.port_name as connected_port_name,
-      ca.name as connected_asset_name
+      ca.asset_name as connected_asset_name
     FROM ports p
     JOIN assets a ON p.asset_id = a.id
     LEFT JOIN ports cp ON p.connected_to_port_id = cp.id

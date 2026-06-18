@@ -5,10 +5,10 @@ export default function DistributionPage() {
   const db = getDb();
 
   const frames = db.prepare(`
-    SELECT df.*, l.name as location_name, l.building, l.floor, l.room
+    SELECT df.*, l.location_name, l.building, l.floor, l.room
     FROM dist_frames df
     LEFT JOIN locations l ON df.location_id = l.id
-    ORDER BY l.building, l.floor, df.name
+    ORDER BY l.building, l.floor, df.frame_name
   `).all() as any[];
 
   const pairs = db.prepare(`
