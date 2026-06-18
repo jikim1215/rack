@@ -51,7 +51,9 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       setShowLocForm(false);
       setEditLocId(null);
       setLocForm({ location_name: "", building: "", floor: "", room: "" });
-
+    } else {
+      const data = await res.json();
+      alert(data.error || "저장에 실패했습니다.");
     }
   }
 
@@ -61,6 +63,9 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
     if (res.ok) {
       setLocations((prev) => prev.filter((l) => l.id !== id));
       setRacks((prev) => prev.filter((r) => r.location_id !== id));
+    } else {
+      const data = await res.json();
+      alert(data.error || "삭제에 실패했습니다.");
     }
   }
 
@@ -78,7 +83,9 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       setShowRackForm(false);
       setEditRackId(null);
       setRackForm({ location_id: 0, rack_name: "", total_units: 42, description: "" });
-
+    } else {
+      const data = await res.json();
+      alert(data.error || "저장에 실패했습니다.");
     }
   }
 
@@ -86,6 +93,10 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
     if (!confirm("랙을 삭제하시겠습니까? 소속 자산의 랙 정보가 해제됩니다.")) return;
     const res = await fetch(`/api/racks/${id}`, { method: "DELETE" });
     if (res.ok) {
+      const data = await res.json();
+      if (data.releasedAssets > 0) {
+        alert(`랙이 삭제되었습니다. 소속 자산 ${data.releasedAssets}건의 랙 정보가 해제되었습니다.`);
+      }
       setRacks((prev) => prev.filter((r) => r.id !== id));
     }
   }

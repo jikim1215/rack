@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { validateRackResize } from "@/lib/rack-validation";
-import { logAssetChange } from "@/lib/audit";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -34,6 +34,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!loc) return NextResponse.json({ error: "존재하지 않는 위치입니다." }, { status: 400 });
   }
 
+  const dupRack = db.prepare(
+    "SELECT id FROM racks WHERE location_id = ? AND rack_name = ? AND id != ?"
+  ).get(body.location_id || existing.location_id, rackName, Number(id));
+  if (dupRack) {
+    return NextResponse.json({ error: `동일 위치에 '${rackName}' 랙이 이미 존재합니다.` }, { status: 409 });
+  }
+
   db.prepare(
     "UPDATE racks SET location_id = @location_id, rack_name = @rack_name, total_units = @total_units, description = @description WHERE id = @id"
   ).run({
@@ -51,9 +58,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id WHERE r.id = ?
   `).get(Number(id));
 
-  logAssetChange(db, {
-    assetId: Number(id), assetName: rackName,
-    action: "rack:update" as any, changedBy: session?.username || "system",
+  logAudit(db, {
+    entityType: "rack", entityId: Number(id), entityName: rackName,
+    action: "update", changedBy: session?.username || "system",
     oldData: { rack_name: existing.rack_name, total_units: existing.total_units, location_id: existing.location_id },
     newData: { rack_name: rackName, total_units: totalUnits, location_id: body.location_id || existing.location_id },
   });
@@ -73,9 +80,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   db.prepare("DELETE FROM racks WHERE id = ?").run(Number(id));
 
   if (existing) {
-    logAssetChange(db, {
-      assetId: Number(id), assetName: existing.rack_name || "",
-      action: "rack:delete" as any, changedBy: session?.username || "system",
+    logAudit(db, {
+      entityType: "rack", entityId: Number(id), entityName: existing.rack_name || "",
+      action: "delete", changedBy: session?.username || "system",
       oldData: { rack_name: existing.rack_name, total_units: existing.total_units, affectedAssets: affectedCount },
     });
   }

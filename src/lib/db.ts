@@ -89,12 +89,13 @@ function initSchema(db: Database.Database) {
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
-    -- 자산 변경 이력
-    CREATE TABLE IF NOT EXISTS asset_logs (
+    -- 감사 로그 (공통)
+    CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      asset_id INTEGER,
-      asset_name TEXT DEFAULT '',
-      action TEXT NOT NULL CHECK(action IN ('create','update','delete','rack:create','rack:update','rack:delete')),
+      entity_type TEXT NOT NULL DEFAULT 'asset' CHECK(entity_type IN ('asset','rack','location','frame','contract','movement','maintenance')),
+      entity_id INTEGER,
+      entity_name TEXT DEFAULT '',
+      action TEXT NOT NULL CHECK(action IN ('create','update','delete')),
       changed_by TEXT DEFAULT '',
       changed_fields TEXT DEFAULT '[]',
       old_values TEXT DEFAULT '{}',
@@ -275,7 +276,7 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
     CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);
     CREATE INDEX IF NOT EXISTS idx_asset_ips_asset ON asset_ips(asset_id);
-    CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs ON audit_logs(entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_ports_asset ON ports(asset_id);
     CREATE INDEX IF NOT EXISTS idx_ports_connected ON ports(connected_to_port_id);
     CREATE INDEX IF NOT EXISTS idx_custom_values_asset ON custom_values(asset_id);

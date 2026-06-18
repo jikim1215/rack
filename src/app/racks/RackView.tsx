@@ -39,8 +39,8 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
     ? racks.filter((r) => r.location_id === selectedLocation)
     : racks;
 
-  function getAssetAt(rackId: number, unit: number) {
-    return assets.find(
+  function getAssetsAt(rackId: number, unit: number) {
+    return assets.filter(
       (a) => a.rack_id === rackId && a.rack_unit_start <= unit && a.rack_unit_start + a.rack_unit_size - 1 >= unit
     );
   }
@@ -143,10 +143,39 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
               <div className="border-2 border-slate-700 rounded bg-slate-800 p-0.5" style={{ width: 220 }}>
                 {Array.from({ length: rack.total_units }, (_, i) => {
                   const unit = i + 1;
-                  const asset = getAssetAt(rack.id, unit);
+                  const assetsAtUnit = getAssetsAt(rack.id, unit);
+                  const asset = assetsAtUnit[0] || null;
+                  const hasConflict = assetsAtUnit.length > 1;
 
-                  if (asset && !isTopUnit(asset, unit)) {
+                  if (asset && !hasConflict && !isTopUnit(asset, unit)) {
                     return null; // 멀티U 장비의 하단 슬롯은 렌더링 건너뜀
+                  }
+
+                  if (hasConflict) {
+                    // 충돌 시 빨간 점멸 패턴
+                    return (
+                      <div
+                        key={unit}
+                        className="flex items-center rounded-sm cursor-pointer relative"
+                        style={{
+                          height: 24,
+                          background: 'repeating-linear-gradient(45deg, #ef4444, #ef4444 5px, #fca5a5 5px, #fca5a5 10px)',
+                          marginBottom: 1,
+                        }}
+                        title={`⚠ 충돌: ${assetsAtUnit.map(a => a.asset_name).join(", ")}`}
+                        onMouseEnter={(e) => {
+                          setHoveredAsset(null);
+                          setTooltipPos({ x: e.clientX + 10, y: e.clientY - 10 });
+                        }}
+                        onMouseMove={(e) => {
+                          setTooltipPos({ x: e.clientX + 10, y: e.clientY - 10 });
+                        }}
+                        onMouseLeave={() => setHoveredAsset(null)}
+                      >
+                        <span className="text-[10px] text-white w-7 text-center shrink-0">{unit}U</span>
+                        <span className="text-xs text-white font-bold truncate px-1">⚠ {assetsAtUnit.map(a => a.asset_name).join(", ")}</span>
+                      </div>
+                    );
                   }
 
                   if (asset) {

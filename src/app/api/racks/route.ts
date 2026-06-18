@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { logAssetChange } from "@/lib/audit";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET() {
@@ -32,6 +32,13 @@ export async function POST(req: NextRequest) {
   const loc = db.prepare("SELECT id FROM locations WHERE id = ?").get(locId);
   if (!loc) return NextResponse.json({ error: "존재하지 않는 위치입니다." }, { status: 400 });
 
+  const dup = db.prepare(
+    "SELECT id FROM racks WHERE location_id = ? AND rack_name = ?"
+  ).get(locId, rackName);
+  if (dup) {
+    return NextResponse.json({ error: `동일 위치에 '${rackName}' 랙이 이미 존재합니다.` }, { status: 409 });
+  }
+
   const result = db.prepare(
     "INSERT INTO racks (location_id, rack_name, total_units, description) VALUES (?, ?, ?, ?)"
   ).run(locId, rackName, totalUnits, body.description || "");
@@ -41,9 +48,9 @@ export async function POST(req: NextRequest) {
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id WHERE r.id = ?
   `).get(result.lastInsertRowid);
 
-  logAssetChange(db, {
-    assetId: Number(result.lastInsertRowid), assetName: rackName,
-    action: "rack:create" as any, changedBy: session?.username || "system",
+  logAudit(db, {
+    entityType: "rack", entityId: Number(result.lastInsertRowid), entityName: rackName,
+    action: "create", changedBy: session?.username || "system",
     newData: { rack_name: rackName, total_units: totalUnits, location_id: locId },
   });
 

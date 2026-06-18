@@ -9,7 +9,7 @@ export async function GET(
   const db = getDb();
 
   const logs = db.prepare(
-    "SELECT * FROM asset_logs WHERE asset_id = ? ORDER BY created_at DESC LIMIT 50"
+    "SELECT * FROM audit_logs WHERE entity_type = 'asset' AND entity_id = ? ORDER BY created_at DESC LIMIT 50"
   ).all(Number(id)) as any[];
 
   const parsed = logs.map((log) => ({
