@@ -171,6 +171,87 @@ function initSchema(db: Database.Database) {
       status TEXT DEFAULT 'unused' CHECK(status IN ('used','unused','reserved','disabled'))
     );
 
+    -- 업체
+    CREATE TABLE IF NOT EXISTS vendors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_name TEXT NOT NULL,
+      contact_person TEXT DEFAULT '',
+      phone TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      business_number TEXT DEFAULT '',
+      vendor_type TEXT DEFAULT 'maintenance' CHECK(vendor_type IN ('maintenance','supplier','other')),
+      is_active INTEGER DEFAULT 1,
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 계약
+    CREATE TABLE IF NOT EXISTS contracts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+      contract_name TEXT NOT NULL,
+      contract_type TEXT DEFAULT 'maintenance' CHECK(contract_type IN ('maintenance','purchase','lease','other')),
+      start_date TEXT DEFAULT '',
+      end_date TEXT DEFAULT '',
+      amount TEXT DEFAULT '',
+      auto_renew INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active','expired','cancelled')),
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 반입/반출
+    CREATE TABLE IF NOT EXISTS asset_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+      movement_type TEXT NOT NULL CHECK(movement_type IN ('bring_in','bring_out','return')),
+      movement_date TEXT DEFAULT '',
+      requester TEXT DEFAULT '',
+      approver TEXT DEFAULT '',
+      department TEXT DEFAULT '',
+      purpose TEXT DEFAULT '',
+      destination TEXT DEFAULT '',
+      equipment_desc TEXT DEFAULT '',
+      serial_number TEXT DEFAULT '',
+      status TEXT DEFAULT 'requested' CHECK(status IN ('requested','approved','completed','rejected')),
+      notes TEXT DEFAULT '',
+      created_by TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- 유지보수/장애
+    CREATE TABLE IF NOT EXISTS maintenance_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      log_type TEXT DEFAULT 'failure' CHECK(log_type IN ('failure','maintenance','inspection')),
+      occurred_at TEXT DEFAULT '',
+      resolved_at TEXT DEFAULT '',
+      reported_by TEXT DEFAULT '',
+      handled_by TEXT DEFAULT '',
+      severity TEXT DEFAULT 'minor' CHECK(severity IN ('critical','major','minor')),
+      symptom TEXT DEFAULT '',
+      action_taken TEXT DEFAULT '',
+      vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+      cost TEXT DEFAULT '',
+      status TEXT DEFAULT 'open' CHECK(status IN ('open','in_progress','resolved')),
+      notes TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
+    -- IP 대역
+    CREATE TABLE IF NOT EXISTS ip_subnets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subnet_name TEXT NOT NULL,
+      network_address TEXT NOT NULL,
+      subnet_mask TEXT DEFAULT '255.255.255.0',
+      gateway TEXT DEFAULT '',
+      vlan_id TEXT DEFAULT '',
+      location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+      description TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+
     -- 인덱스
     CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
     CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);
@@ -182,6 +263,10 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_custom_values_field ON custom_values(field_id);
     CREATE INDEX IF NOT EXISTS idx_dist_frames_location ON dist_frames(location_id);
     CREATE INDEX IF NOT EXISTS idx_frame_pairs_frame ON frame_pairs(frame_id);
+    CREATE INDEX IF NOT EXISTS idx_movements_asset ON asset_movements(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_asset ON maintenance_logs(asset_id);
+    CREATE INDEX IF NOT EXISTS idx_contracts_vendor ON contracts(vendor_id);
+    CREATE INDEX IF NOT EXISTS idx_subnets_location ON ip_subnets(location_id);
   `);
 
   // 기존 DB 마이그레이션

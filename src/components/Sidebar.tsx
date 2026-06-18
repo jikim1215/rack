@@ -4,15 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard,
-  Server,
-  HardDrive,
-  Cable,
-  MapPin,
-  GitBranch,
-  LogOut,
-  User,
-  Settings,
+  LayoutDashboard, Server, HardDrive, Cable, Network, Globe,
+  GitBranch, ArrowLeftRight, Wrench, FileText, MapPin, Settings,
+  LogOut, User,
 } from "lucide-react";
 
 const nav = [
@@ -20,7 +14,12 @@ const nav = [
   { href: "/assets", label: "자산관리", icon: Server },
   { href: "/racks", label: "랙 실장도", icon: HardDrive },
   { href: "/portmap", label: "포트맵", icon: Cable },
+  { href: "/topology", label: "토폴로지", icon: Network },
+  { href: "/ipam", label: "IP관리", icon: Globe },
   { href: "/distribution", label: "배선관리", icon: GitBranch },
+  { href: "/movements", label: "반입/반출", icon: ArrowLeftRight },
+  { href: "/maintenance", label: "유지보수", icon: Wrench },
+  { href: "/contracts", label: "계약관리", icon: FileText },
   { href: "/locations", label: "위치관리", icon: MapPin },
   { href: "/settings", label: "설정", icon: Settings },
 ];

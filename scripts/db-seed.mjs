@@ -596,5 +596,49 @@ for (const tps of tpsAssets) {
   }
 }
 
-console.log("✅ 시드 데이터 생성 완료 (users, MDF, TPS 포함)");
+// ============================================================
+// 업체 (vendors)
+// ============================================================
+const insertVendor = db.prepare(`INSERT INTO vendors (vendor_name, contact_person, phone, email, address, business_number, vendor_type, notes) VALUES (?,?,?,?,?,?,?,?)`);
+const v1 = insertVendor.run("(주)한국IT서비스", "김유지", "02-1234-5678", "support@kits.co.kr", "서울시 강남구", "123-45-67890", "maintenance", "서버/스토리지 유지보수").lastInsertRowid;
+const v2 = insertVendor.run("시스코코리아", "박영업", "02-2345-6789", "sales@cisco.kr", "서울시 서초구", "234-56-78901", "supplier", "네트워크 장비 공급").lastInsertRowid;
+const v3 = insertVendor.run("(주)보안솔루션", "이보안", "02-3456-7890", "info@secsol.co.kr", "서울시 용산구", "345-67-89012", "maintenance", "보안장비 유지보수").lastInsertRowid;
+
+// ============================================================
+// 계약 (contracts)
+// ============================================================
+const insertContract = db.prepare(`INSERT INTO contracts (vendor_id, contract_name, contract_type, start_date, end_date, amount, auto_renew, status, notes) VALUES (?,?,?,?,?,?,?,?,?)`);
+insertContract.run(v1, "2024 서버 유지보수 계약", "maintenance", "2024-01-01", "2024-12-31", "36,000,000", 1, "active", "서버 5대 연간 유지보수");
+insertContract.run(v2, "네트워크 장비 구매 계약", "purchase", "2023-01-10", "2023-12-31", "120,000,000", 0, "expired", "코어스위치 외 3대");
+insertContract.run(v3, "보안장비 통합 유지보수", "maintenance", "2024-06-01", "2025-05-31", "48,000,000", 1, "active", "방화벽/IPS/WAF/NAC");
+
+// ============================================================
+// 반입/반출 (asset_movements)
+// ============================================================
+const insertMovement = db.prepare(`INSERT INTO asset_movements (asset_id, movement_type, movement_date, requester, approver, department, purpose, destination, equipment_desc, serial_number, status, notes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+insertMovement.run(srv1, "bring_in", "2022-03-15", "김정보", "박과장", "정보운영과", "신규 도입", "본관 전산실", "Dell PowerEdge R740", "SRV-2024-001", "completed", "초기 설치", "admin");
+insertMovement.run(srv4, "bring_out", "2025-06-01", "김정보", "", "정보운영과", "디스크 교체 수리", "(주)한국IT서비스", "Dell PowerEdge R640", "SRV-2024-004", "requested", "디스크 장애로 반출", "admin");
+insertMovement.run(null, "bring_in", "2025-06-10", "최네트", "박과장", "정보운영과", "유지보수 점검장비 반입", "본관 전산실", "노트북 외 1대", "", "approved", "업체 점검용", "admin");
+
+// ============================================================
+// 유지보수/장애 (maintenance_logs)
+// ============================================================
+const insertMaint = db.prepare(`INSERT INTO maintenance_logs (asset_id, log_type, occurred_at, resolved_at, reported_by, handled_by, severity, symptom, action_taken, vendor_id, cost, status, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+insertMaint.run(srv4, "failure", "2025-05-28", "", "김정보", "", "major", "디스크 RAID 경고 발생, 1개 디스크 Degraded", "", v1, "", "open", "디스크 교체 필요");
+insertMaint.run(sw2, "maintenance", "2025-04-15", "2025-04-15", "최네트", "최네트", "minor", "IOS 업데이트 작업", "IOS 15.2(7)E → 15.2(7)E3 업데이트 완료", null, "", "resolved", "정기 패치");
+insertMaint.run(srv1, "inspection", "2025-03-01", "2025-03-01", "김정보", "김정보", "minor", "연간 정기 점검", "하드웨어 상태 정상, 먼지 제거, 케이블 정리", v1, "0", "resolved", "");
+
+// ============================================================
+// IP 대역 (ip_subnets)
+// ============================================================
+const insertSubnet = db.prepare(`INSERT INTO ip_subnets (subnet_name, network_address, subnet_mask, gateway, vlan_id, location_id, description) VALUES (?,?,?,?,?,?,?)`);
+insertSubnet.run("서버 관리 대역", "10.10.1.0", "255.255.255.0", "10.10.1.1", "10", loc1, "서버 관리용 네트워크");
+insertSubnet.run("서버 서비스 대역", "10.10.2.0", "255.255.255.0", "10.10.2.1", "20", loc1, "서버 서비스용 네트워크");
+insertSubnet.run("네트워크 관리 대역", "10.10.0.0", "255.255.255.0", "10.10.0.1", "1", loc1, "네트워크 장비 관리");
+insertSubnet.run("서버 iDRAC/iLO 대역", "10.10.99.0", "255.255.255.0", "10.10.99.1", "99", loc1, "서버 관리콘솔 전용");
+insertSubnet.run("본원 사용자 대역", "10.10.10.0", "255.255.255.0", "10.10.10.1", "100", loc1, "본원 TPS 사용자 네트워크");
+insertSubnet.run("증축 사용자 대역", "10.10.20.0", "255.255.255.0", "10.10.20.1", "200", loc2, "증축동 TPS 사용자 네트워크");
+insertSubnet.run("전화설비 대역", "10.10.5.0", "255.255.255.0", "10.10.5.1", "50", loc1, "IP-PBX 전화설비 네트워크");
+
+console.log("✅ 시드 데이터 생성 완료 (전체)");
 db.close();
