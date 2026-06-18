@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, MapPin, HardDrive, Pencil, Trash2, X, Save, History } from "lucide-react";
+import { AuditLogModal, fetchAuditLogs } from "@/components/AuditLogModal";
 
 interface Location {
   id: number;
@@ -245,16 +246,8 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
                     <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, rack_name: rack.rack_name, total_units: rack.total_units, description: rack.description }); setShowRackForm(true); }}
                       className="p-1.5 text-slate-400 hover:text-blue-600 rounded" title="수정"><Pencil size={14} /></button>
                     <button onClick={async () => {
-                      try {
-                        const res = await fetch(`/api/audit?entity_type=rack&entity_id=${rack.id}&limit=20`);
-                        if (res.ok) {
-                          const logs = await res.json();
-                          setAuditLogs(logs);
-                          setAuditRackName(rack.rack_name);
-                        } else {
-                          alert("이력 조회에 실패했습니다.");
-                        }
-                      } catch { alert("이력 조회 중 오류가 발생했습니다."); }
+                      const logs = await fetchAuditLogs("rack", rack.id);
+                      if (logs) { setAuditLogs(logs); setAuditRackName(rack.rack_name); }
                     }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="이력"><History size={14} /></button>
                     <button onClick={() => deleteRack(rack.id)}
                       className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="삭제"><Trash2 size={14} /></button>
@@ -269,73 +262,9 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
         </div>
       </div>
 
-      {/* 랙 이력 모달 */}
+      {/* 랙 이력 모달 (공통 컴포넌트) */}
       {auditLogs !== null && (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={() => setAuditLogs(null)}>
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">{auditRackName} 변경이력</h3>
-              <button onClick={() => setAuditLogs(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
-            </div>
-            {auditLogs.length === 0 ? (
-              <p className="text-sm text-slate-400 py-4 text-center">변경 이력이 없습니다.</p>
-            ) : (
-              <div className="space-y-3">
-                {auditLogs.map((log: any) => (
-                  <div key={log.id} className="border-b pb-2 last:border-0">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-slate-400">{log.created_at}</span>
-                      <span className="font-medium">{log.changed_by || "-"}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-xs ${
-                        log.action === "create" ? "bg-green-100 text-green-700" :
-                        log.action === "update" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
-                      }`}>{log.action === "create" ? "생성" : log.action === "update" ? "수정" : "삭제"}</span>
-                    </div>
-                    {log.changed_fields?.length > 0 && (
-                      <div className="mt-1 text-xs text-slate-500">
-                        <span className="text-slate-400">변경:</span>{" "}
-                        {log.changed_fields.map((f: string) => (
-                          <span key={f} className="inline-block bg-slate-100 rounded px-1 mr-1">{f}</span>
-                        ))}
-                      </div>
-                    )}
-                    {log.action === "update" && log.old_values && Object.keys(log.old_values).length > 0 && (
-                      <div className="mt-1 text-xs space-y-0.5">
-                        {Object.keys(log.old_values).map((k: string) => (
-                          <div key={k}>
-                            <span className="text-slate-400">{k}:</span>{" "}
-                            <span className="text-red-500 line-through">{String(log.old_values[k])}</span>{" → "}
-                            <span className="text-green-600">{String(log.new_values?.[k] ?? "")}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {log.action === "create" && log.new_values && Object.keys(log.new_values).length > 0 && (
-                      <div className="mt-1 text-xs space-y-0.5">
-                        {Object.keys(log.new_values).map((k: string) => (
-                          <div key={k}>
-                            <span className="text-slate-400">{k}:</span>{" "}
-                            <span className="text-green-600">{String(log.new_values[k])}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {log.action === "delete" && log.old_values && Object.keys(log.old_values).length > 0 && (
-                      <div className="mt-1 text-xs space-y-0.5">
-                        {Object.keys(log.old_values).map((k: string) => (
-                          <div key={k}>
-                            <span className="text-slate-400">{k}:</span>{" "}
-                            <span className="text-red-500 line-through">{String(log.old_values[k])}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <AuditLogModal logs={auditLogs} title={auditRackName} onClose={() => setAuditLogs(null)} />
       )}
     </div>
   );
