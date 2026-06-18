@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!existing) return NextResponse.json({ error: "랙을 찾을 수 없습니다." }, { status: 404 });
 
   // 입력 검증
-  const rackName = (body.rack_name || body.name || "").trim();
+  const rackName = (body.rack_name || body.name || "").trim().replace(/\s+/g, " ");
   if (!rackName) return NextResponse.json({ error: "랙 이름은 필수입니다." }, { status: 400 });
 
   const totalUnits = Number(body.total_units) || 42;

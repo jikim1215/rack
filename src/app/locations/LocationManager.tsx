@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, MapPin, HardDrive, Pencil, Trash2, X, Save } from "lucide-react";
+import { Plus, MapPin, HardDrive, Pencil, Trash2, X, Save, History } from "lucide-react";
 
 interface Location {
   id: number;
@@ -231,9 +231,18 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, rack_name: rack.rack_name, total_units: rack.total_units, description: rack.description }); setShowRackForm(true); }}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 rounded"><Pencil size={14} /></button>
+                      className="p-1.5 text-slate-400 hover:text-blue-600 rounded" title="수정"><Pencil size={14} /></button>
+                    <button onClick={async () => {
+                      const res = await fetch(`/api/audit?entity_type=rack&entity_id=${rack.id}&limit=10`);
+                      if (res.ok) {
+                        const logs = await res.json();
+                        if (logs.length === 0) { alert("변경 이력이 없습니다."); return; }
+                        const msg = logs.map((l: any) => `[${l.created_at}] ${l.changed_by} — ${l.action}`).join("\n");
+                        alert(`${rack.rack_name} 변경이력:\n\n${msg}`);
+                      }
+                    }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="이력"><History size={14} /></button>
                     <button onClick={() => deleteRack(rack.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="삭제"><Trash2 size={14} /></button>
                   </div>
                 </div>
                 <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
