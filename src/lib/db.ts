@@ -200,6 +200,14 @@ function initSchema(db: Database.Database) {
       notes TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
+    
+    -- 계약-자산 연동 (N:M)
+    CREATE TABLE IF NOT EXISTS contract_assets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+      asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+      UNIQUE(contract_id, asset_id)
+    );
 
     -- 반입/반출
     CREATE TABLE IF NOT EXISTS asset_movements (
@@ -252,6 +260,17 @@ function initSchema(db: Database.Database) {
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
+    -- 메뉴 권한
+    CREATE TABLE IF NOT EXISTS menu_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      menu_key TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('admin','user','viewer')),
+      can_access INTEGER DEFAULT 1,
+      can_write INTEGER DEFAULT 0,
+      can_approve INTEGER DEFAULT 0,
+      UNIQUE(menu_key, role)
+    );
+
     -- 인덱스
     CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
     CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);
@@ -267,6 +286,7 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_maintenance_asset ON maintenance_logs(asset_id);
     CREATE INDEX IF NOT EXISTS idx_contracts_vendor ON contracts(vendor_id);
     CREATE INDEX IF NOT EXISTS idx_subnets_location ON ip_subnets(location_id);
+    CREATE INDEX IF NOT EXISTS idx_menu_perms ON menu_permissions(role, menu_key);
   `);
 
   // 기존 DB 마이그레이션

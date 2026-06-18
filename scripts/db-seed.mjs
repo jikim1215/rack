@@ -20,6 +20,13 @@ function hashPw(pw) {
 // 스키마 생성
 // ============================================================
 db.exec(`
+  DROP TABLE IF EXISTS menu_permissions;
+  DROP TABLE IF EXISTS contract_assets;
+  DROP TABLE IF EXISTS maintenance_logs;
+  DROP TABLE IF EXISTS asset_movements;
+  DROP TABLE IF EXISTS contracts;
+  DROP TABLE IF EXISTS vendors;
+  DROP TABLE IF EXISTS ip_subnets;
   DROP TABLE IF EXISTS frame_pairs;
   DROP TABLE IF EXISTS dist_frames;
   DROP TABLE IF EXISTS custom_values;
@@ -190,10 +197,96 @@ db.exec(`
     status TEXT DEFAULT 'unused' CHECK(status IN ('used','unused','reserved','disabled'))
   );
 
+  CREATE TABLE IF NOT EXISTS vendors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendor_name TEXT NOT NULL,
+    contact_person TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    business_number TEXT DEFAULT '',
+    vendor_type TEXT DEFAULT 'maintenance' CHECK(vendor_type IN ('maintenance','supplier','other')),
+    is_active INTEGER DEFAULT 1,
+    notes TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  );
+  CREATE TABLE IF NOT EXISTS contracts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+    contract_name TEXT NOT NULL,
+    contract_type TEXT DEFAULT 'maintenance' CHECK(contract_type IN ('maintenance','purchase','lease','other')),
+    start_date TEXT DEFAULT '',
+    end_date TEXT DEFAULT '',
+    amount TEXT DEFAULT '',
+    auto_renew INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active','expired','cancelled')),
+    notes TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  );
+  CREATE TABLE IF NOT EXISTS contract_assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    UNIQUE(contract_id, asset_id)
+  );
+  CREATE TABLE IF NOT EXISTS asset_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+    movement_type TEXT NOT NULL CHECK(movement_type IN ('bring_in','bring_out','return')),
+    movement_date TEXT DEFAULT '',
+    requester TEXT DEFAULT '',
+    approver TEXT DEFAULT '',
+    department TEXT DEFAULT '',
+    purpose TEXT DEFAULT '',
+    destination TEXT DEFAULT '',
+    equipment_desc TEXT DEFAULT '',
+    serial_number TEXT DEFAULT '',
+    status TEXT DEFAULT 'requested' CHECK(status IN ('requested','approved','completed','rejected')),
+    notes TEXT DEFAULT '',
+    created_by TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  );
+  CREATE TABLE IF NOT EXISTS maintenance_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+    log_type TEXT DEFAULT 'failure' CHECK(log_type IN ('failure','maintenance','inspection')),
+    occurred_at TEXT DEFAULT '',
+    resolved_at TEXT DEFAULT '',
+    reported_by TEXT DEFAULT '',
+    handled_by TEXT DEFAULT '',
+    severity TEXT DEFAULT 'minor' CHECK(severity IN ('critical','major','minor')),
+    symptom TEXT DEFAULT '',
+    action_taken TEXT DEFAULT '',
+    vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+    cost TEXT DEFAULT '',
+    status TEXT DEFAULT 'open' CHECK(status IN ('open','in_progress','resolved')),
+    notes TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  );
+  CREATE TABLE IF NOT EXISTS ip_subnets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    subnet_name TEXT NOT NULL,
+    network_address TEXT NOT NULL,
+    subnet_mask TEXT DEFAULT '255.255.255.0',
+    gateway TEXT DEFAULT '',
+    vlan_id TEXT DEFAULT '',
+    location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
+    description TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now','localtime'))
+  );
+  CREATE TABLE IF NOT EXISTS menu_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    menu_key TEXT NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('admin','user','viewer')),
+    can_access INTEGER DEFAULT 1,
+    can_write INTEGER DEFAULT 0,
+    can_approve INTEGER DEFAULT 0,
+    UNIQUE(menu_key, role)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
   CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);
   CREATE INDEX IF NOT EXISTS idx_asset_ips_asset ON asset_ips(asset_id);
-  CREATE INDEX IF NOT EXISTS idx_asset_photos_asset ON asset_photos(asset_id);
   CREATE INDEX IF NOT EXISTS idx_asset_logs_asset ON asset_logs(asset_id);
   CREATE INDEX IF NOT EXISTS idx_ports_asset ON ports(asset_id);
   CREATE INDEX IF NOT EXISTS idx_ports_connected ON ports(connected_to_port_id);
@@ -201,6 +294,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_custom_values_field ON custom_values(field_id);
   CREATE INDEX IF NOT EXISTS idx_dist_frames_location ON dist_frames(location_id);
   CREATE INDEX IF NOT EXISTS idx_frame_pairs_frame ON frame_pairs(frame_id);
+  CREATE INDEX IF NOT EXISTS idx_movements_asset ON asset_movements(asset_id);
+  CREATE INDEX IF NOT EXISTS idx_maintenance_asset ON maintenance_logs(asset_id);
+  CREATE INDEX IF NOT EXISTS idx_contracts_vendor ON contracts(vendor_id);
+  CREATE INDEX IF NOT EXISTS idx_subnets_location ON ip_subnets(location_id);
+  CREATE INDEX IF NOT EXISTS idx_menu_perms ON menu_permissions(role, menu_key);
 `);
 
 // ============================================================
@@ -639,6 +737,67 @@ insertSubnet.run("서버 iDRAC/iLO 대역", "10.10.99.0", "255.255.255.0", "10.1
 insertSubnet.run("본원 사용자 대역", "10.10.10.0", "255.255.255.0", "10.10.10.1", "100", loc1, "본원 TPS 사용자 네트워크");
 insertSubnet.run("증축 사용자 대역", "10.10.20.0", "255.255.255.0", "10.10.20.1", "200", loc2, "증축동 TPS 사용자 네트워크");
 insertSubnet.run("전화설비 대역", "10.10.5.0", "255.255.255.0", "10.10.5.1", "50", loc1, "IP-PBX 전화설비 네트워크");
+
+// ============================================================
+// 메뉴 권한 (menu_permissions) — 초기 권한 세트
+// ============================================================
+const insertPerm = db.prepare(`INSERT INTO menu_permissions (menu_key, role, can_access, can_write, can_approve) VALUES (?,?,?,?,?)`);
+
+// 메뉴 키 목록
+const menus = ['dashboard','assets','racks','portmap','topology','ipam','distribution','movements','maintenance','contracts','locations','settings'];
+
+// admin: 전부 접근+쓰기+승인
+for (const m of menus) {
+  insertPerm.run(m, 'admin', 1, 1, 1);
+}
+
+// user: 합의된 기본 권한
+const userPerms = {
+  dashboard:     [1, 0, 0],
+  assets:        [1, 1, 0],
+  racks:         [1, 0, 0],
+  portmap:       [1, 0, 0],
+  topology:      [1, 0, 0],
+  ipam:          [1, 0, 0],
+  distribution:  [1, 0, 0],
+  movements:     [1, 1, 0],  // 신청 가능, 승인 불가
+  maintenance:   [1, 1, 0],
+  contracts:     [0, 0, 0],  // 접근 불가
+  locations:     [1, 0, 0],
+  settings:      [1, 0, 0],
+};
+for (const [m, [a, w, ap]] of Object.entries(userPerms)) {
+  insertPerm.run(m, 'user', a, w, ap);
+}
+
+// viewer: 최소 권한 (초기 신규 사용자 기본)
+const viewerPerms = {
+  dashboard:     [1, 0, 0],
+  assets:        [1, 0, 0],
+  racks:         [1, 0, 0],
+  portmap:       [1, 0, 0],
+  topology:      [1, 0, 0],
+  ipam:          [1, 0, 0],
+  distribution:  [0, 0, 0],
+  movements:     [1, 0, 0],
+  maintenance:   [1, 0, 0],
+  contracts:     [0, 0, 0],
+  locations:     [0, 0, 0],
+  settings:      [1, 0, 0],
+};
+for (const [m, [a, w, ap]] of Object.entries(viewerPerms)) {
+  insertPerm.run(m, 'viewer', a, w, ap);
+}
+
+// ============================================================
+// 계약-자산 연동 (contract_assets)
+// ============================================================
+const insertCA = db.prepare(`INSERT INTO contract_assets (contract_id, asset_id) VALUES (?,?)`);
+// 서버 유지보수 계약에 서버 5대 연결 (contract id=1)
+insertCA.run(1, srv1);
+insertCA.run(1, srv2);
+insertCA.run(1, srv3);
+insertCA.run(1, srv4);
 
 console.log("✅ 시드 데이터 생성 완료 (전체)");
 db.close();

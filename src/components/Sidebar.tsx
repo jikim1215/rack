@@ -33,7 +33,10 @@ const roleBadge: Record<string, string> = {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<{ displayName: string; role: string; username: string } | null>(null);
+  const [user, setUser] = useState<{
+    displayName: string; role: string; username: string;
+    permissions?: Record<string, { can_access: number }>;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -55,7 +58,12 @@ export function Sidebar() {
         <p className="text-xs text-slate-400 mt-1">정보시스템 관리 솔루션</p>
       </div>
       <nav className="flex-1 py-2">
-        {nav.map(({ href, label, icon: Icon }) => {
+        {nav.filter(({ href }) => {
+          if (!user?.permissions) return true;
+          const key = href === '/' ? 'dashboard' : href.slice(1);
+          const perm = user.permissions[key];
+          return !perm || perm.can_access;
+        }).map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (
             <Link

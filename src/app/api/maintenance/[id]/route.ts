@@ -33,7 +33,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   if (updates.length > 0) {
+    // 기존 로그 조회 (상태 연동용)
+    const log = db.prepare('SELECT * FROM maintenance_logs WHERE id = ?').get(Number(id)) as any;
+    if (!log) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     db.prepare(`UPDATE maintenance_logs SET ${updates.join(", ")} WHERE id = @id`).run(values);
+
+    // 장애 등록(in_progress) → 자산 maintenance 상태
+    if (body.status === 'in_progress' && log.log_type === 'failure' && log.asset_id) {
+      db.prepare('UPDATE assets SET status = ? WHERE id = ?').run('maintenance', log.asset_id);
+    }
+
+    // 장애 해결 → 자산 active 복원
+    if (body.status === 'resolved' && log.log_type === 'failure' && log.asset_id) {
+      db.prepare('UPDATE assets SET status = ? WHERE id = ?').run('active', log.asset_id);
+    }
   }
 
   const log = db.prepare(`

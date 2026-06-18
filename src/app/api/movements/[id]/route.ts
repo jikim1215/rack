@@ -42,18 +42,43 @@ export async function PUT(
     return NextResponse.json({ error: "No updates" }, { status: 400 });
   }
 
+  const movement = db.prepare('SELECT * FROM asset_movements WHERE id = ?').get(Number(id)) as any;
+
   db.prepare(
     `UPDATE asset_movements SET ${updates.join(", ")} WHERE id = @id`
   ).run(values);
 
-  const movement = db.prepare(`
+  // 반출 완료 → 자산 inactive
+  if (body.status === 'completed' && movement?.movement_type === 'bring_out' && movement.asset_id) {
+    db.prepare('UPDATE assets SET status = ? WHERE id = ?').run('inactive', movement.asset_id);
+  }
+
+  // 반납 완료 → 자산 active 복원
+  if (body.status === 'completed' && movement?.movement_type === 'return' && movement.asset_id) {
+    db.prepare('UPDATE assets SET status = ? WHERE id = ?').run('active', movement.asset_id);
+  }
+
+  // 반입 완료 + 자산 미연결 → 자산 자동 등록
+  if (body.status === 'completed' && movement?.movement_type === 'bring_in' && !movement.asset_id) {
+    const newAsset = db.prepare(`
+      INSERT INTO assets (asset_type, asset_name, serial_number, status, description)
+      VALUES ('other', ?, ?, 'active', ?)
+    `).run(
+      movement.equipment_desc || '반입 장비',
+      movement.serial_number || '',
+      movement.purpose || ''
+    );
+    db.prepare('UPDATE asset_movements SET asset_id = ? WHERE id = ?').run(newAsset.lastInsertRowid, Number(id));
+  }
+
+  const updated = db.prepare(`
     SELECT m.*, a.asset_name
     FROM asset_movements m
     LEFT JOIN assets a ON m.asset_id = a.id
     WHERE m.id = ?
   `).get(id);
 
-  return NextResponse.json(movement);
+  return NextResponse.json(updated);
 }
 
 export async function DELETE(

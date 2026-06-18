@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
     notes: body.notes || "",
     reported_by: session.username,
   });
+  // 장애 등록 시 자산 상태를 maintenance로
+  if (body.log_type === 'failure' && body.asset_id) {
+    db.prepare('UPDATE assets SET status = ? WHERE id = ?').run('maintenance', body.asset_id);
+  }
   const log = db.prepare(`
     SELECT ml.*, a.asset_name, v.vendor_name
     FROM maintenance_logs ml
