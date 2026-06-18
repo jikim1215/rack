@@ -11,11 +11,16 @@ export async function GET(req: NextRequest) {
   const entityId = req.nextUrl.searchParams.get("entity_id");
   const limit = Math.min(Number(req.nextUrl.searchParams.get("limit")) || 50, 200);
 
+  const VALID_ENTITY_TYPES = ["asset", "rack", "location", "frame", "contract", "movement", "maintenance"];
+
   let query = "SELECT * FROM audit_logs";
   const conditions: string[] = [];
   const params: any[] = [];
 
   if (entityType) {
+    if (!VALID_ENTITY_TYPES.includes(entityType)) {
+      return NextResponse.json({ error: "Invalid entity_type" }, { status: 400 });
+    }
     conditions.push("entity_type = ?");
     params.push(entityType);
   }

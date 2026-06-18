@@ -256,7 +256,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
           className="fixed z-50 bg-red-900 text-white p-3 rounded-lg shadow-xl text-xs max-w-sm pointer-events-none"
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
-          <div className="font-bold mb-1 text-red-200">⚠ 슬롯 충돌 ({hoveredConflict.length}건)</div>
+          <div className="font-bold mb-1 text-red-200">⚠ 충돌 장비 {hoveredConflict.length}대</div>
           {hoveredConflict.map((a) => (
             <div key={a.id} className="border-t border-red-700 pt-1 mt-1">
               <div className="font-medium">{a.asset_name}</div>
