@@ -33,6 +33,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const db = getDb();
   const oldAsset = db.prepare('SELECT * FROM assets WHERE id = ?').get(Number(id)) as any;
 
+  // 랙 슬롯 중복 배치 검증
+  if (body.rack_id) {
+    const { validateRackPlacement } = await import("@/lib/rack-validation");
+    const err = validateRackPlacement(db, body.rack_id, body.rack_unit_start, body.rack_unit_size || 1, Number(id));
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
+  }
 
   db.prepare(`
     UPDATE assets SET

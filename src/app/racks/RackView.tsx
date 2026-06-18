@@ -86,6 +86,24 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
           const usedUnits = rackAssets.reduce((sum, a) => sum + a.rack_unit_size, 0);
           const usagePercent = Math.round((usedUnits / rack.total_units) * 100);
 
+          // 슬롯 충돌 감지
+          const conflicts: { a1: Asset; a2: Asset }[] = [];
+          for (let i = 0; i < rackAssets.length; i++) {
+            for (let j = i + 1; j < rackAssets.length; j++) {
+              const a1 = rackAssets[i], a2 = rackAssets[j];
+              const a1End = a1.rack_unit_start + a1.rack_unit_size - 1;
+              const a2End = a2.rack_unit_start + a2.rack_unit_size - 1;
+              if (a1.rack_unit_start <= a2End && a2.rack_unit_start <= a1End) {
+                conflicts.push({ a1, a2 });
+              }
+            }
+          }
+
+          // 랙 범위 초과 자산 감지
+          const overflowing = rackAssets.filter(a =>
+            a.rack_unit_start + a.rack_unit_size - 1 > rack.total_units
+          );
+
           return (
             <div key={rack.id} className="bg-white border rounded-lg p-4 hover-card">
               <div className="text-center mb-3">
@@ -94,8 +112,32 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
                 <p className="text-xs text-slate-400">{rack.location_name}</p>
                 <p className="text-xs text-slate-500 mt-1">
                   {usedUnits}U / {rack.total_units}U ({usagePercent}%)
+                  {usedUnits > rack.total_units && (
+                    <span className="text-red-600 font-bold ml-1">⚠ 초과</span>
+                  )}
                 </p>
               </div>
+
+              {/* 경고 영역 */}
+              {(conflicts.length > 0 || overflowing.length > 0 || usagePercent > 100) && (
+                <div className="space-y-1 mb-2">
+                  {conflicts.length > 0 && (
+                    <div className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+                      ⚠ 슬롯 충돌 {conflicts.length}건
+                    </div>
+                  )}
+                  {overflowing.length > 0 && (
+                    <div className="text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
+                      ⚠ 범위 초과 {overflowing.length}건
+                    </div>
+                  )}
+                  {usagePercent > 100 && (
+                    <div className="text-xs text-red-600 bg-red-50 rounded px-2 py-1">
+                      ⚠ 사용률 {usagePercent}% 초과
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 랙 다이어그램 */}
               <div className="border-2 border-slate-700 rounded bg-slate-800 p-0.5" style={{ width: 220 }}>

@@ -21,6 +21,14 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const db = getDb();
+
+  // 랙 슬롯 중복 배치 검증
+  if (body.rack_id) {
+    const { validateRackPlacement } = await import("@/lib/rack-validation");
+    const err = validateRackPlacement(db, body.rack_id, body.rack_unit_start, body.rack_unit_size || 1);
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
+  }
+
   const result = db.prepare(`
     INSERT INTO assets (asset_type, asset_name, manufacturer, model, serial_number, ip_address, asset_tag, status,
       os, access_ip, user_name, admin_name, department,

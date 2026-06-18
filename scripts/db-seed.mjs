@@ -114,7 +114,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     asset_id INTEGER,
     asset_name TEXT DEFAULT '',
-    action TEXT NOT NULL CHECK(action IN ('create','update','delete')),
+    action TEXT NOT NULL CHECK(action IN ('create','update','delete','rack:create','rack:update','rack:delete')),
     changed_by TEXT DEFAULT '',
     changed_fields TEXT DEFAULT '[]',
     old_values TEXT DEFAULT '{}',

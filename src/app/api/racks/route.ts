@@ -1,11 +1,14 @@
 import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { logAssetChange } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET() {
   const db = getDb();
   const racks = db.prepare(`
-    SELECT r.*, l.location_name
+    SELECT r.*, l.location_name,
+      COALESCE((SELECT COUNT(*) FROM assets WHERE rack_id = r.id), 0) as asset_count,
+      COALESCE((SELECT SUM(rack_unit_size) FROM assets WHERE rack_id = r.id), 0) as used_units
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id
     ORDER BY r.rack_name
   `).all();
@@ -17,18 +20,32 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
   const db = getDb();
+
+  // 입력 검증
+  const rackName = (body.rack_name || body.name || "").trim();
+  if (!rackName) return NextResponse.json({ error: "랙 이름은 필수입니다." }, { status: 400 });
+
+  const totalUnits = Number(body.total_units) || 42;
+  if (totalUnits < 1) return NextResponse.json({ error: "총 유닛 수는 1 이상이어야 합니다." }, { status: 400 });
+
+  const locId = Number(body.location_id);
+  const loc = db.prepare("SELECT id FROM locations WHERE id = ?").get(locId);
+  if (!loc) return NextResponse.json({ error: "존재하지 않는 위치입니다." }, { status: 400 });
+
   const result = db.prepare(
-    "INSERT INTO racks (location_id, rack_name, total_units, description) VALUES (@location_id, @rack_name, @total_units, @description)"
-  ).run({
-    location_id: body.location_id,
-    rack_name: body.rack_name || body.name,
-    total_units: body.total_units || 42,
-    description: body.description || "",
-  });
+    "INSERT INTO racks (location_id, rack_name, total_units, description) VALUES (?, ?, ?, ?)"
+  ).run(locId, rackName, totalUnits, body.description || "");
+
   const rack = db.prepare(`
-    SELECT r.*, l.location_name
-    FROM racks r LEFT JOIN locations l ON r.location_id = l.id
-    WHERE r.id = ?
+    SELECT r.*, l.location_name, 0 as asset_count, 0 as used_units
+    FROM racks r LEFT JOIN locations l ON r.location_id = l.id WHERE r.id = ?
   `).get(result.lastInsertRowid);
+
+  logAssetChange(db, {
+    assetId: Number(result.lastInsertRowid), assetName: rackName,
+    action: "rack:create" as any, changedBy: session?.username || "system",
+    newData: { rack_name: rackName, total_units: totalUnits, location_id: locId },
+  });
+
   return NextResponse.json(rack, { status: 201 });
 }
