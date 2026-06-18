@@ -81,6 +81,10 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
         setRacks((prev) => prev.map((r) => (r.id === editRackId ? { ...r, ...data } : r)));
       } else {
         setRacks((prev) => [...prev, data]);
+        // location의 rack_count 즉시 반영
+        setLocations((prev) => prev.map((l) =>
+          l.id === rackForm.location_id ? { ...l, rack_count: l.rack_count + 1 } : l
+        ));
       }
       setShowRackForm(false);
       setEditRackId(null);
@@ -99,7 +103,13 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       if (data.releasedAssets > 0) {
         alert(`랙이 삭제되었습니다. 소속 자산 ${data.releasedAssets}건의 랙 정보가 해제되었습니다.`);
       }
+      const deletedRack = racks.find((r) => r.id === id);
       setRacks((prev) => prev.filter((r) => r.id !== id));
+      if (deletedRack) {
+        setLocations((prev) => prev.map((l) =>
+          l.id === deletedRack.location_id ? { ...l, rack_count: Math.max(0, l.rack_count - 1) } : l
+        ));
+      }
     } else {
       const data = await res.json().catch(() => ({}));
       alert(data.error || "삭제에 실패했습니다.");
