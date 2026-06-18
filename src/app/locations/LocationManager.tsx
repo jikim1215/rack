@@ -98,6 +98,9 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
         alert(`랙이 삭제되었습니다. 소속 자산 ${data.releasedAssets}건의 랙 정보가 해제되었습니다.`);
       }
       setRacks((prev) => prev.filter((r) => r.id !== id));
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "삭제에 실패했습니다.");
     }
   }
 

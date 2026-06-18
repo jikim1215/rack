@@ -21,7 +21,7 @@ export default function RacksPage() {
   const assets = db.prepare(`
     SELECT id, asset_name, asset_type, rack_id, rack_unit_start, rack_unit_size, manufacturer, model, ip_address, status
     FROM assets
-    WHERE rack_id IS NOT NULL AND rack_unit_start IS NOT NULL
+    WHERE rack_id IS NOT NULL AND rack_unit_start IS NOT NULL AND rack_unit_size IS NOT NULL AND rack_unit_size >= 1
     ORDER BY rack_unit_start
   `).all() as any[];
 

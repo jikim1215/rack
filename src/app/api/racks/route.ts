@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (!loc) return NextResponse.json({ error: "존재하지 않는 위치입니다." }, { status: 400 });
 
   const dup = db.prepare(
-    "SELECT id FROM racks WHERE location_id = ? AND rack_name = ?"
+    "SELECT id FROM racks WHERE location_id = ? AND UPPER(rack_name) = UPPER(?)"
   ).get(locId, rackName);
   if (dup) {
     return NextResponse.json({ error: `동일 위치에 '${rackName}' 랙이 이미 존재합니다.` }, { status: 409 });

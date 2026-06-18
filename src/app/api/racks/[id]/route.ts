@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const dupRack = db.prepare(
-    "SELECT id FROM racks WHERE location_id = ? AND rack_name = ? AND id != ?"
+    "SELECT id FROM racks WHERE location_id = ? AND UPPER(rack_name) = UPPER(?) AND id != ?"
   ).get(body.location_id || existing.location_id, rackName, Number(id));
   if (dupRack) {
     return NextResponse.json({ error: `동일 위치에 '${rackName}' 랙이 이미 존재합니다.` }, { status: 409 });

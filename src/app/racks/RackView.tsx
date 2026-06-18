@@ -33,6 +33,7 @@ interface Asset {
 export function RackView({ locations, racks, assets }: { locations: any[]; racks: any[]; assets: Asset[] }) {
   const [selectedLocation, setSelectedLocation] = useState<number | "">("");
   const [hoveredAsset, setHoveredAsset] = useState<Asset | null>(null);
+  const [hoveredConflict, setHoveredConflict] = useState<Asset[] | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
   const filteredRacks = selectedLocation
@@ -162,15 +163,15 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
                           background: 'repeating-linear-gradient(45deg, #ef4444, #ef4444 5px, #fca5a5 5px, #fca5a5 10px)',
                           marginBottom: 1,
                         }}
-                        title={`⚠ 충돌: ${assetsAtUnit.map(a => a.asset_name).join(", ")}`}
                         onMouseEnter={(e) => {
                           setHoveredAsset(null);
+                          setHoveredConflict(assetsAtUnit);
                           setTooltipPos({ x: e.clientX + 10, y: e.clientY - 10 });
                         }}
                         onMouseMove={(e) => {
                           setTooltipPos({ x: e.clientX + 10, y: e.clientY - 10 });
                         }}
-                        onMouseLeave={() => setHoveredAsset(null)}
+                        onMouseLeave={() => setHoveredConflict(null)}
                       >
                         <span className="text-[10px] text-white w-7 text-center shrink-0">{unit}U</span>
                         <span className="text-xs text-white font-bold truncate px-1">⚠ {assetsAtUnit.map(a => a.asset_name).join(", ")}</span>
@@ -244,6 +245,22 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
             <div>위치: {hoveredAsset.rack_unit_start}U ~ {hoveredAsset.rack_unit_start + hoveredAsset.rack_unit_size - 1}U ({hoveredAsset.rack_unit_size}U)</div>
             <div>상태: {statusLabels[hoveredAsset.status]}</div>
           </div>
+        </div>
+      )}
+
+      {/* 충돌 툴팁 */}
+      {hoveredConflict && (
+        <div
+          className="fixed z-50 bg-red-900 text-white p-3 rounded-lg shadow-xl text-xs max-w-sm pointer-events-none"
+          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+        >
+          <div className="font-bold mb-1 text-red-200">⚠ 슬롯 충돌 ({hoveredConflict.length}건)</div>
+          {hoveredConflict.map((a) => (
+            <div key={a.id} className="border-t border-red-700 pt-1 mt-1">
+              <div className="font-medium">{a.asset_name}</div>
+              <div className="text-red-300">{typeLabels[a.asset_type]} · {a.rack_unit_start}~{a.rack_unit_start + a.rack_unit_size - 1}U · {statusLabels[a.status]}</div>
+            </div>
+          ))}
         </div>
       )}
     </div>
