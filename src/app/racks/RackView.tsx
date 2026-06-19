@@ -83,7 +83,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
   return (
     <div>
       {/* 위치 필터 */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <span className="text-sm text-ink-3">위치:</span>
         <select
           value={selectedLocation}
@@ -108,7 +108,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
             className="rounded border-line" />
           경고만
         </label>
-        <div className="flex gap-3 ml-auto text-xs text-ink-2">
+        <div className="flex gap-3 ml-auto text-xs text-ink-2 whitespace-nowrap">
           {Object.entries(typeColors).map(([type, color]) => (
             <div key={type} className="flex items-center gap-1">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: color }} />

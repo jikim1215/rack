@@ -32,7 +32,9 @@ interface Port {
 }
 
 export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; ports: Port[] }) {
-  const [selectedAsset, setSelectedAsset] = useState<number | null>(networkAssets[0]?.id ?? null);
+  // 포트가 있는 첫 장비를 기본 선택
+  const defaultAsset = networkAssets.find((a: any) => ports.some((p) => p.asset_id === a.id))?.id ?? networkAssets[0]?.id ?? null;
+  const [selectedAsset, setSelectedAsset] = useState<number | null>(defaultAsset);
   const [statusFilter, setStatusFilter] = useState("");
   const [hoveredPort, setHoveredPort] = useState<Port | null>(null);
 
@@ -182,15 +184,15 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
 
             {/* 포트 상세 테이블 */}
             <div className="panel overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm" style={{ minWidth: 600 }}>
                 <thead>
                   <tr className="panel-head text-left text-ink-2">
-                    <th className="p-3">포트</th>
-                    <th className="p-3">이름</th>
-                    <th className="p-3">유형</th>
-                    <th className="p-3">속도</th>
-                    <th className="p-3">VLAN</th>
-                    <th className="p-3">상태</th>
+                    <th className="p-3 w-16">포트</th>
+                    <th className="p-3 w-28">이름</th>
+                    <th className="p-3 w-20">유형</th>
+                    <th className="p-3 w-20">속도</th>
+                    <th className="p-3 w-16">VLAN</th>
+                    <th className="p-3 w-20">상태</th>
                     <th className="p-3">연결 대상</th>
                   </tr>
                 </thead>
@@ -212,7 +214,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
                         {port.connected_asset_name ? (
                           <span className="text-signal">{port.connected_asset_name} · {port.connected_port_name}</span>
                         ) : (
-                          <span className="text-ink-3">—</span>
+                          <span className="text-ink-3 italic">미연결</span>
                         )}
                       </td>
                     </tr>

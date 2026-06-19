@@ -596,7 +596,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
       {/* 테이블 */}
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ minWidth: 1200 }}>
             <thead>
               <tr className="bg-surface border-b border-line text-left text-ink-2">
                 <th className="p-3 w-8"></th>
