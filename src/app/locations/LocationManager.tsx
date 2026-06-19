@@ -39,6 +39,11 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
   const [editRackId, setEditRackId] = useState<number | null>(null);
   const [auditLogs, setAuditLogs] = useState<any[] | null>(null);
   const [auditRackName, setAuditRackName] = useState("");
+  const [selectedLocId, setSelectedLocId] = useState<number | null>(null);
+
+  const displayedRacks = selectedLocId
+    ? racks.filter((r) => r.location_id === selectedLocId)
+    : racks;
 
   async function saveLoc() {
     const url = editLocId ? `/api/locations/${editLocId}` : "/api/locations";
@@ -156,19 +161,19 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
 
         <div className="space-y-2">
           {locations.map((loc) => (
-            <div key={loc.id} className="panel p-4 flex items-center justify-between">
+            <div key={loc.id}
+              onClick={() => setSelectedLocId(selectedLocId === loc.id ? null : loc.id)}
+              className={`panel p-4 flex items-center justify-between cursor-pointer transition-colors ${selectedLocId === loc.id ? "ring-1 ring-signal" : ""}`}>
               <div>
                 <div className="font-medium">{loc.location_name}</div>
-
                 <div className="text-xs text-ink-3">{loc.building} {loc.floor} {loc.room}</div>
                 <div className="text-xs text-ink-2 mt-1">랙 <span className="num">{loc.rack_count}</span>개 · 자산 <span className="num">{loc.asset_count}</span>대</div>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-1 text-xs" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => { setEditLocId(loc.id); setLocForm({ location_name: loc.location_name, building: loc.building, floor: loc.floor, room: loc.room }); setShowLocForm(true); }}
-
-                  className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded"><Pencil size={14} /></button>
+                  className="flex items-center gap-1 px-2 py-1 text-ink-2 hover:text-ink hover:bg-surface rounded"><Pencil size={12} /> 수정</button>
                 <button onClick={() => deleteLoc(loc.id)}
-                  className="p-1.5 text-fault hover:bg-red-50 rounded"><Trash2 size={14} /></button>
+                  className="flex items-center gap-1 px-2 py-1 text-fault hover:bg-red-50/10 rounded"><Trash2 size={12} /> 삭제</button>
               </div>
             </div>
           ))}
@@ -178,7 +183,11 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       {/* 랙 */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-lg flex items-center gap-2"><HardDrive size={18} /> 랙 목록</h3>
+          <h3 className="font-semibold text-lg flex items-center gap-2">
+            <HardDrive size={18} />
+            {selectedLocId ? `${locations.find(l => l.id === selectedLocId)?.location_name} 랙` : "전체 랙 목록"}
+            {selectedLocId && <button onClick={() => setSelectedLocId(null)} className="text-xs text-ink-3 hover:text-ink ml-1">(전체 보기)</button>}
+          </h3>
           <button onClick={() => { setShowRackForm(true); setEditRackId(null); setRackForm({ location_id: locations[0]?.id ?? 0, rack_name: "", total_units: 42, description: "" }); }}
 
             className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
@@ -229,7 +238,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
         )}
 
         <div className="space-y-2">
-          {racks.map((rack) => {
+          {displayedRacks.map((rack) => {
             const pct = rack.total_units > 0 ? Math.round((rack.used_units / rack.total_units) * 100) : 0;
             return (
               <div key={rack.id} className="panel p-4">

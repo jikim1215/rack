@@ -43,10 +43,30 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
   const [auditLogs, setAuditLogs] = useState<any[] | null>(null);
   const [auditRackName, setAuditRackName] = useState("");
   const [rackSearch, setRackSearch] = useState("");
+  const [showWarningsOnly, setShowWarningsOnly] = useState(false);
+
+  // 랙별 경고 여부 판정
+  function hasWarning(rackId: number, totalUnits: number) {
+    const ra = assets.filter((a) => a.rack_id === rackId);
+    const used = ra.reduce((s, a) => s + a.rack_unit_size, 0);
+    if (used > totalUnits) return true;
+    // 충돌 검사
+    for (let i = 0; i < ra.length; i++) {
+      for (let j = i + 1; j < ra.length; j++) {
+        const e1 = ra[i].rack_unit_start + ra[i].rack_unit_size - 1;
+        const e2 = ra[j].rack_unit_start + ra[j].rack_unit_size - 1;
+        if (ra[i].rack_unit_start <= e2 && ra[j].rack_unit_start <= e1) return true;
+      }
+    }
+    // 범위 초과
+    if (ra.some((a) => a.rack_unit_start + a.rack_unit_size - 1 > totalUnits)) return true;
+    return false;
+  }
 
   const filteredRacks = racks.filter((r) => {
     if (selectedLocation && r.location_id !== selectedLocation) return false;
     if (rackSearch && !r.rack_name.toLowerCase().includes(rackSearch.toLowerCase())) return false;
+    if (showWarningsOnly && !hasWarning(r.id, r.total_units)) return false;
     return true;
   });
 
@@ -83,6 +103,11 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
           onChange={(e) => setRackSearch(e.target.value)}
           className="form-input text-sm w-40"
         />
+        <label className="flex items-center gap-1.5 text-sm text-ink-2 cursor-pointer">
+          <input type="checkbox" checked={showWarningsOnly} onChange={(e) => setShowWarningsOnly(e.target.checked)}
+            className="rounded border-line" />
+          경고만
+        </label>
         <div className="flex gap-3 ml-auto text-xs text-ink-2">
           {Object.entries(typeColors).map(([type, color]) => (
             <div key={type} className="flex items-center gap-1">
