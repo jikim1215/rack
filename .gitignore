@@ -5,6 +5,7 @@ out/
 *.db-journal
 *.db-shm
 *.db-wal
+tsconfig.tsbuildinfo
 
 # 민감 정보
 .env
