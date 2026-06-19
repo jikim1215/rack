@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 import { AssetTable } from "./AssetTable";
 
-export default function AssetsPage() {
+export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ rack_id?: string }> }) {
   const db = getDb();
   const assets = db.prepare(`
     SELECT a.*, r.rack_name, l.location_name
@@ -45,7 +45,7 @@ export default function AssetsPage() {
           <h2 className="text-2xl font-bold tracking-tight">자산관리</h2>
         </div>
       </div>
-      <AssetTable assets={assets} racks={racks} customFields={customFields} customValuesMap={cvMap} />
+      <AssetTable assets={assets} racks={racks} customFields={customFields} customValuesMap={cvMap} initialRackId={(await searchParams).rack_id ?? null} />
     </div>
   );
 }

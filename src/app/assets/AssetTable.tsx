@@ -85,12 +85,14 @@ interface Props {
   racks: any[];
   customFields: CustomField[];
   customValuesMap: Record<number, Record<number, string>>;
+  initialRackId?: string | null;
 }
 
-export function AssetTable({ assets: initialAssets, racks, customFields: initFields, customValuesMap: initCvMap }: Props) {
+export function AssetTable({ assets: initialAssets, racks, customFields: initFields, customValuesMap: initCvMap, initialRackId }: Props) {
   const [assets, setAssets] = useState(initialAssets);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [rackFilter, setRackFilter] = useState<string>(initialRackId || "");
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyAsset);
@@ -118,6 +120,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
 
   const filtered = assets.filter((a) => {
     if (typeFilter && a.asset_type !== typeFilter) return false;
+    if (rackFilter && a.rack_id !== Number(rackFilter)) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -328,6 +331,11 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
           className="form-input">
           <option value="">전체 유형</option>
           {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select value={rackFilter} onChange={(e) => setRackFilter(e.target.value)}
+          className="form-input">
+          <option value="">전체 랙</option>
+          {racks.map((r: any) => <option key={r.id} value={r.id}>{r.rack_name} ({r.location_name})</option>)}
         </select>
         <button onClick={() => { setShowForm(true); setEditId(null); setForm(emptyAsset); setCustomValues({}); }}
           className="btn-ink flex items-center gap-1.5">

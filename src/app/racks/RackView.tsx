@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { History } from "lucide-react";
+import { History, ChevronDown, ChevronUp } from "lucide-react";
 import { AuditLogModal, fetchAuditLogs } from "@/components/AuditLogModal";
 
 const typeColors: Record<string, string> = {
@@ -42,25 +42,32 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [auditLogs, setAuditLogs] = useState<any[] | null>(null);
   const [auditRackName, setAuditRackName] = useState("");
+  const [showGuide, setShowGuide] = useState(false);
   const [rackSearch, setRackSearch] = useState("");
   const [showWarningsOnly, setShowWarningsOnly] = useState(false);
 
-  // 랙별 경고 여부 판정
-  function hasWarning(rackId: number, totalUnits: number) {
+  // 랙별 경고 심각도 판정: critical(충돌) > warning(범위초과) > caution(사용률초과)
+  type Severity = "critical" | "warning" | "caution" | null;
+  function getRackSeverity(rackId: number, totalUnits: number): Severity {
     const ra = assets.filter((a) => a.rack_id === rackId);
-    const used = ra.reduce((s, a) => s + a.rack_unit_size, 0);
-    if (used > totalUnits) return true;
-    // 충돌 검사
+    // 충돌 검사 → 치명
     for (let i = 0; i < ra.length; i++) {
       for (let j = i + 1; j < ra.length; j++) {
         const e1 = ra[i].rack_unit_start + ra[i].rack_unit_size - 1;
         const e2 = ra[j].rack_unit_start + ra[j].rack_unit_size - 1;
-        if (ra[i].rack_unit_start <= e2 && ra[j].rack_unit_start <= e1) return true;
+        if (ra[i].rack_unit_start <= e2 && ra[j].rack_unit_start <= e1) return "critical";
       }
     }
-    // 범위 초과
-    if (ra.some((a) => a.rack_unit_start + a.rack_unit_size - 1 > totalUnits)) return true;
-    return false;
+    // 범위 초과 → 경고
+    if (ra.some((a) => a.rack_unit_start + a.rack_unit_size - 1 > totalUnits)) return "warning";
+    // 사용률 초과 → 주의
+    const used = ra.reduce((s, a) => s + a.rack_unit_size, 0);
+    if (used > totalUnits) return "caution";
+    return null;
+  }
+
+  function hasWarning(rackId: number, totalUnits: number) {
+    return getRackSeverity(rackId, totalUnits) !== null;
   }
 
   const filteredRacks = racks.filter((r) => {
@@ -69,6 +76,16 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
     if (showWarningsOnly && !hasWarning(r.id, r.total_units)) return false;
     return true;
   });
+
+  // KPI 요약
+  const kpi = {
+    total: racks.length,
+    critical: racks.filter((r: any) => getRackSeverity(r.id, r.total_units) === "critical").length,
+    warning: racks.filter((r: any) => getRackSeverity(r.id, r.total_units) === "warning").length,
+    caution: racks.filter((r: any) => getRackSeverity(r.id, r.total_units) === "caution").length,
+  };
+  kpi.total; // suppress unused
+  const kpiIssue = kpi.critical + kpi.warning + kpi.caution;
 
   function getAssetsAt(rackId: number, unit: number) {
     return assets.filter(
@@ -82,12 +99,53 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
 
   return (
     <div>
-      {/* 사용 가이드 */}
-      <div className="text-xs text-ink-3 mb-4 space-y-0.5 border-l-2 border-line pl-3">
-        <p>• 위치/이름으로 랙을 찾으세요</p>
-        <p>• <strong className="text-ink-2">이상 랙만 보기</strong>를 켜면 충돌·초과 경고가 있는 랙만 표시됩니다</p>
-        <p>• 장비 위에 마우스를 올리면 상세 정보가 보입니다</p>
+      {/* KPI 요약 바 */}
+      <div className="flex items-center gap-4 mb-4 text-sm">
+        <div className="flex items-center gap-1.5">
+          <span className="text-ink-3">전체</span>
+          <span className="num font-semibold">{kpi.total}</span>
+        </div>
+        {kpiIssue > 0 && (
+          <>
+            <span className="text-line">|</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-ink-3">이상</span>
+              <span className="num font-semibold text-fault">{kpiIssue}</span>
+            </div>
+          </>
+        )}
+        {kpi.critical > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-fault" />
+            <span className="text-xs text-ink-3">충돌 <span className="num text-fault">{kpi.critical}</span></span>
+          </div>
+        )}
+        {kpi.warning > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-warning" />
+            <span className="text-xs text-ink-3">범위초과 <span className="num text-warning">{kpi.warning}</span></span>
+          </div>
+        )}
+        {kpi.caution > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-warn" />
+            <span className="text-xs text-ink-3">사용률초과 <span className="num text-warn">{kpi.caution}</span></span>
+          </div>
+        )}
+        <button onClick={() => setShowGuide(!showGuide)} className="ml-auto text-xs text-ink-3 hover:text-ink flex items-center gap-1">
+          사용법 {showGuide ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
       </div>
+
+      {/* 사용 가이드 (접기/펼치기) */}
+      {showGuide && (
+        <div className="text-xs text-ink-3 mb-4 space-y-0.5 border-l-2 border-line pl-3">
+          <p>• 위치/이름으로 랙을 찾으세요</p>
+          <p>• <strong className="text-ink-2">이상 랙만 보기</strong>를 켜면 충돌·초과 경고가 있는 랙만 표시됩니다</p>
+          <p>• 장비 위에 마우스를 올리면 상세 정보가 보입니다</p>
+        </div>
+      )}
+
       {/* 위치 필터 */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <span className="text-sm text-ink-3">위치:</span>
@@ -175,24 +233,30 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
                 </p>
               </div>
 
-              {/* 경고 영역 */}
+              {/* 경고 영역 — 심각도: 치명(빨강) > 경고(주황) > 주의(노랑) */}
               {(conflictCount > 0 || overflowing.length > 0 || usagePercent > 100) && (
                 <div className="space-y-1 mb-2">
                   {conflictCount > 0 && (
                     <div className="text-xs text-fault bg-red-50/10 rounded px-2 py-1">
-                      <span className="led led-fault" />⚠ 슬롯 충돌 장비 <span className="num">{conflictCount}</span>대
-                      <span className="block text-ink-3 mt-0.5">→ 자산관리에서 배치 위치를 수정하세요</span>
+                      <span className="led led-fault" /><strong>치명</strong> · 슬롯 충돌 장비 <span className="num">{conflictCount}</span>대
+                      <a href={`/assets?rack_id=${rack.id}`}
+                        className="block text-fault/70 hover:text-fault mt-0.5 underline">
+                        → 자산관리에서 배치 수정
+                      </a>
                     </div>
                   )}
                   {overflowing.length > 0 && (
-                    <div className="text-xs text-warn bg-amber-50/10 rounded px-2 py-1">
-                      <span className="led led-warn" />⚠ 범위 초과 <span className="num">{overflowing.length}</span>건
-                      <span className="block text-ink-3 mt-0.5">→ 장비가 랙 유닛 수를 초과합니다</span>
+                    <div className="text-xs text-warning bg-orange-50/10 rounded px-2 py-1">
+                      <span className="led led-warn" /><strong>경고</strong> · 범위 초과 <span className="num">{overflowing.length}</span>건
+                      <a href={`/assets?rack_id=${rack.id}`}
+                        className="block text-warning/70 hover:text-warning mt-0.5 underline">
+                        → 자산관리에서 유닛 위치 확인
+                      </a>
                     </div>
                   )}
-                  {usagePercent > 100 && (
-                    <div className="text-xs text-fault bg-red-50/10 rounded px-2 py-1">
-                      <span className="led led-fault" />⚠ 사용률 <span className="num">{usagePercent}%</span> 초과
+                  {usagePercent > 100 && !conflictCount && (
+                    <div className="text-xs text-warn bg-amber-50/10 rounded px-2 py-1">
+                      <span className="led led-warn" /><strong>주의</strong> · 사용률 <span className="num">{usagePercent}%</span> 초과
                       <span className="block text-ink-3 mt-0.5">→ 랙 증설 또는 장비 재배치를 검토하세요</span>
                     </div>
                   )}

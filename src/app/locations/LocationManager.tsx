@@ -180,9 +180,12 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
           {locations.map((loc) => (
             <div key={loc.id}
               onClick={() => setSelectedLocId(selectedLocId === loc.id ? null : loc.id)}
-              className={`panel p-4 flex items-center justify-between cursor-pointer transition-colors ${selectedLocId === loc.id ? "ring-1 ring-signal" : ""}`}>
+              className={`panel p-4 flex items-center justify-between cursor-pointer transition-colors ${selectedLocId === loc.id ? "ring-1 ring-signal bg-signal/5" : "hover:bg-surface"}`}>
               <div>
-                <div className="font-medium">{loc.location_name}</div>
+                <div className="font-medium flex items-center gap-2">
+                  {loc.location_name}
+                  {selectedLocId === loc.id && <span className="text-[10px] px-1.5 py-0.5 bg-signal/20 text-signal rounded font-medium">선택됨</span>}
+                </div>
                 <div className="text-xs text-ink-3">{loc.building} {loc.floor} {loc.room}</div>
                 <div className="text-xs text-ink-2 mt-1">랙 <span className="num">{loc.rack_count}</span>개 · 자산 <span className="num">{loc.asset_count}</span>대</div>
               </div>
@@ -202,8 +205,15 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-lg flex items-center gap-2">
             <HardDrive size={18} />
-            {selectedLocId ? `${locations.find(l => l.id === selectedLocId)?.location_name} 랙` : "전체 랙 목록"}
-            {selectedLocId && <button onClick={() => setSelectedLocId(null)} className="text-xs text-ink-3 hover:text-ink ml-1">(전체 보기)</button>}
+            {selectedLocId ? (
+              <>
+                <span className="text-signal">{locations.find(l => l.id === selectedLocId)?.location_name}</span> 랙
+                <button onClick={() => setSelectedLocId(null)}
+                  className="text-xs text-ink-3 hover:text-ink ml-1 flex items-center gap-0.5 px-1.5 py-0.5 border border-line rounded hover:bg-surface">
+                  <X size={10} /> 필터 해제
+                </button>
+              </>
+            ) : "전체 랙 목록"}
           </h3>
           <button onClick={() => { setShowRackForm(true); setEditRackId(null); setRackForm({ location_id: locations[0]?.id ?? 0, rack_name: "", total_units: 42, description: "" }); }}
 
