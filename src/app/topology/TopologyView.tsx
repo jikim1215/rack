@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { Network, Server, Shield, Phone } from 'lucide-react';
 
 interface Asset {
@@ -69,6 +69,34 @@ const PAD = 40;
 
 export function TopologyView({ assets, connections }: Props) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom(z => Math.min(Math.max(0.3, z + delta), 3));
+  }, []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsPanning(true);
+    panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+  }, [pan]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanning) return;
+    setPan({
+      x: panStart.current.panX + (e.clientX - panStart.current.x),
+      y: panStart.current.panY + (e.clientY - panStart.current.y),
+    });
+  }, [isPanning]);
+
+  const handleMouseUp = useCallback(() => setIsPanning(false), []);
+  const resetView = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
 
   const { layers, standalone, edges, connectedIds } = useMemo(() => {
     // Build adjacency from connections
@@ -219,17 +247,42 @@ export function TopologyView({ assets, connections }: Props) {
         </div>
       </div>
 
-      {/* SVG canvas */}
-      <div className="panel overflow-auto">
+      {/* SVG canvas — zoom/pan */}
+      <div className="panel overflow-hidden relative" style={{ minHeight: 400 }}>
+        {/* 줌 컨트롤 */}
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 text-xs">
+          <button onClick={() => setZoom(z => Math.min(3, z + 0.2))} className="btn-ink px-2 py-1">+</button>
+          <span className="num text-ink-3 px-1">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.max(0.3, z - 0.2))} className="btn-ink px-2 py-1">−</button>
+          <button onClick={resetView} className="btn-ink px-2 py-1 ml-1">↺</button>
+        </div>
         {assets.length === 0 ? (
           <div className="flex items-center justify-center h-64 text-ink-3">
             표시할 자산이 없습니다.
           </div>
         ) : (
+          <div
+            ref={containerRef}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            style={{
+              cursor: isPanning ? 'grabbing' : 'grab',
+              overflow: 'hidden',
+              height: 'clamp(400px, 70vh, 900px)',
+            }}
+          >
           <svg
             viewBox={`0 0 ${svgW} ${svgH}`}
-            width="100%"
-            style={{ minHeight: 400, maxHeight: '70vh' }}
+            width={svgW}
+            height={svgH}
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transformOrigin: '0 0',
+              transition: isPanning ? 'none' : 'transform 0.1s ease-out',
+            }}
           >
             {/* Edges */}
             {edges.map((e, i) => {
@@ -376,6 +429,7 @@ export function TopologyView({ assets, connections }: Props) {
               );
             })}
           </svg>
+          </div>
         )}
       </div>
     </div>
