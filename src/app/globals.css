@@ -1,46 +1,167 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────────────────────────────
+   운영 콘솔(Operations Console) 디자인 시스템
+   명제: "색은 신호일 때만 쓴다" — 모노크롬 계기판 섀시 + 상태 LED
+   ────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* 계기판 섀시 (잉크 + 헤어라인) */
+  --color-rail: #0e1626;       /* 사이드바/계기 크롬 */
+  --color-rail-2: #0b1220;     /* 더 짙은 잉크 */
+  --color-ink: #0b1220;        /* 본문 텍스트 / 버튼 */
+  --color-ink-2: #475569;      /* 보조 텍스트 */
+  --color-ink-3: #8b97a8;      /* 캡션 */
+  --color-surface: #f4f6fb;    /* 앱 배경 */
+  --color-panel: #ffffff;      /* 패널 */
+  --color-line: #dce3ee;       /* 헤어라인 */
+  --color-line-strong: #c3cddd;
+
+  /* 신호 (운영 상태 = 유일한 채도색) */
+  --color-signal: #0e9f6e;     /* link-up / 운용중 */
+  --color-warn: #d97706;       /* 점검 / 경고 */
+  --color-fault: #dc2626;      /* 장애 / 만료 */
+  --color-idle: #94a3b8;       /* 미사용 / 유휴 */
+
+  --font-mono: ui-monospace, "Cascadia Mono", "Cascadia Code", Consolas,
+    "D2Coding", "D2Coding ligature", "DejaVu Sans Mono", monospace;
+}
+
 :root {
-  --bg: #f8fafc;
+  /* 레거시 변수 호환 (기존 컴포넌트가 참조) */
+  --bg: #f4f6fb;
   --bg-card: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --border: #e2e8f0;
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --success: #16a34a;
-  --warning: #f59e0b;
+  --text-primary: #0b1220;
+  --text-secondary: #475569;
+  --border: #dce3ee;
+  --accent: #0b1220;
+  --accent-hover: #0e1626;
+  --success: #0e9f6e;
+  --warning: #d97706;
   --danger: #dc2626;
 }
 
 body {
-  background: var(--bg);
-  color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕",
+    system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* ── 타이포그래피 시그니처 ──────────────────────────────────── */
+
+/* 측정값은 전부 tabular 모노 readout */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: -0.01em;
+}
+
+/* 섹션 라벨 / 계기 캡션 (eyebrow) */
+.eyebrow {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-ink-3);
+}
+
+/* ── 계기 패널 ──────────────────────────────────────────────── */
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 0.625rem;
+}
+
+/* 패널 상단 헤어라인 라벨 행 */
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* ── 상태 LED (시그니처 원자) ──────────────────────────────── */
+.led {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  display: inline-block;
+  background: var(--color-idle);
+  flex: none;
+}
+.led-up    { background: var(--color-signal); box-shadow: 0 0 0 3px rgba(14, 159, 110, 0.16); }
+.led-warn  { background: var(--color-warn);   box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.16); }
+.led-fault { background: var(--color-fault);  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16); }
+.led-idle  { background: var(--color-idle);   box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16); }
+
+/* 라이브 펄스 (헤더 상태등) */
+.led-live { position: relative; }
+.led-live::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--color-signal);
+  animation: led-pulse 2s ease-out infinite;
+}
+@keyframes led-pulse {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* ── 잉크 버튼 ──────────────────────────────────────────────── */
+.btn-ink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--color-ink);
+  color: #fff;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.15s, transform 0.08s;
+}
+.btn-ink:hover { background: var(--color-rail); }
+.btn-ink:active { transform: translateY(1px); }
+.btn-ink:disabled { opacity: 0.5; }
+
+/* ── 폼 입력 ────────────────────────────────────────────────── */
 .form-input {
   width: 100%;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-line);
   border-radius: 0.5rem;
   font-size: 0.875rem;
+  background: var(--color-panel);
   outline: none;
   transition: box-shadow 0.15s, border-color 0.15s;
 }
-
 .form-input:focus {
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3);
-  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(14, 159, 110, 0.22);
+  border-color: var(--color-signal);
 }
 
-/* 호버 강조 공통 */
+/* 키보드 포커스 가시성 (접근성 바닥) */
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+/* ── 호버 강조 공통 ────────────────────────────────────────── */
 .hover-card {
   transition: box-shadow 0.15s, transform 0.1s, border-color 0.15s;
 }
 .hover-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: #93c5fd;
+  box-shadow: 0 6px 18px rgba(11, 18, 32, 0.08);
+  border-color: var(--color-line-strong);
   transform: translateY(-1px);
 }
 
@@ -48,7 +169,7 @@ body {
   transition: background-color 0.1s;
 }
 .hover-row:hover {
-  background-color: #eff6ff !important;
+  background-color: #f1f5fb !important;
 }
 
 /* 랙 장비 호버 */
@@ -80,26 +201,24 @@ body {
   padding-left: 1.25rem;
 }
 
-/* 인쇄 레이아웃 */
-@media print {
-  /* 사이드바, 네비게이션 숨김 */
-  aside, nav, .no-print { display: none !important; }
+/* ── 모션 민감 사용자 배려 ─────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
 
-  /* 메인 콘텐츠 전체 너비 */
+/* ── 인쇄 레이아웃 ──────────────────────────────────────────── */
+@media print {
+  aside, nav, .no-print { display: none !important; }
   main { padding: 0 !important; margin: 0 !important; }
   body { background: white !important; }
-
-  /* 카드 그림자 제거 */
-  .bg-white { box-shadow: none !important; }
-
-  /* 테이블 페이지 나눔 */
+  .panel, .bg-white { box-shadow: none !important; }
   table { page-break-inside: auto; }
   tr { page-break-inside: avoid; }
-
-  /* 인쇄 전용 영역 */
   .print-only { display: block !important; }
-
-  /* 버튼 숨김 */
   button, a[href], .hover-card {
     box-shadow: none !important;
     transform: none !important;

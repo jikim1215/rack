@@ -49,10 +49,10 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-50 text-red-600 text-sm px-4 py-2 rounded-lg">{error}</div>
+        <div className="bg-red-50 text-fault text-sm px-4 py-2 rounded-lg border border-red-100">{error}</div>
       )}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">아이디</label>
+        <label className="block text-sm font-medium text-ink-2 mb-1">아이디</label>
         <input
           type="text"
           value={username}
@@ -64,7 +64,7 @@ export function LoginForm() {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">비밀번호</label>
+        <label className="block text-sm font-medium text-ink-2 mb-1">비밀번호</label>
         <input
           type="password"
           value={password}
@@ -74,11 +74,7 @@ export function LoginForm() {
           required
         />
       </div>
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-      >
+      <button type="submit" disabled={loading} className="btn-ink w-full">
         <LogIn size={16} />
         {loading ? "로그인 중..." : "로그인"}
       </button>

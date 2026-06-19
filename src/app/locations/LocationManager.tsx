@@ -125,16 +125,16 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
           <h3 className="font-semibold text-lg flex items-center gap-2"><MapPin size={18} /> 위치 목록</h3>
           <button onClick={() => { setShowLocForm(true); setEditLocId(null); setLocForm({ location_name: "", building: "", floor: "", room: "" }); }}
 
-            className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">
+            className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
             <Plus size={14} /> 추가
           </button>
         </div>
 
         {showLocForm && (
-          <div className="bg-white border rounded-lg p-4 mb-3">
+          <div className="panel p-4 mb-3">
             <div className="flex justify-between mb-3">
               <h4 className="font-medium text-sm">{editLocId ? "위치 수정" : "위치 추가"}</h4>
-              <button onClick={() => setShowLocForm(false)} className="text-slate-400"><X size={16} /></button>
+              <button onClick={() => setShowLocForm(false)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-1"><X size={16} /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block col-span-2"><span className="text-xs text-slate-500">이름</span>
@@ -148,27 +148,27 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
                 <input value={locForm.room} onChange={(e) => setLocForm({ ...locForm, room: e.target.value })} className="form-input" /></label>
             </div>
             <div className="mt-3 flex gap-2">
-              <button onClick={saveLoc} className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm"><Save size={14} /> 저장</button>
-              <button onClick={() => setShowLocForm(false)} className="px-3 py-1.5 border rounded text-sm">취소</button>
+              <button onClick={saveLoc} className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm"><Save size={14} /> 저장</button>
+              <button onClick={() => setShowLocForm(false)} className="px-3 py-1.5 border border-line rounded text-sm text-ink-2 hover:text-ink hover:bg-slate-100">취소</button>
             </div>
           </div>
         )}
 
         <div className="space-y-2">
           {locations.map((loc) => (
-            <div key={loc.id} className="bg-white border rounded-lg p-4 flex items-center justify-between">
+            <div key={loc.id} className="panel p-4 flex items-center justify-between">
               <div>
                 <div className="font-medium">{loc.location_name}</div>
 
-                <div className="text-xs text-slate-400">{loc.building} {loc.floor} {loc.room}</div>
-                <div className="text-xs text-slate-500 mt-1">랙 {loc.rack_count}개 · 자산 {loc.asset_count}대</div>
+                <div className="text-xs text-ink-3">{loc.building} {loc.floor} {loc.room}</div>
+                <div className="text-xs text-ink-2 mt-1">랙 <span className="num">{loc.rack_count}</span>개 · 자산 <span className="num">{loc.asset_count}</span>대</div>
               </div>
               <div className="flex gap-1">
                 <button onClick={() => { setEditLocId(loc.id); setLocForm({ location_name: loc.location_name, building: loc.building, floor: loc.floor, room: loc.room }); setShowLocForm(true); }}
 
-                  className="p-1.5 text-slate-400 hover:text-blue-600 rounded"><Pencil size={14} /></button>
+                  className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded"><Pencil size={14} /></button>
                 <button onClick={() => deleteLoc(loc.id)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>
+                  className="p-1.5 text-fault hover:bg-red-50 rounded"><Trash2 size={14} /></button>
               </div>
             </div>
           ))}
@@ -181,16 +181,16 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
           <h3 className="font-semibold text-lg flex items-center gap-2"><HardDrive size={18} /> 랙 목록</h3>
           <button onClick={() => { setShowRackForm(true); setEditRackId(null); setRackForm({ location_id: locations[0]?.id ?? 0, rack_name: "", total_units: 42, description: "" }); }}
 
-            className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700">
+            className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
             <Plus size={14} /> 추가
           </button>
         </div>
 
         {showRackForm && (
-          <div className="bg-white border rounded-lg p-4 mb-3">
+          <div className="panel p-4 mb-3">
             <div className="flex justify-between mb-3">
               <h4 className="font-medium text-sm">{editRackId ? "랙 수정" : "랙 추가"}</h4>
-              <button onClick={() => setShowRackForm(false)} className="text-slate-400"><X size={16} /></button>
+              <button onClick={() => setShowRackForm(false)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-1"><X size={16} /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block"><span className="text-xs text-slate-500">위치</span>
@@ -222,8 +222,8 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
                 <input value={rackForm.description} onChange={(e) => setRackForm({ ...rackForm, description: e.target.value })} className="form-input" /></label>
             </div>
             <div className="mt-3 flex gap-2">
-              <button onClick={saveRack} className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded text-sm"><Save size={14} /> 저장</button>
-              <button onClick={() => setShowRackForm(false)} className="px-3 py-1.5 border rounded text-sm">취소</button>
+              <button onClick={saveRack} className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm"><Save size={14} /> 저장</button>
+              <button onClick={() => setShowRackForm(false)} className="px-3 py-1.5 border border-line rounded text-sm text-ink-2 hover:text-ink hover:bg-slate-100">취소</button>
             </div>
           </div>
         )}
@@ -232,29 +232,29 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
           {racks.map((rack) => {
             const pct = rack.total_units > 0 ? Math.round((rack.used_units / rack.total_units) * 100) : 0;
             return (
-              <div key={rack.id} className="bg-white border rounded-lg p-4">
+              <div key={rack.id} className="panel p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium">{rack.rack_name}</div>
 
-                    <div className="text-xs text-slate-400">{rack.location_name}</div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {rack.used_units}U / {rack.total_units}U ({pct}%) · {rack.asset_count}대
+                    <div className="text-xs text-ink-3">{rack.location_name}</div>
+                    <div className="text-xs text-ink-2 mt-1">
+                      <span className="num">{rack.used_units}</span>U / <span className="num">{rack.total_units}</span>U (<span className="num">{pct}</span>%) · <span className="num">{rack.asset_count}</span>대
                     </div>
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, rack_name: rack.rack_name, total_units: rack.total_units, description: rack.description }); setShowRackForm(true); }}
-                      className="p-1.5 text-slate-400 hover:text-blue-600 rounded" title="수정"><Pencil size={14} /></button>
+                      className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="수정"><Pencil size={14} /></button>
                     <button onClick={async () => {
                       const logs = await fetchAuditLogs("rack", rack.id);
                       if (logs) { setAuditLogs(logs); setAuditRackName(rack.rack_name); }
-                    }} className="p-1.5 text-slate-400 hover:text-green-600 rounded" title="이력"><History size={14} /></button>
+                    }} className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="이력"><History size={14} /></button>
                     <button onClick={() => deleteRack(rack.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 rounded" title="삭제"><Trash2 size={14} /></button>
+                      className="p-1.5 text-fault hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
                   </div>
                 </div>
                 <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${pct > 80 ? "bg-red-500" : pct > 50 ? "bg-amber-500" : "bg-blue-500"}`} style={{ width: `${pct}%` }} />
+                  <div className={`h-full rounded-full ${pct > 80 ? "bg-fault" : pct > 50 ? "bg-warn" : "bg-signal"}`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
             );

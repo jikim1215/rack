@@ -4,10 +4,10 @@ import { useState, useMemo } from "react";
 import { GitBranch, Search, Save, X } from "lucide-react";
 
 const pairStatusColors: Record<string, string> = {
-  used: "bg-blue-500 text-white",
+  used: "bg-signal text-white",
   unused: "bg-slate-200 text-slate-600",
-  reserved: "bg-amber-400 text-white",
-  faulty: "bg-red-500 text-white",
+  reserved: "bg-warn text-white",
+  faulty: "bg-fault text-white",
 };
 const pairStatusLabels: Record<string, string> = {
   used: "사용중",
@@ -168,44 +168,44 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
     <div>
       {/* 상단 통계 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-slate-800">{stats.totalFrames}</div>
-          <div className="text-xs text-slate-500">전체 배선반</div>
+        <div className="panel p-4 text-center">
+          <div className="text-2xl font-bold num text-ink">{stats.totalFrames}</div>
+          <div className="text-xs text-ink-3">전체 배선반</div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-slate-800">{stats.totalPairs}</div>
-          <div className="text-xs text-slate-500">전체 페어</div>
+        <div className="panel p-4 text-center">
+          <div className="text-2xl font-bold num text-ink">{stats.totalPairs}</div>
+          <div className="text-xs text-ink-3">전체 페어</div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-blue-600">{stats.used}</div>
-          <div className="text-xs text-slate-500">사용중</div>
+        <div className="panel p-4 text-center">
+          <div className="text-2xl font-bold num text-signal">{stats.used}</div>
+          <div className="text-xs text-ink-3 flex items-center justify-center gap-1"><span className="led led-up" />사용중</div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-slate-400">{stats.unused}</div>
-          <div className="text-xs text-slate-500">미사용</div>
+        <div className="panel p-4 text-center">
+          <div className="text-2xl font-bold num text-idle">{stats.unused}</div>
+          <div className="text-xs text-ink-3 flex items-center justify-center gap-1"><span className="led led-idle" />미사용</div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-amber-500">{stats.reserved}</div>
-          <div className="text-xs text-slate-500">예약</div>
+        <div className="panel p-4 text-center">
+          <div className="text-2xl font-bold num text-warn">{stats.reserved}</div>
+          <div className="text-xs text-ink-3 flex items-center justify-center gap-1"><span className="led led-warn" />예약</div>
         </div>
-        <div className="bg-white border rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-red-500">{stats.faulty}</div>
-          <div className="text-xs text-slate-500">장애</div>
+        <div className="panel p-4 text-center">
+          <div className="text-2xl font-bold num text-fault">{stats.faulty}</div>
+          <div className="text-xs text-ink-3 flex items-center justify-center gap-1"><span className="led led-fault" />장애</div>
         </div>
       </div>
 
       <div className="flex gap-6">
         {/* 좌측 트리 네비게이션 */}
         <div className="w-[250px] shrink-0">
-          <div className="bg-white border rounded-lg p-4">
+          <div className="panel p-4">
             <div className="flex items-center gap-2 mb-3">
-              <GitBranch className="w-4 h-4 text-slate-500" />
-              <h3 className="font-semibold text-sm">건물 / 층</h3>
+              <GitBranch className="w-4 h-4 text-ink-3" />
+              <h3 className="font-semibold text-sm text-ink">건물 / 층</h3>
             </div>
 
             {/* 검색 */}
             <div className="relative mb-3">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3" />
               <input
                 type="text"
                 placeholder="배선반 검색..."
@@ -220,10 +220,10 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
               <button
                 onClick={() => { setSelectedBuilding(null); setSelectedFloor(null); }}
                 className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                  !selectedBuilding ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-slate-50"
+                  !selectedBuilding ? "bg-ink text-white font-medium" : "text-ink-2 hover:text-ink hover:bg-slate-100"
                 }`}
               >
-                전체 ({frames.length})
+                전체 (<span className="num">{frames.length}</span>)
               </button>
 
               {/* 건물별 */}
@@ -236,8 +236,8 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                     }}
                     className={`w-full text-left px-3 py-2 rounded text-sm transition-colors font-medium ${
                       selectedBuilding === b && !selectedFloor
-                        ? "bg-blue-50 text-blue-700"
-                        : "hover:bg-slate-50"
+                        ? "bg-ink text-white"
+                        : "text-ink-2 hover:text-ink hover:bg-slate-100"
                     }`}
                   >
                     {b}
@@ -249,8 +249,8 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                       onClick={() => setSelectedFloor(floor)}
                       className={`w-full text-left pl-7 pr-3 py-1.5 rounded text-sm transition-colors ${
                         selectedFloor === floor
-                          ? "bg-blue-50 text-blue-700 font-medium"
-                          : "hover:bg-slate-50 text-slate-600"
+                          ? "bg-ink text-white font-medium"
+                          : "text-ink-2 hover:text-ink hover:bg-slate-100"
                       }`}
                     >
                       {floor}
@@ -272,28 +272,28 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                 <button
                   key={f.id}
                   onClick={() => setSelectedFrame(f.id)}
-                  className={`bg-white border rounded-lg p-5 text-left hover-card ${
-                    selectedFrame === f.id ? "ring-2 ring-blue-500 border-blue-300" : ""
+                  className={`panel p-5 text-left hover-card ${
+                    selectedFrame === f.id ? "ring-2 ring-ink border-line-strong" : ""
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <div className="font-semibold text-sm">{f.frame_name}</div>
+                    <div className="font-semibold text-sm text-ink">{f.frame_name}</div>
 
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                    <span className="eyebrow text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-ink">
                       {frameTypeLabels[f.frame_type] || f.frame_type}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500 mb-3">
+                  <div className="text-xs text-ink-3 mb-3">
                     {[f.building, f.floor, f.room].filter(Boolean).join(" · ") || f.location_name || "위치 미지정"}
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-blue-500 rounded-full transition-all"
+                        className="h-full bg-signal rounded-full transition-all"
                         style={{ width: `${usage.pct}%` }}
                       />
                     </div>
-                    <span className="text-xs text-slate-500 whitespace-nowrap">
+                    <span className="text-xs text-ink-3 whitespace-nowrap num">
                       {usage.used}/{usage.total} ({usage.pct}%)
                     </span>
                   </div>
@@ -301,7 +301,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
               );
             })}
             {filteredFrames.length === 0 && (
-              <div className="col-span-full text-center text-slate-400 py-12">
+              <div className="col-span-full text-center text-ink-3 py-12">
                 해당 위치에 배선반이 없습니다.
               </div>
             )}
@@ -309,15 +309,15 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
 
           {/* 110블록 페어 그리드 */}
           {currentFrame && (
-            <div className="bg-white border rounded-lg p-5">
+            <div className="panel p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold">
+                <h3 className="font-semibold text-ink">
                   {currentFrame.frame_name} — 페어 그리드
-                  <span className="text-xs font-normal text-slate-500 ml-2">
+                  <span className="text-xs font-normal text-ink-3 ml-2 num">
                     ({currentFrame.total_pairs}페어)
                   </span>
                 </h3>
-                <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-3 text-xs text-ink-2">
                   {Object.entries(pairStatusColors).map(([status, cls]) => (
                     <span key={status} className="flex items-center gap-1">
                       <span className={`w-3 h-3 rounded ${cls.split(" ")[0]}`} />
@@ -367,16 +367,16 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
 
                       {/* 툴팁 */}
                       {hoveredPair?.pair_number === pairNum && pair && (
-                        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-800 text-white text-[11px] rounded-lg p-2.5 shadow-lg pointer-events-none">
-                          <div className="font-semibold mb-1">페어 #{pair.pair_number}</div>
+                        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-ink text-white text-[11px] rounded-lg p-2.5 shadow-lg pointer-events-none">
+                          <div className="font-semibold mb-1 num">페어 #{pair.pair_number}</div>
                           <div>상태: {pairStatusLabels[pair.status]}</div>
                           {pair.label && <div>라벨: {pair.label}</div>}
                           {(pair.source || pair.destination) && (
                             <div>{pair.source || "?"} → {pair.destination || "?"}</div>
                           )}
-                          {pair.cable_id && <div>케이블: {pair.cable_id}</div>}
+                          {pair.cable_id && <div>케이블: <span className="num">{pair.cable_id}</span></div>}
                           {pair.user_info && <div>사용자: {pair.user_info}</div>}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800" />
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--color-ink)]" />
                         </div>
                       )}
                     </div>
@@ -391,19 +391,19 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
       {/* 편집 모달 */}
       {editingPair && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+          <div className="bg-panel border border-line rounded-lg shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">
-                페어 #{editingPair.pair_number} 편집
+              <h3 className="font-semibold text-ink">
+                페어 <span className="num">#{editingPair.pair_number}</span> 편집
               </h3>
-              <button onClick={() => setEditingPair(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setEditingPair(null)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-0.5">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">상태</label>
+                <label className="block text-xs font-medium text-ink-2 mb-1">상태</label>
                 <select
                   className="form-input w-full"
                   value={editingPair.status}
@@ -415,7 +415,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">라벨</label>
+                <label className="block text-xs font-medium text-ink-2 mb-1">라벨</label>
                 <input
                   className="form-input w-full"
                   value={editingPair.label}
@@ -424,7 +424,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">소스</label>
+                  <label className="block text-xs font-medium text-ink-2 mb-1">소스</label>
                   <input
                     className="form-input w-full"
                     value={editingPair.source}
@@ -432,7 +432,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">목적지</label>
+                  <label className="block text-xs font-medium text-ink-2 mb-1">목적지</label>
                   <input
                     className="form-input w-full"
                     value={editingPair.destination}
@@ -441,7 +441,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">케이블 ID</label>
+                <label className="block text-xs font-medium text-ink-2 mb-1">케이블 ID</label>
                 <input
                   className="form-input w-full"
                   value={editingPair.cable_id}
@@ -449,7 +449,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">사용자 정보</label>
+                <label className="block text-xs font-medium text-ink-2 mb-1">사용자 정보</label>
                 <input
                   className="form-input w-full"
                   value={editingPair.user_info}
@@ -461,14 +461,14 @@ export function DistributionView({ frames, pairs: initialPairs, buildings }: Pro
             <div className="flex justify-end gap-2 mt-5">
               <button
                 onClick={() => setEditingPair(null)}
-                className="px-4 py-2 text-sm text-slate-600 border rounded-lg hover:bg-slate-50"
+                className="px-4 py-2 text-sm text-ink-2 border border-line rounded-lg hover:text-ink hover:bg-slate-100"
               >
                 취소
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="btn-ink flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5" />
                 {saving ? "저장중..." : "저장"}

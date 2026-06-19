@@ -52,12 +52,19 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-60 bg-slate-900 text-white flex flex-col shrink-0">
-      <div className="p-4 border-b border-slate-700">
-        <h1 className="text-lg font-bold tracking-tight">🖥️ 자산관리</h1>
-        <p className="text-xs text-slate-400 mt-1">정보시스템 관리 솔루션</p>
+    <aside className="w-60 bg-rail text-slate-300 flex flex-col shrink-0">
+      {/* 장비 전면 패널 헤더 */}
+      <div className="px-4 py-4 border-b border-white/10">
+        <div className="flex items-center gap-2">
+          <span className="led led-up led-live" />
+          <span className="eyebrow">SYSTEM ONLINE</span>
+        </div>
+        <h1 className="mt-2 text-[15px] font-semibold tracking-tight text-white leading-snug">
+          정보시스템 자산관리
+        </h1>
       </div>
-      <nav className="flex-1 py-2">
+
+      <nav className="flex-1 py-3 overflow-y-auto">
         {nav.filter(({ href }) => {
           if (!user?.permissions) return true;
           const key = href === '/' ? 'dashboard' : href.slice(1);
@@ -69,13 +76,19 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+              className={`relative flex items-center gap-3 pl-5 pr-4 py-2.5 text-sm transition-colors ${
                 active
-                  ? "bg-blue-600 text-white font-medium"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  ? "text-white font-medium bg-white/[0.06]"
+                  : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
               }`}
             >
-              <Icon size={18} />
+              {/* 활성 = 포트 LED 틱 */}
+              <span
+                className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-all ${
+                  active ? "h-5 bg-signal" : "h-0 bg-transparent"
+                }`}
+              />
+              <Icon size={18} className={active ? "text-signal" : ""} />
               {label}
             </Link>
           );
@@ -83,26 +96,28 @@ export function Sidebar() {
       </nav>
 
       {/* 사용자 정보 + 로그아웃 */}
-      <div className="p-4 border-t border-slate-700">
+      <div className="p-4 border-t border-white/10">
         {user ? (
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <User size={16} className="text-slate-400 shrink-0" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-8 h-8 rounded-md bg-white/[0.06] flex items-center justify-center shrink-0">
+                <User size={15} className="text-slate-400" />
+              </span>
               <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{user.displayName || user.username}</p>
-                <p className="text-xs text-slate-500">{roleBadge[user.role] || user.role}</p>
+                <p className="text-sm font-medium text-white truncate">{user.displayName || user.username}</p>
+                <p className="eyebrow !text-[0.625rem] !tracking-[0.1em]">{roleBadge[user.role] || user.role}</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="p-1.5 text-slate-500 hover:text-red-400 transition-colors shrink-0"
+              className="p-1.5 text-slate-500 hover:text-fault transition-colors shrink-0"
               title="로그아웃"
             >
               <LogOut size={16} />
             </button>
           </div>
         ) : (
-          <p className="text-xs text-slate-500">v2.0.0</p>
+          <p className="eyebrow">v2.0.0</p>
         )}
       </div>
     </aside>

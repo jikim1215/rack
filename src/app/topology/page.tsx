@@ -23,7 +23,10 @@ export default function TopologyPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">네트워크 토폴로지</h2>
+        <div>
+          <div className="eyebrow">TOPOLOGY</div>
+          <h2 className="text-2xl font-bold tracking-tight">네트워크 토폴로지</h2>
+        </div>
       </div>
       <TopologyView assets={assets} connections={connections} />
     </div>

@@ -69,14 +69,20 @@ function ToastItem({
   }, [onRemove]);
 
   const iconMap = {
-    success: <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />,
-    error: <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />,
-    info: <AlertCircle className="w-5 h-5 text-blue-500 shrink-0" />,
+    success: <CheckCircle className="w-5 h-5 text-signal shrink-0" />,
+    error: <AlertCircle className="w-5 h-5 text-fault shrink-0" />,
+    info: <AlertCircle className="w-5 h-5 text-ink-2 shrink-0" />,
+  };
+
+  const accent = {
+    success: "border-l-signal",
+    error: "border-l-fault",
+    info: "border-l-ink",
   };
 
   return (
     <div
-      className="bg-white shadow-lg rounded-lg p-3 flex items-center gap-2 min-w-64 animate-slide-in"
+      className={`bg-panel shadow-lg rounded-lg p-3 pl-4 flex items-center gap-2 min-w-64 border border-line border-l-[3px] ${accent[toast.type]} animate-slide-in`}
       style={{
         animation: "slide-in 0.2s ease-out",
       }}
@@ -88,10 +94,10 @@ function ToastItem({
         }
       `}</style>
       {iconMap[toast.type]}
-      <span className="text-sm text-slate-700 flex-1">{toast.message}</span>
+      <span className="text-sm text-ink flex-1">{toast.message}</span>
       <button
         onClick={onRemove}
-        className="text-slate-300 hover:text-slate-500 shrink-0"
+        className="text-ink-3 hover:text-ink shrink-0"
       >
         <X className="w-4 h-4" />
       </button>

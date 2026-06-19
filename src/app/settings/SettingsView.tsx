@@ -267,16 +267,21 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">설정</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="eyebrow">SETTINGS</p>
+          <h2 className="text-2xl font-bold tracking-tight">설정</h2>
+        </div>
+      </div>
 
       {/* 탭 */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 border-b border-line">
         <button
           onClick={() => setActiveTab("password")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
             activeTab === "password"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-slate-500 hover:text-slate-700"
+              ? "border-signal text-ink"
+              : "border-transparent text-ink-2 hover:text-ink"
           }`}
         >
           <span className="flex items-center gap-1.5"><Key size={16} /> 비밀번호 변경</span>
@@ -286,8 +291,8 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
             onClick={() => setActiveTab("users")}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "users"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-signal text-ink"
+                : "border-transparent text-ink-2 hover:text-ink"
             }`}
           >
             <span className="flex items-center gap-1.5"><Users size={16} /> 사용자 관리</span>
@@ -298,8 +303,8 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
             onClick={() => setActiveTab("permissions")}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === "permissions"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-700"
+                ? "border-signal text-ink"
+                : "border-transparent text-ink-2 hover:text-ink"
             }`}
           >
             <span className="flex items-center gap-1.5"><Shield size={16} /> 메뉴 권한</span>
@@ -310,14 +315,14 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
 
       {/* 비밀번호 변경 */}
       {activeTab === "password" && (
-      <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <section className="panel p-6">
 
-        <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+        <h2 className="text-lg font-semibold text-ink flex items-center gap-2 mb-4">
           <Key size={20} /> 비밀번호 변경
         </h2>
         <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">현재 비밀번호</label>
+            <label className="block text-sm font-medium text-ink-2 mb-1">현재 비밀번호</label>
             <input
               type="password"
               value={currentPw}
@@ -327,7 +332,7 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">새 비밀번호</label>
+            <label className="block text-sm font-medium text-ink-2 mb-1">새 비밀번호</label>
             <input
               type="password"
               value={newPw}
@@ -337,7 +342,7 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">새 비밀번호 확인</label>
+            <label className="block text-sm font-medium text-ink-2 mb-1">새 비밀번호 확인</label>
             <input
               type="password"
               value={confirmPw}
@@ -347,12 +352,12 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
             />
           </div>
           {pwMsg && (
-            <p className={`text-sm ${pwError ? "text-red-600" : "text-green-600"}`}>{pwMsg}</p>
+            <p className={`text-sm ${pwError ? "text-fault" : "text-signal"}`}>{pwMsg}</p>
           )}
           <button
             type="submit"
             disabled={pwLoading}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="btn-ink px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
           >
             {pwLoading ? "변경 중..." : "비밀번호 변경"}
           </button>
@@ -363,30 +368,30 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
 
       {/* 사용자 관리 (admin) */}
       {activeTab === "users" && isAdmin && (
-        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <section className="panel p-6">
 
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
               <Users size={20} /> 사용자 관리
             </h2>
             <button
               onClick={() => setShowAdd(!showAdd)}
-              className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-1 btn-ink px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
             >
               <Plus size={14} /> 사용자 추가
             </button>
           </div>
 
           {userMsg && (
-            <p className={`text-sm mb-3 ${userError ? "text-red-600" : "text-green-600"}`}>{userMsg}</p>
+            <p className={`text-sm mb-3 ${userError ? "text-fault" : "text-signal"}`}>{userMsg}</p>
           )}
 
           {/* 사용자 추가 폼 */}
           {showAdd && (
-            <form onSubmit={handleAddUser} className="mb-4 p-4 bg-slate-50 rounded-lg space-y-3">
+            <form onSubmit={handleAddUser} className="mb-4 p-4 bg-rail rounded-lg space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">아이디</label>
+                  <label className="block text-sm font-medium text-ink-2 mb-1">아이디</label>
                   <input
                     type="text"
                     value={addForm.username}
@@ -396,7 +401,7 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">비밀번호</label>
+                  <label className="block text-sm font-medium text-ink-2 mb-1">비밀번호</label>
                   <input
                     type="password"
                     value={addForm.password}
@@ -406,7 +411,7 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">이름</label>
+                  <label className="block text-sm font-medium text-ink-2 mb-1">이름</label>
                   <input
                     type="text"
                     value={addForm.display_name}
@@ -415,7 +420,7 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">역할</label>
+                  <label className="block text-sm font-medium text-ink-2 mb-1">역할</label>
                   <select
                     value={addForm.role}
                     onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
@@ -430,14 +435,14 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  className="btn-ink px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   추가
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAdd(false)}
-                  className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors"
+                  className="bg-slate-100 text-ink px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
                 >
                   취소
                 </button>
@@ -449,19 +454,19 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left">
-                  <th className="py-2 px-3 font-medium text-slate-600">ID</th>
-                  <th className="py-2 px-3 font-medium text-slate-600">아이디</th>
-                  <th className="py-2 px-3 font-medium text-slate-600">이름</th>
-                  <th className="py-2 px-3 font-medium text-slate-600">역할</th>
-                  <th className="py-2 px-3 font-medium text-slate-600">상태</th>
-                  <th className="py-2 px-3 font-medium text-slate-600">관리</th>
+                <tr className="border-b border-line text-left">
+                  <th className="py-2 px-3 font-medium text-ink-2">ID</th>
+                  <th className="py-2 px-3 font-medium text-ink-2">아이디</th>
+                  <th className="py-2 px-3 font-medium text-ink-2">이름</th>
+                  <th className="py-2 px-3 font-medium text-ink-2">역할</th>
+                  <th className="py-2 px-3 font-medium text-ink-2">상태</th>
+                  <th className="py-2 px-3 font-medium text-ink-2">관리</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-2 px-3 text-slate-500">{u.id}</td>
+                  <tr key={u.id} className="border-b border-line hover:bg-slate-50">
+                    <td className="py-2 px-3 text-ink-3 num">{u.id}</td>
                     <td className="py-2 px-3 font-medium">{u.username}</td>
                     <td className="py-2 px-3">
                       {editingId === u.id ? (
@@ -492,12 +497,13 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                     </td>
                     <td className="py-2 px-3">
                       <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${
                           u.is_active
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
+                            ? "bg-signal/10 text-signal"
+                            : "bg-fault/10 text-fault"
                         }`}
                       >
+                        <span className={`led ${u.is_active ? "led-up" : "led-fault"}`} />
                         {u.is_active ? "활성" : "비활성"}
                       </span>
                     </td>
@@ -507,14 +513,14 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                           <>
                             <button
                               onClick={() => handleEditUser(u.id)}
-                              className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                              className="p-1 text-ink-2 hover:text-ink hover:bg-slate-100 rounded"
                               title="저장"
                             >
                               <Save size={14} />
                             </button>
                             <button
                               onClick={() => setEditingId(null)}
-                              className="p-1 text-slate-400 hover:bg-slate-100 rounded text-xs"
+                              className="p-1 text-ink-3 hover:bg-slate-100 rounded text-xs"
                             >
                               취소
                             </button>
@@ -523,7 +529,7 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                           <>
                             <button
                               onClick={() => startEdit(u)}
-                              className="text-xs text-blue-600 hover:underline"
+                              className="text-xs text-ink-2 hover:text-ink hover:underline"
                             >
                               수정
                             </button>
@@ -531,8 +537,8 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                               onClick={() => handleToggleActive(u)}
                               className={`p-1 rounded ${
                                 u.is_active
-                                  ? "text-orange-500 hover:bg-orange-50"
-                                  : "text-green-600 hover:bg-green-50"
+                                  ? "text-warn hover:bg-amber-50"
+                                  : "text-signal hover:bg-green-50"
                               }`}
                               title={u.is_active ? "비활성화" : "활성화"}
                             >
@@ -552,13 +558,13 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
 
       {/* 메뉴 권한 관리 (admin) */}
       {activeTab === "permissions" && isAdmin && (
-        <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2 mb-4">
+        <section className="panel p-6">
+          <h2 className="text-lg font-semibold text-ink flex items-center gap-2 mb-4">
             <Shield size={20} /> 메뉴 권한 관리
           </h2>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1">역할 선택</label>
+            <label className="block text-sm font-medium text-ink-2 mb-1">역할 선택</label>
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
@@ -571,7 +577,7 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
           </div>
 
           {selectedRole === "admin" ? (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 mb-4">
+            <div className="p-4 bg-slate-100 border border-line rounded-lg text-sm text-ink mb-4">
               관리자는 모든 권한이 부여됩니다.
             </div>
           ) : (
@@ -579,11 +585,11 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
               <div className="overflow-x-auto mb-4">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 text-left">
-                      <th className="py-2 px-3 font-medium text-slate-600">메뉴</th>
-                      <th className="py-2 px-3 font-medium text-slate-600 text-center">접근</th>
-                      <th className="py-2 px-3 font-medium text-slate-600 text-center">쓰기</th>
-                      <th className="py-2 px-3 font-medium text-slate-600 text-center">승인</th>
+                    <tr className="border-b border-line text-left">
+                      <th className="py-2 px-3 font-medium text-ink-2">메뉴</th>
+                      <th className="py-2 px-3 font-medium text-ink-2 text-center">접근</th>
+                      <th className="py-2 px-3 font-medium text-ink-2 text-center">쓰기</th>
+                      <th className="py-2 px-3 font-medium text-ink-2 text-center">승인</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -593,17 +599,17 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                       const hasWrite = writableMenus.includes(key);
                       const hasApprove = approvableMenus.includes(key);
                       return (
-                        <tr key={key} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="py-2 px-3 font-medium text-slate-700">{menuLabels[key]}</td>
+                        <tr key={key} className="border-b border-line hover:bg-slate-50">
+                          <td className="py-2 px-3 font-medium text-ink">{menuLabels[key]}</td>
                           <td className="py-2 px-3 text-center">
                             {isFixed ? (
-                              <input type="checkbox" checked disabled className="accent-blue-600" />
+                              <input type="checkbox" checked disabled className="accent-signal" />
                             ) : (
                               <input
                                 type="checkbox"
                                 checked={!!perm.can_access}
                                 onChange={() => togglePermission(key, "can_access")}
-                                className="accent-blue-600 cursor-pointer"
+                                className="accent-signal cursor-pointer"
                               />
                             )}
                           </td>
@@ -613,10 +619,10 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                                 type="checkbox"
                                 checked={!!perm.can_write}
                                 onChange={() => togglePermission(key, "can_write")}
-                                className="accent-blue-600 cursor-pointer"
+                                className="accent-signal cursor-pointer"
                               />
                             ) : (
-                              <span className="text-slate-300">—</span>
+                              <span className="text-ink-3">—</span>
                             )}
                           </td>
                           <td className="py-2 px-3 text-center">
@@ -625,10 +631,10 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
                                 type="checkbox"
                                 checked={!!perm.can_approve}
                                 onChange={() => togglePermission(key, "can_approve")}
-                                className="accent-blue-600 cursor-pointer"
+                                className="accent-signal cursor-pointer"
                               />
                             ) : (
-                              <span className="text-slate-300">—</span>
+                              <span className="text-ink-3">—</span>
                             )}
                           </td>
                         </tr>
@@ -639,13 +645,13 @@ export function SettingsView({ currentUser, users: initialUsers }: Props) {
               </div>
 
               {permMsg && (
-                <p className={`text-sm mb-3 ${permError ? "text-red-600" : "text-green-600"}`}>{permMsg}</p>
+                <p className={`text-sm mb-3 ${permError ? "text-fault" : "text-signal"}`}>{permMsg}</p>
               )}
 
               <button
                 onClick={handleSavePermissions}
                 disabled={permLoading}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                className="btn-ink px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-1.5"
               >
                 <Save size={14} /> {permLoading ? "저장 중..." : "권한 저장"}
               </button>

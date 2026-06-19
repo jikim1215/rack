@@ -30,10 +30,10 @@ interface Contract {
 }
 
 const contractTypeBadge: Record<string, { label: string; cls: string }> = {
-  maintenance: { label: "유지보수", cls: "bg-blue-100 text-blue-700" },
-  purchase: { label: "구매", cls: "bg-green-100 text-green-700" },
-  lease: { label: "임대", cls: "bg-purple-100 text-purple-700" },
-  other: { label: "기타", cls: "bg-gray-100 text-gray-600" },
+  maintenance: { label: "유지보수", cls: "bg-slate-100 text-ink" },
+  purchase: { label: "구매", cls: "bg-slate-100 text-ink" },
+  lease: { label: "임대", cls: "bg-slate-100 text-ink" },
+  other: { label: "기타", cls: "bg-slate-100 text-ink" },
 };
 
 const statusLabels: Record<string, string> = {
@@ -185,21 +185,24 @@ export default function ContractsView({
     return "";
   }
 
-  const inputCls = "w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500";
-  const btnPrimary = "bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 flex items-center gap-1";
+  const inputCls = "form-input w-full text-sm";
+  const btnPrimary = "btn-ink px-4 py-1.5 rounded text-sm flex items-center gap-1";
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <FileText size={22} /> 계약/업체 관리
-      </h1>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="eyebrow">CONTRACT</p>
+          <h2 className="text-2xl font-bold tracking-tight">계약관리</h2>
+        </div>
+      </div>
 
       {/* Tabs */}
-      <div className="flex border-b mb-6">
+      <div className="flex border-b border-line mb-6">
         <button
           onClick={() => setTab("contracts")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === "contracts" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
+            tab === "contracts" ? "border-signal text-ink" : "border-transparent text-ink-2 hover:text-ink"
           }`}
         >
           <span className="flex items-center gap-1.5"><FileText size={16} /> 계약 관리</span>
@@ -207,7 +210,7 @@ export default function ContractsView({
         <button
           onClick={() => setTab("vendors")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            tab === "vendors" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"
+            tab === "vendors" ? "border-signal text-ink" : "border-transparent text-ink-2 hover:text-ink"
           }`}
         >
           <span className="flex items-center gap-1.5"><Building2 size={16} /> 업체 관리</span>
@@ -219,14 +222,16 @@ export default function ContractsView({
           {/* Stats */}
           <div className="grid grid-cols-4 gap-4 mb-6">
             {[
-              { label: "전체", value: totalContracts, cls: "bg-white" },
-              { label: "유효", value: activeContracts, cls: "bg-blue-50 text-blue-700" },
-              { label: "만료", value: expiredContracts, cls: "bg-red-50 text-red-700" },
-              { label: "만료임박(30일)", value: expiringSoon, cls: "bg-yellow-50 text-yellow-700" },
+              { label: "전체", value: totalContracts, led: "led-idle", valCls: "" },
+              { label: "유효", value: activeContracts, led: "led-up", valCls: "text-signal" },
+              { label: "만료", value: expiredContracts, led: "led-fault", valCls: "text-fault" },
+              { label: "만료임박(30일)", value: expiringSoon, led: "led-warn", valCls: "text-warn" },
             ].map((s) => (
-              <div key={s.label} className={`rounded-lg border p-4 ${s.cls}`}>
-                <p className="text-sm text-gray-500">{s.label}</p>
-                <p className="text-2xl font-bold">{s.value}</p>
+              <div key={s.label} className="panel p-4">
+                <p className="eyebrow flex items-center gap-1.5">
+                  <span className={`led ${s.led}`} />{s.label}
+                </p>
+                <p className={`text-2xl font-bold num ${s.valCls}`}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -240,7 +245,7 @@ export default function ContractsView({
 
           {/* Contract Form */}
           {cFormOpen && (
-            <form onSubmit={handleAddContract} className="bg-gray-50 border rounded-lg p-4 mb-6 grid grid-cols-2 gap-4">
+            <form onSubmit={handleAddContract} className="panel p-4 mb-6 grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">업체</label>
                 <select
@@ -322,7 +327,7 @@ export default function ContractsView({
                 />
               </div>
               <div className="col-span-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setCFormOpen(false)} className="px-4 py-1.5 text-sm border rounded hover:bg-gray-100">
+                <button type="button" onClick={() => setCFormOpen(false)} className="px-4 py-1.5 text-sm border border-line rounded text-ink-2 hover:text-ink hover:bg-slate-100">
                   취소
                 </button>
                 <button type="submit" className={btnPrimary}>등록</button>
@@ -331,9 +336,9 @@ export default function ContractsView({
           )}
 
           {/* Contract Table */}
-          <div className="border rounded-lg overflow-hidden">
+          <div className="panel overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
+              <thead className="panel-head border-b border-line">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">계약명</th>
                   <th className="text-left px-4 py-2 font-medium">업체명</th>
@@ -347,29 +352,41 @@ export default function ContractsView({
               </thead>
               <tbody>
                 {contracts.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-gray-400">등록된 계약이 없습니다</td></tr>
+                  <tr><td colSpan={8} className="text-center py-8 text-ink-3">등록된 계약이 없습니다</td></tr>
                 ) : (
                   contracts.map((c) => {
                     const badge = contractTypeBadge[c.contract_type] || contractTypeBadge.other;
+                    const d = daysUntil(c.end_date);
+                    const ddayFault = c.status === "expired" || d <= 30;
                     return (
-                      <tr key={c.id} className={`border-b hover:bg-gray-50 ${contractRowClass(c)}`}>
+                      <tr key={c.id} className={`border-b border-line hover:bg-slate-100 ${contractRowClass(c)}`}>
                         <td className="px-4 py-2 font-medium">{c.contract_name}</td>
                         <td className="px-4 py-2">{c.vendor_name || "-"}</td>
                         <td className="px-4 py-2">
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
                         </td>
-                        <td className="px-4 py-2 text-xs">{c.start_date} ~ {c.end_date}</td>
-                        <td className="px-4 py-2">{c.amount || "-"}</td>
+                        <td className="px-4 py-2 text-xs num">{c.start_date} ~ {c.end_date}</td>
+                        <td className="px-4 py-2 num">{c.amount || "-"}</td>
                         <td className="px-4 py-2">
-                          <span className={`text-xs font-medium ${
-                            c.status === "active" ? "text-green-600" : c.status === "expired" ? "text-red-600" : "text-gray-500"
+                          <span className={`text-xs font-medium inline-flex items-center gap-1.5 ${
+                            c.status === "active" ? "text-signal" : c.status === "expired" ? "text-fault" : "text-fault"
                           }`}>
+                            <span className={`led ${
+                              c.status === "active" ? "led-up" : "led-fault"
+                            }`} />
                             {statusLabels[c.status] || c.status}
                           </span>
+                          {c.status === "active" && d <= 30 && (
+                            <span className={`ml-2 px-1.5 py-0.5 rounded text-xs num ${
+                              ddayFault ? "bg-red-50 text-fault" : "bg-amber-50 text-warn"
+                            }`}>
+                              {d <= 0 ? "만료" : `D-${d}`}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-2">{c.auto_renew ? "✓" : "-"}</td>
                         <td className="px-4 py-2">
-                          <button onClick={() => handleDeleteContract(c.id)} className="text-red-500 hover:text-red-700" title="삭제">
+                          <button onClick={() => handleDeleteContract(c.id)} className="text-fault hover:bg-red-50 rounded p-1" title="삭제">
                             <Trash2 size={15} />
                           </button>
                         </td>
@@ -401,7 +418,7 @@ export default function ContractsView({
 
           {/* Vendor Form */}
           {vFormOpen && (
-            <form onSubmit={handleAddVendor} className="bg-gray-50 border rounded-lg p-4 mb-6 grid grid-cols-2 gap-4">
+            <form onSubmit={handleAddVendor} className="panel p-4 mb-6 grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">업체명 *</label>
                 <input
@@ -476,7 +493,7 @@ export default function ContractsView({
                 <button
                   type="button"
                   onClick={() => { setVFormOpen(false); setEditingVendor(null); }}
-                  className="px-4 py-1.5 text-sm border rounded hover:bg-gray-100"
+                  className="px-4 py-1.5 text-sm border border-line rounded text-ink-2 hover:text-ink hover:bg-slate-100"
                 >
                   취소
                 </button>
@@ -488,9 +505,9 @@ export default function ContractsView({
           )}
 
           {/* Vendor Table */}
-          <div className="border rounded-lg overflow-hidden">
+          <div className="panel overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
+              <thead className="panel-head border-b border-line">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">업체명</th>
                   <th className="text-left px-4 py-2 font-medium">담당자</th>
@@ -502,20 +519,20 @@ export default function ContractsView({
               </thead>
               <tbody>
                 {vendors.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-gray-400">등록된 업체가 없습니다</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-ink-3">등록된 업체가 없습니다</td></tr>
                 ) : (
                   vendors.map((v) => (
-                    <tr key={v.id} className="border-b hover:bg-gray-50">
+                    <tr key={v.id} className="border-b border-line hover:bg-slate-100">
                       <td className="px-4 py-2 font-medium">{v.vendor_name}</td>
                       <td className="px-4 py-2">{v.contact_person || "-"}</td>
-                      <td className="px-4 py-2">{v.phone || "-"}</td>
+                      <td className="px-4 py-2 num">{v.phone || "-"}</td>
                       <td className="px-4 py-2">{v.email || "-"}</td>
                       <td className="px-4 py-2">{vendorTypeLabels[v.vendor_type] || v.vendor_type}</td>
                       <td className="px-4 py-2 flex gap-2">
-                        <button onClick={() => startEditVendor(v)} className="text-blue-500 hover:text-blue-700" title="수정">
+                        <button onClick={() => startEditVendor(v)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-1" title="수정">
                           <Pencil size={15} />
                         </button>
-                        <button onClick={() => handleDeactivateVendor(v.id)} className="text-red-500 hover:text-red-700" title="비활성화">
+                        <button onClick={() => handleDeactivateVendor(v.id)} className="text-fault hover:bg-red-50 rounded p-1" title="비활성화">
                           <Trash2 size={15} />
                         </button>
                       </td>

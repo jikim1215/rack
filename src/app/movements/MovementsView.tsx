@@ -42,9 +42,9 @@ const typeLabels: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  bring_in: "bg-blue-100 text-blue-700",
-  bring_out: "bg-orange-100 text-orange-700",
-  return: "bg-green-100 text-green-700",
+  bring_in: "bg-slate-100 text-ink",
+  bring_out: "bg-warn/10 text-warn",
+  return: "bg-signal/10 text-signal",
 };
 
 const typeIcons: Record<string, typeof ArrowDownToLine> = {
@@ -61,10 +61,17 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
-  requested: "bg-slate-100 text-slate-700",
-  approved: "bg-blue-100 text-blue-700",
-  completed: "bg-green-100 text-green-700",
-  rejected: "bg-red-100 text-red-700",
+  requested: "bg-slate-100 text-ink-2",
+  approved: "bg-warn/10 text-warn",
+  completed: "bg-signal/10 text-signal",
+  rejected: "bg-fault/10 text-fault",
+};
+
+const statusLeds: Record<string, string> = {
+  requested: "led-idle",
+  approved: "led-warn",
+  completed: "led-up",
+  rejected: "led-fault",
 };
 
 export default function MovementsView({
@@ -195,37 +202,37 @@ export default function MovementsView({
     <div className="space-y-6">
       {/* 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg border p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <ArrowDownToLine className="w-5 h-5 text-blue-600" />
+        <div className="panel p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 text-ink flex items-center justify-center">
+            <ArrowDownToLine className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">반입</p>
-            <p className="text-2xl font-bold">{stats.bringIn}건</p>
+            <p className="eyebrow">반입</p>
+            <p className="text-2xl font-bold num">{stats.bringIn}건</p>
           </div>
         </div>
-        <div className="bg-white rounded-lg border p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-            <ArrowUpFromLine className="w-5 h-5 text-orange-600" />
+        <div className="panel p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 text-ink flex items-center justify-center">
+            <ArrowUpFromLine className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">반출</p>
-            <p className="text-2xl font-bold">{stats.bringOut}건</p>
+            <p className="eyebrow">반출</p>
+            <p className="text-2xl font-bold num">{stats.bringOut}건</p>
           </div>
         </div>
-        <div className="bg-white rounded-lg border p-5 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-            <RotateCcw className="w-5 h-5 text-red-600" />
+        <div className="panel p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 text-ink flex items-center justify-center">
+            <RotateCcw className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">미반납</p>
-            <p className="text-2xl font-bold">{stats.unreturned}건</p>
+            <p className="eyebrow">미반납</p>
+            <p className="text-2xl font-bold num">{stats.unreturned}건</p>
           </div>
         </div>
       </div>
 
       {/* 필터 + 신청 버튼 */}
-      <div className="bg-white rounded-lg border p-5">
+      <div className="panel p-5">
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -283,7 +290,7 @@ export default function MovementsView({
           <div className="ml-auto">
             <button
               onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              className="btn-ink flex items-center gap-1.5 px-4 py-2 rounded-lg transition-colors text-sm"
             >
               <Plus className="w-4 h-4" />
               반입/반출 신청
@@ -437,7 +444,7 @@ export default function MovementsView({
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50"
+                className="btn-ink px-4 py-2 rounded-lg transition-colors text-sm disabled:opacity-50"
               >
                 {saving ? "저장 중..." : "신청하기"}
               </button>
@@ -457,7 +464,7 @@ export default function MovementsView({
       </div>
 
       {/* 목록 테이블 */}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -491,7 +498,7 @@ export default function MovementsView({
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-400">
+                  <td colSpan={8} className="p-8 text-center text-ink-3">
                     데이터가 없습니다
                   </td>
                 </tr>
@@ -511,7 +518,7 @@ export default function MovementsView({
                       <td className="p-3">
                         {m.asset_name || m.equipment_desc || "-"}
                       </td>
-                      <td className="p-3 text-gray-500">{m.movement_date}</td>
+                      <td className="p-3 text-ink-2 num">{m.movement_date}</td>
                       <td className="p-3">{m.requester}</td>
                       <td className="p-3">{m.department}</td>
                       <td className="p-3 text-gray-600 max-w-[200px] truncate">
@@ -519,8 +526,11 @@ export default function MovementsView({
                       </td>
                       <td className="p-3">
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[m.status] || ""}`}
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColors[m.status] || ""}`}
                         >
+                          <span
+                            className={`led ${statusLeds[m.status] || "led-idle"}`}
+                          />
                           {statusLabels[m.status] || m.status}
                         </span>
                       </td>
@@ -532,7 +542,7 @@ export default function MovementsView({
                                 onClick={() =>
                                   updateStatus(m.id, "approved")
                                 }
-                                className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                className="p-1 text-ink-2 hover:text-ink hover:bg-slate-100 rounded"
                                 title="승인"
                               >
                                 <Check className="w-4 h-4" />
@@ -541,7 +551,7 @@ export default function MovementsView({
                                 onClick={() =>
                                   updateStatus(m.id, "rejected")
                                 }
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                className="p-1 text-fault hover:bg-red-50 rounded"
                                 title="반려"
                               >
                                 <X className="w-4 h-4" />
@@ -553,14 +563,14 @@ export default function MovementsView({
                               onClick={() =>
                                 updateStatus(m.id, "completed")
                               }
-                              className="px-2 py-1 text-xs bg-green-50 text-green-700 hover:bg-green-100 rounded"
+                              className="px-2 py-1 text-xs bg-signal/10 text-signal hover:bg-signal/20 rounded"
                             >
                               완료
                             </button>
                           )}
                           <button
                             onClick={() => handleDelete(m.id)}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                            className="p-1 text-ink-3 hover:text-fault hover:bg-red-50 rounded"
                             title="삭제"
                           >
                             <X className="w-3.5 h-3.5" />

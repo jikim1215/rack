@@ -24,7 +24,12 @@ export default function LocationsPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">위치 관리</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="eyebrow">LOCATION</div>
+          <h2 className="text-2xl font-bold tracking-tight">위치관리</h2>
+        </div>
+      </div>
       <LocationManager locations={locations} racks={racks} />
     </div>
   );

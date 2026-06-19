@@ -40,7 +40,10 @@ export default function AssetsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">자산관리</h2>
+        <div>
+          <span className="eyebrow">ASSETS</span>
+          <h2 className="text-2xl font-bold tracking-tight">자산관리</h2>
+        </div>
       </div>
       <AssetTable assets={assets} racks={racks} customFields={customFields} customValuesMap={cvMap} />
     </div>

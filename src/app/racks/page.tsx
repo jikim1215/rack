@@ -27,7 +27,12 @@ export default function RacksPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">랙 실장도</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <span className="eyebrow">RACK</span>
+          <h2 className="text-2xl font-bold tracking-tight">랙 실장도</h2>
+        </div>
+      </div>
       <RackView locations={locations} racks={racks} assets={assets} />
     </div>
   );

@@ -18,7 +18,10 @@ export default function MovementsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">반입/반출 관리</h2>
+        <div>
+          <p className="eyebrow">I/O</p>
+          <h2 className="text-2xl font-bold tracking-tight">반입/반출</h2>
+        </div>
       </div>
       <MovementsView movements={movements} assets={assets} />
     </div>

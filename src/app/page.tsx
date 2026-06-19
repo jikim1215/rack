@@ -113,20 +113,21 @@ const typeLabels: Record<string, string> = {
 const typeIcons: Record<string, typeof Server> = {
   server: Server, network: Network, security: Shield, telecom: Phone, other: Cable,
 };
+// 자산 유형은 범주 — 색이 아니라 아이콘으로 구분 (색은 상태 신호 전용)
 const typeColors: Record<string, string> = {
-  server: "bg-blue-100 text-blue-700",
-  network: "bg-green-100 text-green-700",
-  security: "bg-red-100 text-red-700",
-  telecom: "bg-orange-100 text-orange-700",
-  other: "bg-gray-100 text-gray-700",
+  server: "bg-slate-100 text-slate-600",
+  network: "bg-slate-100 text-slate-600",
+  security: "bg-slate-100 text-slate-600",
+  telecom: "bg-slate-100 text-slate-600",
+  other: "bg-slate-100 text-slate-600",
 };
 const statusLabels: Record<string, string> = {
   active: "운용중", inactive: "미사용", maintenance: "점검중", decommissioned: "폐기", eos: "EoS(단종)",
 };
 const movementLabels: Record<string, string> = { bring_in: '반입', bring_out: '반출', return: '반납' };
-const movementColors: Record<string, string> = { bring_in: 'text-blue-600', bring_out: 'text-orange-600', return: 'text-green-600' };
+const movementColors: Record<string, string> = { bring_in: 'text-ink', bring_out: 'text-warn', return: 'text-signal' };
 const severityLabels: Record<string, string> = { critical: '심각', major: '주요', minor: '경미' };
-const severityColors: Record<string, string> = { critical: 'text-red-600 bg-red-50', major: 'text-amber-600 bg-amber-50', minor: 'text-blue-600 bg-blue-50' };
+const severityColors: Record<string, string> = { critical: 'text-fault bg-red-50', major: 'text-warn bg-amber-50', minor: 'text-ink-2 bg-slate-100' };
 
 
 
@@ -136,10 +137,10 @@ export default function DashboardPage() {
 
   // 상태별 색상 맵
   const statusColors: Record<string, string> = {
-    active: "bg-green-500",
+    active: "bg-signal",
     inactive: "bg-slate-400",
-    maintenance: "bg-amber-500",
-    eos: "bg-red-500",
+    maintenance: "bg-warn",
+    eos: "bg-fault",
     decommissioned: "bg-slate-300",
   };
 
@@ -186,27 +187,40 @@ export default function DashboardPage() {
   ];
 
 
+  const portPct = stats.totalPorts > 0 ? Math.round((stats.usedPorts / stats.totalPorts) * 100) : 0;
+
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">대시보드</h2>
+      {/* ── FACILITY STATUS 계기 바 (히어로) ───────────────────── */}
+      <header className="panel mb-6 overflow-hidden">
+        <div className="flex flex-wrap items-stretch">
+          <div className="px-5 py-4 flex-1 min-w-[240px] border-b lg:border-b-0 lg:border-r border-line">
+            <div className="flex items-center gap-2">
+              <span className="led led-up led-live" />
+              <span className="eyebrow">FACILITY STATUS · {today}</span>
+            </div>
+            <h2 className="mt-1.5 text-xl font-bold tracking-tight">운영 대시보드</h2>
+            <p className="text-sm text-ink-2 mt-0.5">
+              자산 <span className="num font-semibold text-ink">{stats.totalAssets}</span>대 ·
+              랙 <span className="num font-semibold text-ink">{stats.totalRacks}</span>식 가동 중
+            </p>
+          </div>
+          <Readout label="ASSETS" value={stats.totalAssets} unit="대" sub={`운용 ${stats.activeAssets}`} />
+          <Readout label="RACKS" value={stats.totalRacks} unit="식" sub={`${stats.totalLocations} 위치`} />
+          <Readout label="PORTS" value={stats.totalPorts} unit="P" sub={`사용 ${stats.usedPorts}`} />
+          <Readout
+            label="PORT UTIL"
+            value={portPct}
+            unit="%"
+            sub={`${stats.usedPorts}/${stats.totalPorts}`}
+            tone={portPct > 80 ? "fault" : portPct > 50 ? "warn" : "signal"}
+          />
+        </div>
+      </header>
 
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="전체 자산" value={stats.totalAssets} sub={`운용중 ${stats.activeAssets}`} color="blue" />
-        <StatCard label="랙" value={stats.totalRacks} sub={`${stats.totalLocations}개 위치`} color="green" />
-        <StatCard label="전체 포트" value={stats.totalPorts} sub={`사용중 ${stats.usedPorts}`} color="purple" />
-        <StatCard
-          label="포트 사용률"
-          value={stats.totalPorts > 0 ? `${Math.round((stats.usedPorts / stats.totalPorts) * 100)}%` : "0%"}
-          sub={`${stats.usedPorts} / ${stats.totalPorts}`}
-          color="amber"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
         {/* 자산 유형별 */}
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-4">자산 유형별 현황</h3>
+        <Panel title="자산 유형별 현황" code="TYPE">
           <div className="space-y-3">
             {stats.byType.map((t: any) => {
               const Icon = typeIcons[t.asset_type] || Server;
@@ -218,29 +232,27 @@ export default function DashboardPage() {
                     </div>
                     <span className="text-sm">{typeLabels[t.asset_type] || t.asset_type}</span>
                   </div>
-                  <span className="font-semibold">{t.c}대</span>
+                  <span className="num font-semibold">{t.c}<span className="text-ink-3 text-xs ml-0.5">대</span></span>
                 </div>
               );
             })}
           </div>
-        </div>
+        </Panel>
 
         {/* 랙 사용률 */}
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-4">랙 사용률</h3>
-          <div className="space-y-3">
+        <Panel title="랙 사용률" code="RACK·U">
+          <div className="space-y-3.5">
             {stats.rackUsage.map((r: any) => {
               const pct = Math.round((r.used_units / r.total_units) * 100);
               return (
                 <div key={r.id}>
-                  <div className="flex justify-between text-sm mb-1">
+                  <div className="flex justify-between text-sm mb-1.5">
                     <span>{r.rack_name}</span>
-
-                    <span className="text-slate-500">{r.used_units}U / {r.total_units}U ({pct}%)</span>
+                    <span className="num text-ink-2">{r.used_units}U / {r.total_units}U <span className="text-ink-3">({pct}%)</span></span>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${pct > 80 ? "bg-red-500" : pct > 50 ? "bg-amber-500" : "bg-blue-500"}`}
+                      className={`h-full rounded-full ${pct > 80 ? "bg-fault" : pct > 50 ? "bg-warn" : "bg-signal"}`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -248,52 +260,48 @@ export default function DashboardPage() {
               );
             })}
           </div>
-        </div>
+        </Panel>
       </div>
 
       {/* 부서별 / 관리자별 / OS별 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-4">부서별 자산</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
+        <Panel title="부서별 자산" code="DEPT">
           <div className="space-y-2">
             {stats.byDepartment.map((d: any) => (
               <div key={d.department} className="flex items-center justify-between text-sm">
                 <span>{d.department}</span>
-                <span className="font-semibold">{d.c}대</span>
+                <span className="num font-semibold">{d.c}<span className="text-ink-3 text-xs ml-0.5">대</span></span>
               </div>
             ))}
-            {stats.byDepartment.length === 0 && <p className="text-slate-400 text-sm">데이터 없음</p>}
+            {stats.byDepartment.length === 0 && <p className="text-ink-3 text-sm">데이터 없음</p>}
           </div>
-        </div>
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-4">관리자별 자산</h3>
+        </Panel>
+        <Panel title="관리자별 자산" code="ADMIN">
           <div className="space-y-2">
             {stats.byAdmin.map((d: any) => (
               <div key={d.admin_name} className="flex items-center justify-between text-sm">
                 <span>{d.admin_name}</span>
-                <span className="font-semibold">{d.c}대</span>
+                <span className="num font-semibold">{d.c}<span className="text-ink-3 text-xs ml-0.5">대</span></span>
               </div>
             ))}
-            {stats.byAdmin.length === 0 && <p className="text-slate-400 text-sm">데이터 없음</p>}
+            {stats.byAdmin.length === 0 && <p className="text-ink-3 text-sm">데이터 없음</p>}
           </div>
-        </div>
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-4">OS / 펌웨어 분포</h3>
+        </Panel>
+        <Panel title="OS / 펌웨어 분포" code="OS">
           <div className="space-y-2">
             {stats.byOs.map((d: any) => (
               <div key={d.os} className="flex items-center justify-between text-sm">
                 <span className="truncate mr-2">{d.os}</span>
-                <span className="font-semibold shrink-0">{d.c}대</span>
+                <span className="num font-semibold shrink-0">{d.c}<span className="text-ink-3 text-xs ml-0.5">대</span></span>
               </div>
             ))}
-            {stats.byOs.length === 0 && <p className="text-slate-400 text-sm">데이터 없음</p>}
+            {stats.byOs.length === 0 && <p className="text-ink-3 text-sm">데이터 없음</p>}
           </div>
-        </div>
+        </Panel>
       </div>
 
       {/* 패널 1: 상태별 자산 분포 */}
-      <div className="bg-white rounded-lg border p-5 mb-8">
-        <h3 className="font-semibold mb-4">상태별 자산 분포</h3>
+      <Panel title="상태별 자산 분포" code="STATUS" className="mb-5">
         {stats.totalAssets > 0 ? (
           <>
             <div className="flex h-6 rounded-full overflow-hidden mb-3">
@@ -313,21 +321,20 @@ export default function DashboardPage() {
             <div className="flex flex-wrap gap-4 text-sm">
               {stats.byStatus.map((s: any) => (
                 <div key={s.status} className="flex items-center gap-1.5">
-                  <span className={`w-3 h-3 rounded-full ${statusColors[s.status] || "bg-slate-200"}`} />
-                  <span className="text-slate-600">{statusLabels[s.status] || s.status}</span>
-                  <span className="font-semibold">{s.c}</span>
+                  <span className={`w-2 h-2 rounded-full ${statusColors[s.status] || "bg-slate-200"}`} />
+                  <span className="text-ink-2">{statusLabels[s.status] || s.status}</span>
+                  <span className="num font-semibold">{s.c}</span>
                 </div>
               ))}
             </div>
           </>
         ) : (
-          <p className="text-slate-400 text-sm">자산 데이터 없음</p>
+          <p className="text-ink-3 text-sm">자산 데이터 없음</p>
         )}
-      </div>
+      </Panel>
 
       {/* 패널 2: 생명주기 흐름 */}
-      <div className="bg-white rounded-lg border p-5 mb-8">
-        <h3 className="font-semibold mb-4">생명주기 흐름</h3>
+      <Panel title="생명주기 흐름" code="LIFECYCLE" className="mb-5">
         <div className="flex items-center justify-between overflow-x-auto gap-1">
           {lifecycleSteps.map((step, i) => {
             const Icon = step.icon;
@@ -335,62 +342,60 @@ export default function DashboardPage() {
               <div key={step.key} className="flex items-center">
                 <div className="flex flex-col items-center min-w-[80px]">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    step.count > 0 ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-400"
+                    step.count > 0 ? "bg-slate-100 text-ink" : "bg-slate-50 text-ink-3"
                   }`}>
                     <Icon size={20} />
                   </div>
-                  <span className="text-xs mt-1 text-slate-600">{step.label}</span>
-                  <span className="text-sm font-bold">{step.count}대</span>
+                  <span className="text-xs mt-1.5 text-ink-2">{step.label}</span>
+                  <span className="num text-sm font-bold">{step.count}<span className="text-ink-3 text-xs ml-0.5">대</span></span>
                 </div>
                 {i < lifecycleSteps.length - 1 && (
-                  <ChevronRight size={16} className="text-slate-300 mx-1 shrink-0" />
+                  <ChevronRight size={16} className="text-line-strong mx-1 shrink-0" />
                 )}
               </div>
             );
           })}
         </div>
-      </div>
+      </Panel>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
         {/* 패널 3: EoS/보증 경고 */}
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-4 flex items-center gap-2">
-            <AlertTriangle size={18} className="text-amber-500" />
-            EoS / 보증만료 경고
-          </h3>
+        <Panel
+          title="EoS / 보증만료 경고"
+          code="EOS·WTY"
+          icon={<AlertTriangle size={16} className="text-warn" />}
+        >
           {allWarnings.length > 0 ? (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {allWarnings.map((w: any, i: number) => (
-                <div key={`${w.warnType}-${w.id}-${i}`} className="flex items-center justify-between text-sm border-b last:border-0 pb-2">
+                <div key={`${w.warnType}-${w.id}-${i}`} className="flex items-center justify-between text-sm border-b border-line last:border-0 pb-2">
                   <div>
                     <span className="font-medium">{w.asset_name}</span>
-
-                    <span className="text-xs text-slate-400 ml-2">{typeLabels[w.asset_type] || w.asset_type}</span>
-                    <span className="text-xs text-slate-400 ml-2">[{w.warnType}]</span>
+                    <span className="text-xs text-ink-3 ml-2">{typeLabels[w.asset_type] || w.asset_type}</span>
+                    <span className="eyebrow ml-2 !text-[0.625rem]">{w.warnType}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-slate-500">{w.date}</span>
+                    <span className="num text-xs text-ink-2">{w.date}</span>
                     {dDayBadge(w.date)}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-green-600 text-sm">
+            <div className="flex items-center gap-2 text-signal text-sm">
               <CheckCircle size={16} />
-              경고 없음 ✓
+              경고 없음
             </div>
           )}
-        </div>
+        </Panel>
 
         {/* 패널 4: 데이터 품질 */}
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-4">데이터 품질</h3>
-          <div className="flex items-center gap-3 mb-4">
-            <div className={`text-3xl font-bold ${qualityScore >= 80 ? "text-green-600" : qualityScore >= 50 ? "text-amber-600" : "text-red-600"}`}>
-              {qualityScore}%
+        <Panel title="데이터 품질" code="DATA·Q">
+          <div className="flex items-baseline gap-3 mb-4">
+            <div className={`num text-4xl font-bold leading-none ${qualityScore >= 80 ? "text-signal" : qualityScore >= 50 ? "text-warn" : "text-fault"}`}>
+              {qualityScore}<span className="text-xl">%</span>
             </div>
-            <span className="text-sm text-slate-500">전체 품질 점수</span>
+            <span className="eyebrow">전체 품질 점수</span>
           </div>
           <div className="space-y-3">
             {qualityItems.map((item) => {
@@ -400,96 +405,96 @@ export default function DashboardPage() {
                 <div key={item.label} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     {isClean ? (
-                      <CheckCircle size={16} className="text-green-500" />
+                      <CheckCircle size={16} className="text-signal" />
                     ) : (
-                      <AlertCircle size={16} className="text-amber-500" />
+                      <AlertCircle size={16} className="text-warn" />
                     )}
                     <span>{item.label}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`font-semibold ${isClean ? "text-green-600" : "text-amber-600"}`}>{item.count}건</span>
-                    <span className="text-xs text-slate-400">({pct}%)</span>
+                    <span className={`num font-semibold ${isClean ? "text-signal" : "text-warn"}`}>{item.count}건</span>
+                    <span className="num text-xs text-ink-3">({pct}%)</span>
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
+        </Panel>
       </div>
 
       {/* 운영 현황 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         {/* 반입/반출 */}
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <ArrowLeftRight size={18} className="text-blue-500" />
-            반입/반출
-          </h3>
-          <p className="text-sm text-slate-600 mb-3">대기 승인: <span className="font-bold text-blue-600">{stats.pendingMovements}건</span></p>
+        <Panel
+          title="반입/반출"
+          code="I/O"
+          icon={<ArrowLeftRight size={16} className="text-ink-2" />}
+        >
+          <p className="eyebrow mb-3">대기 승인 <span className="num text-base font-bold text-ink ml-1">{stats.pendingMovements}</span> 건</p>
           {stats.recentMovements.length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {stats.recentMovements.map((m: any, i: number) => (
-                <div key={m.id ?? i} className="flex items-center justify-between text-sm border-b last:border-0 pb-1.5">
+                <div key={m.id ?? i} className="flex items-center justify-between text-sm border-b border-line last:border-0 pb-1.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs text-slate-400 shrink-0">{(m.created_at || '').slice(0, 10)}</span>
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${movementColors[m.movement_type] || 'text-slate-600'}`}>
+                    <span className="num text-xs text-ink-3 shrink-0">{(m.created_at || '').slice(0, 10)}</span>
+                    <span className={`text-xs font-medium ${movementColors[m.movement_type] || 'text-ink-2'}`}>
                       {movementLabels[m.movement_type] || m.movement_type}
                     </span>
                     <span className="truncate">{m.asset_name || '-'}</span>
                   </div>
-                  <span className="text-xs text-slate-400 shrink-0 ml-2">{m.status}</span>
+                  <span className="eyebrow shrink-0 ml-2 !text-[0.625rem]">{m.status}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-slate-400 text-sm">내역 없음</p>
+            <p className="text-ink-3 text-sm">내역 없음</p>
           )}
-        </div>
+        </Panel>
 
         {/* 유지보수/장애 */}
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <Wrench size={18} className="text-amber-500" />
-            유지보수/장애
-          </h3>
-          <p className="text-sm text-slate-600 mb-3">미해결: <span className="font-bold text-amber-600">{stats.openMaintenance}건</span></p>
+        <Panel
+          title="유지보수/장애"
+          code="MAINT"
+          icon={<Wrench size={16} className="text-warn" />}
+        >
+          <p className="eyebrow mb-3">미해결 <span className="num text-base font-bold text-warn ml-1">{stats.openMaintenance}</span> 건</p>
           {stats.recentMaintenance.length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {stats.recentMaintenance.map((ml: any, i: number) => (
-                <div key={ml.id ?? i} className="flex items-center justify-between text-sm border-b last:border-0 pb-1.5">
+                <div key={ml.id ?? i} className="flex items-center justify-between text-sm border-b border-line last:border-0 pb-1.5">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs text-slate-400 shrink-0">{(ml.created_at || '').slice(0, 10)}</span>
+                    <span className="num text-xs text-ink-3 shrink-0">{(ml.created_at || '').slice(0, 10)}</span>
                     <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${severityColors[ml.severity] || ''}`}>
                       {severityLabels[ml.severity] || ml.severity || '-'}
                     </span>
                     <span className="truncate">{ml.asset_name || '-'}</span>
                   </div>
-                  <span className="text-xs text-slate-400 shrink-0 ml-2">{ml.status}</span>
+                  <span className="eyebrow shrink-0 ml-2 !text-[0.625rem]">{ml.status}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-slate-400 text-sm">내역 없음</p>
+            <p className="text-ink-3 text-sm">내역 없음</p>
           )}
-        </div>
+        </Panel>
 
         {/* 계약 만료 임박 */}
-        <div className="bg-white rounded-lg border p-5">
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <FileText size={18} className="text-red-500" />
-            계약 만료 임박
-          </h3>
+        <Panel
+          title="계약 만료 임박"
+          code="SLA"
+          icon={<FileText size={16} className="text-fault" />}
+        >
           {stats.expiringContracts.length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {stats.expiringContracts.map((c: any, i: number) => {
                 const d = Math.ceil((new Date(c.end_date).getTime() - new Date(today).getTime()) / 86400000);
                 return (
-                  <div key={c.id ?? i} className="flex items-center justify-between text-sm border-b last:border-0 pb-1.5">
+                  <div key={c.id ?? i} className="flex items-center justify-between text-sm border-b border-line last:border-0 pb-1.5">
                     <div className="min-w-0">
                       <span className="font-medium truncate block">{c.contract_name || '-'}</span>
-                      <span className="text-xs text-slate-400">{c.vendor_name || '-'} · {c.end_date}</span>
+                      <span className="text-xs text-ink-3">{c.vendor_name || '-'} · <span className="num">{c.end_date}</span></span>
                     </div>
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-semibold shrink-0 ml-2 ${d <= 0 ? 'bg-red-100 text-red-700' : d <= 30 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <span className={`num text-xs px-1.5 py-0.5 rounded font-semibold shrink-0 ml-2 ${d <= 30 ? 'bg-red-50 text-fault' : 'bg-amber-50 text-warn'}`}>
                       {d <= 0 ? '만료' : `D-${d}`}
                     </span>
                   </div>
@@ -497,44 +502,44 @@ export default function DashboardPage() {
               })}
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-green-600 text-sm">
+            <div className="flex items-center gap-2 text-signal text-sm">
               <CheckCircle size={16} />
-              만료 임박 계약 없음 ✓
+              만료 임박 계약 없음
             </div>
           )}
-        </div>
+        </Panel>
       </div>
 
       {/* 최근 등록 자산 */}
-      <div className="bg-white rounded-lg border p-5">
-        <h3 className="font-semibold mb-4">최근 등록 자산</h3>
+      <Panel title="최근 등록 자산" code="RECENT">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b text-left text-slate-500">
-              <th className="pb-2">이름</th>
-              <th className="pb-2">유형</th>
-              <th className="pb-2">IP</th>
-              <th className="pb-2">OS</th>
-              <th className="pb-2">관리자</th>
-              <th className="pb-2">부서</th>
-              <th className="pb-2">상태</th>
+            <tr className="border-b border-line text-left">
+              <th className="pb-2 eyebrow font-normal">이름</th>
+              <th className="pb-2 eyebrow font-normal">유형</th>
+              <th className="pb-2 eyebrow font-normal">IP</th>
+              <th className="pb-2 eyebrow font-normal">OS</th>
+              <th className="pb-2 eyebrow font-normal">관리자</th>
+              <th className="pb-2 eyebrow font-normal">부서</th>
+              <th className="pb-2 eyebrow font-normal">상태</th>
             </tr>
           </thead>
           <tbody>
             {stats.recentAssets.map((a: any) => (
-              <tr key={a.id} className="border-b last:border-0">
+              <tr key={a.id} className="border-b border-line last:border-0 hover-row">
                 <td className="py-2 font-medium">{a.asset_name}</td>
                 <td className="py-2">
                   <span className={`text-xs px-2 py-0.5 rounded ${typeColors[a.asset_type]}`}>
                     {typeLabels[a.asset_type]}
                   </span>
                 </td>
-                <td className="py-2 text-slate-500 font-mono text-xs">{a.ip_address}</td>
-                <td className="py-2 text-slate-500 text-xs">{a.os || "-"}</td>
-                <td className="py-2 text-slate-500 text-xs">{a.admin_name || "-"}</td>
-                <td className="py-2 text-slate-500 text-xs">{a.department || "-"}</td>
+                <td className="py-2 num text-ink-2 text-xs">{a.ip_address}</td>
+                <td className="py-2 text-ink-2 text-xs">{a.os || "-"}</td>
+                <td className="py-2 text-ink-2 text-xs">{a.admin_name || "-"}</td>
+                <td className="py-2 text-ink-2 text-xs">{a.department || "-"}</td>
                 <td className="py-2">
-                  <span className={`text-xs ${a.status === "active" ? "text-green-600" : "text-slate-400"}`}>
+                  <span className="inline-flex items-center gap-1.5 text-xs">
+                    <span className={`led ${a.status === "active" ? "led-up" : a.status === "maintenance" ? "led-warn" : a.status === "eos" ? "led-fault" : "led-idle"}`} />
                     {statusLabels[a.status]}
                   </span>
                 </td>
@@ -542,23 +547,49 @@ export default function DashboardPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </Panel>
     </div>
   );
 }
 
-function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub: string; color: string }) {
-  const colors: Record<string, string> = {
-    blue: "border-l-blue-500",
-    green: "border-l-green-500",
-    purple: "border-l-purple-500",
-    amber: "border-l-amber-500",
-  };
+/* ── 계기 패널 ─────────────────────────────────────────────── */
+function Panel({
+  title, code, icon, children, className = "",
+}: {
+  title: string; code?: string; icon?: React.ReactNode;
+  children: React.ReactNode; className?: string;
+}) {
   return (
-    <div className={`bg-white rounded-lg border border-l-4 ${colors[color]} p-4`}>
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="text-2xl font-bold mt-1">{value}</p>
-      <p className="text-xs text-slate-400 mt-1">{sub}</p>
+    <section className={`panel ${className}`}>
+      <div className="panel-head justify-between">
+        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
+          {icon}
+          {title}
+        </div>
+        {code && <span className="eyebrow">{code}</span>}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+/* ── 계기 readout (히어로 바이탈) ─────────────────────────── */
+function Readout({
+  label, value, unit, sub, tone = "ink",
+}: {
+  label: string; value: string | number; unit?: string; sub?: string;
+  tone?: "ink" | "signal" | "warn" | "fault";
+}) {
+  const toneClass =
+    tone === "signal" ? "text-signal" : tone === "warn" ? "text-warn" : tone === "fault" ? "text-fault" : "text-ink";
+  return (
+    <div className="px-5 py-4 flex-1 min-w-[140px] border-b sm:border-b-0 sm:border-r last:border-r-0 border-line">
+      <p className="eyebrow">{label}</p>
+      <p className={`num text-2xl font-bold mt-1 leading-none ${toneClass}`}>
+        {value}
+        {unit && <span className="text-sm text-ink-3 ml-0.5 font-medium">{unit}</span>}
+      </p>
+      {sub && <p className="num text-xs text-ink-2 mt-1.5">{sub}</p>}
     </div>
   );
 }

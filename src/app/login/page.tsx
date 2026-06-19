@@ -3,20 +3,23 @@ import { LoginForm } from "./LoginForm";
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100">
+    <div className="min-h-screen flex items-center justify-center bg-rail px-4">
       <div className="w-full max-w-sm">
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">🖥️ 자산관리</h1>
-            <p className="text-sm text-slate-500 mt-1">정보시스템 자산관리 솔루션</p>
+        <div className="panel overflow-hidden">
+          {/* 장비 전면 패널 헤더 */}
+          <div className="panel-head bg-surface">
+            <span className="led led-up led-live" />
+            <span className="eyebrow">SYSTEM ONLINE · LOGIN</span>
           </div>
-          <Suspense fallback={<div className="text-center text-slate-400 text-sm">로딩중...</div>}>
-            <LoginForm />
-          </Suspense>
+          <div className="p-8">
+            <h1 className="text-xl font-bold tracking-tight text-ink">정보시스템 자산관리</h1>
+            <p className="text-sm text-ink-2 mt-1 mb-6">계정으로 콘솔에 접속하세요.</p>
+            <Suspense fallback={<div className="text-center text-ink-3 text-sm">로딩중...</div>}>
+              <LoginForm />
+            </Suspense>
+          </div>
         </div>
-        <p className="text-center text-xs text-slate-400 mt-4">
-          초기 계정: admin / admin123
-        </p>
+        <p className="text-center eyebrow mt-4 text-slate-500">초기 계정 · admin / admin123</p>
       </div>
     </div>
   );

@@ -28,7 +28,12 @@ export default function PortMapPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">네트워크 포트맵</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="eyebrow">PORTMAP</div>
+          <h2 className="text-2xl font-bold tracking-tight">포트맵</h2>
+        </div>
+      </div>
       <PortMapView networkAssets={networkAssets} ports={ports} />
     </div>
   );

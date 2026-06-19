@@ -21,7 +21,12 @@ export default function IpamPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">IP 대역 관리 (IPAM)</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="eyebrow">IPAM</div>
+          <h2 className="text-2xl font-bold tracking-tight">IP관리</h2>
+        </div>
+      </div>
       <IpamView subnets={subnets} assetIps={assetIps} locations={locations} />
     </div>
   );

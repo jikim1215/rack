@@ -17,7 +17,10 @@ export default function MaintenancePage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">유지보수/장애 관리</h2>
+        <div>
+          <div className="eyebrow">MAINT</div>
+          <h2 className="text-2xl font-bold tracking-tight">유지보수</h2>
+        </div>
       </div>
       <MaintenanceView logs={logs} assets={assets} vendors={vendors} />
     </div>

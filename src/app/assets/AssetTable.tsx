@@ -10,18 +10,22 @@ const typeLabels: Record<string, string> = {
   server: "서버", network: "네트워크", security: "정보보호", telecom: "전화설비", other: "기타",
 };
 const typeColors: Record<string, string> = {
-  server: "bg-blue-100 text-blue-700",
-  network: "bg-green-100 text-green-700",
-  security: "bg-red-100 text-red-700",
-  telecom: "bg-orange-100 text-orange-700",
-  other: "bg-gray-100 text-gray-700",
+  server: "bg-slate-100 text-ink",
+  network: "bg-slate-100 text-ink",
+  security: "bg-slate-100 text-ink",
+  telecom: "bg-slate-100 text-ink",
+  other: "bg-slate-100 text-ink",
 };
 const statusLabels: Record<string, string> = {
   active: "운용중", inactive: "미사용", maintenance: "점검중", decommissioned: "폐기", eos: "EoS(단종)",
 };
 const statusColors: Record<string, string> = {
-  active: "text-green-600", inactive: "text-slate-400", maintenance: "text-amber-600",
-  decommissioned: "text-slate-300", eos: "text-red-600",
+  active: "text-signal", inactive: "text-idle", maintenance: "text-warn",
+  decommissioned: "text-idle", eos: "text-fault",
+};
+const statusLed: Record<string, string> = {
+  active: "led-up", inactive: "led-idle", maintenance: "led-warn",
+  decommissioned: "led-idle", eos: "led-fault",
 };
 
 interface Asset {
@@ -291,12 +295,12 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
               <button type="button" onClick={() => {
                 const newItems = items.filter((_, j) => j !== i);
                 setCustomValues({ ...customValues, [f.id]: JSON.stringify(newItems) });
-              }} className="text-slate-400 hover:text-red-600 px-1"><X size={14} /></button>
+              }} className="text-ink-3 hover:text-fault px-1"><X size={14} /></button>
             </div>
           ))}
           <button type="button" onClick={() => {
             setCustomValues({ ...customValues, [f.id]: JSON.stringify([...items, ""]) });
-          }} className="text-xs text-blue-600 hover:text-blue-800">+ 추가</button>
+          }} className="text-xs text-ink-2 hover:text-ink">+ 추가</button>
         </div>
       );
     }
@@ -315,48 +319,48 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
       {/* 툴바 */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
           <input type="text" placeholder="이름, IP, 제조사, OS, 관리자, 부서 검색..."
             value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            className="form-input w-full pl-9" />
         </div>
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm">
+          className="form-input">
           <option value="">전체 유형</option>
           {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
         <button onClick={() => { setShowForm(true); setEditId(null); setForm(emptyAsset); setCustomValues({}); }}
-          className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+          className="btn-ink flex items-center gap-1.5">
           <Plus size={16} /> 자산 등록
         </button>
         <button onClick={() => setShowFieldManager(!showFieldManager)}
-          className="flex items-center gap-1.5 border px-3 py-2 rounded-lg text-sm hover:bg-slate-50 text-slate-600">
+          className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
           <Settings size={16} /> 확장필드
         </button>
         <button onClick={() => { setShowBulkImport(true); setImportResult(null); }}
-          className="flex items-center gap-1.5 border px-3 py-2 rounded-lg text-sm hover:bg-slate-50 text-slate-600">
+          className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
           <Upload size={16} /> 일괄등록
         </button>
         <a href="/api/assets/export"
-          className="flex items-center gap-1.5 border px-3 py-2 rounded-lg text-sm hover:bg-slate-50 text-slate-600">
+          className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
           <Download size={16} /> 내보내기
         </a>
       </div>
 
       {/* 확장필드 관리 */}
       {showFieldManager && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-5 mb-4">
+        <div className="panel p-5 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-amber-800">확장 필드 관리</h3>
-            <button onClick={() => setShowFieldManager(false)} className="text-amber-400 hover:text-amber-600"><X size={16} /></button>
+            <h3 className="font-semibold text-ink">확장 필드 관리</h3>
+            <button onClick={() => setShowFieldManager(false)} className="text-ink-3 hover:text-ink"><X size={16} /></button>
           </div>
-          <p className="text-xs text-amber-600 mb-3">자산에 추가할 속성을 정의합니다. 그룹별로 폼에 섹션이 생기고, 테이블표시를 켜면 목록에 컬럼이 추가됩니다.</p>
+          <p className="text-xs text-ink-3 mb-3">자산에 추가할 속성을 정의합니다. 그룹별로 폼에 섹션이 생기고, 테이블표시를 켜면 목록에 컬럼이 추가됩니다.</p>
 
           {customFields.length > 0 && (
             <div className="mb-4 space-y-1">
               {customFields.map((f) => (
                 editFieldId === f.id ? (
-                  <div key={f.id} className="grid grid-cols-2 md:grid-cols-9 gap-1.5 bg-blue-50 rounded px-3 py-2 items-center text-xs">
+                  <div key={f.id} className="grid grid-cols-2 md:grid-cols-9 gap-1.5 bg-slate-100 rounded px-3 py-2 items-center text-xs">
                     <input value={fieldForm.field_key} disabled className="form-input text-xs bg-slate-100" title="키는 변경 불가" />
                     <input value={fieldForm.field_label} onChange={(e) => setFieldForm({ ...fieldForm, field_label: e.target.value })} className="form-input text-xs" placeholder="라벨" />
                     <select value={fieldForm.field_type} onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })} className="form-input text-xs">
@@ -369,24 +373,24 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
                     <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!fieldForm.show_in_table} onChange={(e) => setFieldForm({ ...fieldForm, show_in_table: e.target.checked ? 1 : 0 })} /> 테이블</label>
                     <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!fieldForm.is_required} onChange={(e) => setFieldForm({ ...fieldForm, is_required: e.target.checked ? 1 : 0 })} /> 필수</label>
                     <div className="flex gap-1">
-                      <button onClick={saveCustomField} className="bg-blue-600 text-white rounded text-xs px-2 py-1">저장</button>
-                      <button onClick={resetFieldForm} className="border rounded text-xs px-2 py-1">취소</button>
+                      <button onClick={saveCustomField} className="bg-ink hover:bg-rail text-white rounded text-xs px-2 py-1">저장</button>
+                      <button onClick={resetFieldForm} className="border border-line rounded text-xs px-2 py-1">취소</button>
                     </div>
                   </div>
                 ) : (
-                  <div key={f.id} className="flex items-center justify-between bg-white rounded px-3 py-2 text-sm">
+                  <div key={f.id} className="flex items-center justify-between bg-panel border border-line rounded px-3 py-2 text-sm">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{f.field_label}</span>
-                      <span className="text-slate-400 text-xs">({f.field_key})</span>
+                      <span className="text-ink-3 text-xs">({f.field_key})</span>
                       <span className="text-xs px-1.5 py-0.5 bg-slate-100 rounded">{f.field_type}</span>
-                      <span className="text-xs px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">{f.field_group}</span>
-                      {f.show_in_table ? <span className="text-xs px-1.5 py-0.5 bg-green-50 text-green-600 rounded">테이블</span> : null}
-                      {f.is_required ? <span className="text-xs px-1.5 py-0.5 bg-red-50 text-red-600 rounded">필수</span> : null}
-                      {f.asset_types && <span className="text-xs text-slate-400">{f.asset_types}</span>}
+                      <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-ink rounded">{f.field_group}</span>
+                      {f.show_in_table ? <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-ink rounded">테이블</span> : null}
+                      {f.is_required ? <span className="text-xs px-1.5 py-0.5 bg-red-50 text-fault rounded">필수</span> : null}
+                      {f.asset_types && <span className="text-xs text-ink-3">{f.asset_types}</span>}
                     </div>
                     <div className="flex gap-1">
-                      <button onClick={() => startEditField(f)} className="text-slate-400 hover:text-blue-600"><Pencil size={14} /></button>
-                      <button onClick={() => deleteCustomField(f.id)} className="text-slate-400 hover:text-red-600"><Trash2 size={14} /></button>
+                      <button onClick={() => startEditField(f)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-1"><Pencil size={14} /></button>
+                      <button onClick={() => deleteCustomField(f.id)} className="text-fault hover:bg-red-50 rounded p-1"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 )
@@ -407,7 +411,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
               <input placeholder="유형필터" value={fieldForm.asset_types} onChange={(e) => setFieldForm({ ...fieldForm, asset_types: e.target.value })} className="form-input text-xs" />
               <label className="flex items-center gap-1"><input type="checkbox" checked={!!fieldForm.show_in_table} onChange={(e) => setFieldForm({ ...fieldForm, show_in_table: e.target.checked ? 1 : 0 })} /> 테이블</label>
               <label className="flex items-center gap-1"><input type="checkbox" checked={!!fieldForm.is_required} onChange={(e) => setFieldForm({ ...fieldForm, is_required: e.target.checked ? 1 : 0 })} /> 필수</label>
-              <button onClick={addCustomField} className="bg-amber-600 text-white rounded text-xs hover:bg-amber-700 py-1.5">추가</button>
+              <button onClick={addCustomField} className="bg-ink hover:bg-rail text-white rounded text-xs py-1.5">추가</button>
             </div>
           )}
         </div>
@@ -415,27 +419,27 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
 
       {/* 일괄등록 */}
       {showBulkImport && (
-        <div className="bg-white border rounded-lg p-5 mb-4">
+        <div className="panel p-5 mb-4">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold flex items-center gap-2"><FileSpreadsheet size={18} /> 자산 일괄등록</h3>
-            <button onClick={() => setShowBulkImport(false)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            <button onClick={() => setShowBulkImport(false)} className="text-ink-3 hover:text-ink"><X size={18} /></button>
           </div>
           <div className="space-y-4">
-            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-              <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">1</span>
+            <div className="flex items-start gap-3 p-3 bg-slate-100 rounded-lg">
+              <span className="num bg-ink text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">1</span>
               <div>
                 <p className="text-sm font-medium">양식 다운로드</p>
-                <p className="text-xs text-slate-500 mt-1">엑셀 양식을 다운로드하여 자산 정보를 입력합니다.</p>
-                <a href="/api/assets/template" className="inline-flex items-center gap-1.5 mt-2 bg-blue-600 text-white px-3 py-1.5 rounded text-xs hover:bg-blue-700">
+                <p className="text-xs text-ink-3 mt-1">엑셀 양식을 다운로드하여 자산 정보를 입력합니다.</p>
+                <a href="/api/assets/template" className="inline-flex items-center gap-1.5 mt-2 bg-ink hover:bg-rail text-white px-3 py-1.5 rounded text-xs">
                   <Download size={14} /> 양식 다운로드 (.xlsx)
                 </a>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-              <span className="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">2</span>
+            <div className="flex items-start gap-3 p-3 bg-slate-100 rounded-lg">
+              <span className="num bg-ink text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shrink-0">2</span>
               <div className="flex-1">
                 <p className="text-sm font-medium">양식 업로드</p>
-                <p className="text-xs text-slate-500 mt-1">작성한 엑셀 파일을 업로드하면 자동으로 자산이 등록됩니다.</p>
+                <p className="text-xs text-ink-3 mt-1">작성한 엑셀 파일을 업로드하면 자동으로 자산이 등록됩니다.</p>
                 <input type="file" accept=".xlsx,.xls" disabled={importing} className="mt-2 text-sm"
                   onChange={async (e) => {
                     const file = e.target.files?.[0]; if (!file) return;
@@ -450,28 +454,28 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
                     } catch { setImportResult({ success: false, error: "업로드 실패" }); }
                     finally { setImporting(false); e.target.value = ""; }
                   }} />
-                {importing && <p className="text-xs text-blue-600 mt-2">업로드 중...</p>}
+                {importing && <p className="text-xs text-ink-2 mt-2">업로드 중...</p>}
               </div>
             </div>
             {importResult && (
-              <div className={`p-4 rounded-lg ${importResult.errors?.length > 0 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
+              <div className={`p-4 rounded-lg ${importResult.errors?.length > 0 ? "bg-red-50 border border-fault/30" : "bg-green-50 border border-signal/30"}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  {importResult.errors?.length > 0 ? <AlertCircle size={16} className="text-red-600" /> : <FileSpreadsheet size={16} className="text-green-600" />}
+                  {importResult.errors?.length > 0 ? <AlertCircle size={16} className="text-fault" /> : <FileSpreadsheet size={16} className="text-signal" />}
                   <span className="font-medium text-sm">
                     {importResult.imported > 0 && `${importResult.imported}건 등록`}{importResult.imported > 0 && importResult.errors?.length > 0 && " / "}
                     {importResult.errors?.length > 0 && `${importResult.errors.length}건 오류`}{importResult.error && importResult.error}
                   </span>
                 </div>
                 {importResult.errors?.length > 0 && (
-                  <table className="w-full text-xs mt-2"><thead><tr className="text-left text-slate-500 border-b">
+                  <table className="w-full text-xs mt-2"><thead><tr className="text-left text-ink-3 border-b border-line">
                     <th className="pb-1 pr-2">행</th><th className="pb-1 pr-2">컬럼</th><th className="pb-1 pr-2">값</th><th className="pb-1">오류</th>
                   </tr></thead><tbody>
                     {importResult.errors.map((err: any, i: number) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="py-1 pr-2 text-red-600 font-mono">{err.row}</td>
+                      <tr key={i} className="border-b border-line last:border-0">
+                        <td className="py-1 pr-2 text-fault num">{err.row}</td>
                         <td className="py-1 pr-2 font-medium">{err.column}</td>
-                        <td className="py-1 pr-2 text-slate-500 truncate max-w-[150px]">{err.value || "-"}</td>
-                        <td className="py-1 text-red-600">{err.error}</td>
+                        <td className="py-1 pr-2 text-ink-3 truncate max-w-[150px]">{err.value || "-"}</td>
+                        <td className="py-1 text-fault">{err.error}</td>
                       </tr>
                     ))}
                   </tbody></table>
@@ -484,14 +488,14 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
 
       {/* 등록/수정 폼 */}
       {showForm && (
-        <div className="bg-white border rounded-lg p-5 mb-4">
+        <div className="panel p-5 mb-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">{editId ? "자산 수정" : "자산 등록"}</h3>
-            <button onClick={() => { setShowForm(false); setEditId(null); }} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            <h3 className="font-semibold text-ink">{editId ? "자산 수정" : "자산 등록"}</h3>
+            <button onClick={() => { setShowForm(false); setEditId(null); }} className="text-ink-3 hover:text-ink"><X size={18} /></button>
           </div>
 
           {/* 기본 정보 */}
-          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">기본 정보</h4>
+          <h4 className="eyebrow block mb-2">기본 정보</h4>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
             <FormField label="유형 *">
               <select value={form.asset_type} onChange={(e) => setForm({ ...form, asset_type: e.target.value })} className="form-input">
@@ -513,7 +517,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
           </div>
 
           {/* 운영 정보 */}
-          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">운영 정보</h4>
+          <h4 className="eyebrow block mb-2">운영 정보</h4>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
             <FormField label="OS / 펌웨어"><input value={form.os} onChange={(e) => setForm({ ...form, os: e.target.value })} className="form-input" /></FormField>
             <FormField label="접근 IP"><input value={form.access_ip} onChange={(e) => setForm({ ...form, access_ip: e.target.value })} className="form-input" /></FormField>
@@ -524,7 +528,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
           </div>
 
           {/* 랙 배치 */}
-          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">랙 배치</h4>
+          <h4 className="eyebrow block mb-2">랙 배치</h4>
           {(() => {
             const selectedRack = racks.find((r: any) => r.id === form.rack_id);
             const maxU = selectedRack?.total_units ?? 42;
@@ -553,7 +557,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
             );
           })()}
           {/* 날짜 / 계약 */}
-          <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">날짜 / 계약</h4>
+          <h4 className="eyebrow block mb-2">날짜 / 계약</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
             <FormField label="구매일"><input type="date" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} className="form-input" /></FormField>
             <FormField label="보증만료"><input type="date" value={form.warranty_date} onChange={(e) => setForm({ ...form, warranty_date: e.target.value })} className="form-input" /></FormField>
@@ -568,7 +572,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
             if (groupNames.length === 0) return null;
             return groupNames.map((groupName) => (
               <div key={groupName}>
-                <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">{groupName}</h4>
+                <h4 className="eyebrow block mb-2">{groupName}</h4>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
                   {groups[groupName].map((f) => (
                     <FormField key={f.id} label={`${f.field_label}${f.is_required ? " *" : ""}`}>
@@ -581,20 +585,20 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
           })()}
 
           <div className="flex gap-2">
-            <button onClick={handleSave} className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+            <button onClick={handleSave} className="btn-ink flex items-center gap-1.5">
               <Save size={16} /> {editId ? "수정" : "등록"}
             </button>
-            <button onClick={() => { setShowForm(false); setEditId(null); }} className="px-4 py-2 border rounded-lg text-sm hover:bg-slate-50">취소</button>
+            <button onClick={() => { setShowForm(false); setEditId(null); }} className="px-4 py-2 border border-line rounded-lg text-sm hover:bg-slate-100">취소</button>
           </div>
         </div>
       )}
 
       {/* 테이블 */}
-      <div className="bg-white border rounded-lg overflow-hidden">
+      <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 border-b text-left text-slate-600">
+              <tr className="bg-surface border-b border-line text-left text-ink-2">
                 <th className="p-3 w-8"></th>
                 <th className="p-3">유형</th>
                 <th className="p-3">이름</th>
@@ -619,12 +623,12 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
                   getFieldsForType={getFieldsForType} />
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={12 + tableCustomFields.length} className="p-8 text-center text-slate-400">등록된 자산이 없습니다.</td></tr>
+                <tr><td colSpan={12 + tableCustomFields.length} className="p-8 text-center text-ink-3">등록된 자산이 없습니다.</td></tr>
               )}
             </tbody>
           </table>
         </div>
-        <div className="border-t p-3 text-xs text-slate-400">총 {filtered.length}건</div>
+        <div className="border-t border-line p-3 text-xs text-ink-3">총 <span className="num">{filtered.length}</span>건</div>
       </div>
 
     </div>
@@ -643,29 +647,29 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete,
 }) {
   return (
     <>
-      <tr className="border-b last:border-0 hover-row cursor-pointer" onClick={onToggle}>
-        <td className="p-3 text-slate-400">{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
+      <tr className="border-b border-line last:border-0 hover-row cursor-pointer" onClick={onToggle}>
+        <td className="p-3 text-ink-3">{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
         <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded ${typeColors[a.asset_type]}`}>{typeLabels[a.asset_type]}</span></td>
         <td className="p-3 font-medium">{a.asset_name}</td>
-        <td className="p-3 text-slate-500 text-xs">{a.manufacturer} {a.model}</td>
-        <td className="p-3 font-mono text-xs text-slate-500">{a.ip_address}</td>
-        <td className="p-3 text-xs text-slate-500">{a.os || "-"}</td>
-        <td className="p-3 text-xs text-slate-500">{a.admin_name || "-"}</td>
-        <td className="p-3 text-xs text-slate-500">{a.department || "-"}</td>
+        <td className="p-3 text-ink-3 text-xs">{a.manufacturer} {a.model}</td>
+        <td className="p-3 text-xs text-ink-3"><span className="num">{a.ip_address}</span></td>
+        <td className="p-3 text-xs text-ink-3">{a.os || "-"}</td>
+        <td className="p-3 text-xs text-ink-3">{a.admin_name || "-"}</td>
+        <td className="p-3 text-xs text-ink-3">{a.department || "-"}</td>
         {tableCustomFields.map((f) => (
-          <td key={f.id} className="p-3 text-xs text-slate-500">{renderCustomValue(f, cvMap[a.id]?.[f.id])}</td>
+          <td key={f.id} className="p-3 text-xs text-ink-3">{renderCustomValue(f, cvMap[a.id]?.[f.id])}</td>
         ))}
-        <td className="p-3 text-xs text-slate-500">{a.rack_name ? `${a.location_name}/${a.rack_name} (${a.rack_unit_start}U)` : "-"}</td>
-        <td className="p-3"><span className={`text-xs font-medium ${statusColors[a.status] || "text-slate-400"}`}>{statusLabels[a.status]}</span></td>
+        <td className="p-3 text-xs text-ink-3">{a.rack_name ? <>{a.location_name}/{a.rack_name} (<span className="num">{a.rack_unit_start}</span>U)</> : "-"}</td>
+        <td className="p-3"><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${statusColors[a.status] || "text-idle"}`}><span className={`led ${statusLed[a.status] || "led-idle"}`} />{statusLabels[a.status]}</span></td>
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex gap-0.5">
-            <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="수정"><Pencil size={14} /></button>
-            <button onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
+            <button onClick={onEdit} className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="수정"><Pencil size={14} /></button>
+            <button onClick={onDelete} className="p-1.5 text-fault hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
           </div>
         </td>
       </tr>
       {expanded && (
-        <tr className="bg-slate-50 border-b">
+        <tr className="bg-surface border-b border-line">
           <td colSpan={12 + tableCustomFields.length} className="p-4">
             {/* 기본 상세 */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs mb-4">
@@ -686,7 +690,7 @@ function TableRow({ asset: a, expanded, onToggle, onEdit, onDelete,
               for (const f of fields) { const g = f.field_group || "기본"; if (!groups[g]) groups[g] = []; groups[g].push(f); }
               return Object.entries(groups).map(([g, fs]) => (
                 <div key={g} className="mb-3">
-                  <h5 className="text-xs font-semibold text-slate-400 uppercase mb-1">{g}</h5>
+                  <h5 className="eyebrow block mb-1">{g}</h5>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs">
                     {fs.map((f: CustomField) => <DetailItem key={f.id} label={f.field_label} value={renderCustomValue(f, cvMap[a.id]?.[f.id])} />)}
                   </div>
@@ -718,22 +722,22 @@ function ExpandSection({ title, icon, assetId }: { title: string; icon: React.Re
 
   return (
     <div>
-      <button onClick={load} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 mb-2">
+      <button onClick={load} className="flex items-center gap-1.5 text-xs text-ink-2 hover:text-ink mb-2">
         {icon} {title} {open ? "▲" : "▼"}
       </button>
       {open && data && (
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {data.length === 0 && <p className="text-xs text-slate-400">변경 이력 없음</p>}
+          {data.length === 0 && <p className="text-xs text-ink-3">변경 이력 없음</p>}
           {data.map((log: any) => (
             <div key={log.id} className="flex items-start gap-2 text-xs">
-              <span className="text-slate-400 shrink-0 w-32">{log.created_at}</span>
+              <span className="num text-ink-3 shrink-0 w-32">{log.created_at}</span>
               <span className="font-medium shrink-0">{log.changed_by || "-"}</span>
               <span className={`shrink-0 px-1.5 py-0.5 rounded ${
-                log.action === "create" ? "bg-green-100 text-green-700" :
-                log.action === "update" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
+                log.action === "create" ? "bg-green-50 text-signal" :
+                log.action === "update" ? "bg-slate-100 text-ink" : "bg-red-50 text-fault"
               }`}>{log.action === "create" ? "등록" : log.action === "update" ? "수정" : "삭제"}</span>
               {log.action === "update" && (
-                <span className="text-slate-500 truncate">
+                <span className="text-ink-3 truncate">
                   {(() => { try { return JSON.parse(log.changed_fields).join(", "); } catch { return ""; } })()}
                 </span>
               )}
@@ -749,7 +753,7 @@ function ExpandSection({ title, icon, assetId }: { title: string; icon: React.Re
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-xs text-slate-500 mb-1 block">{label}</span>
+      <span className="text-xs text-ink-2 mb-1 block">{label}</span>
       {children}
     </label>
   );
@@ -758,8 +762,8 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
 function DetailItem({ label, value }: { label: string; value?: string }) {
   return (
     <div>
-      <span className="text-slate-400">{label}</span>
-      <p className="font-medium text-slate-700 mt-0.5">{value || "-"}</p>
+      <span className="text-ink-3">{label}</span>
+      <p className="font-medium text-ink mt-0.5">{value || "-"}</p>
     </div>
   );
 }

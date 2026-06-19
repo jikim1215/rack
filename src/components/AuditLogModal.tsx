@@ -21,37 +21,37 @@ interface Props {
   onClose: () => void;
 }
 
-const actionLabels: Record<string, { text: string; cls: string }> = {
-  create: { text: "생성", cls: "bg-green-100 text-green-700" },
-  update: { text: "수정", cls: "bg-blue-100 text-blue-700" },
-  delete: { text: "삭제", cls: "bg-red-100 text-red-700" },
+const actionLabels: Record<string, { text: string; cls: string; led: string }> = {
+  create: { text: "생성", cls: "bg-green-50 text-signal", led: "led-up" },
+  update: { text: "수정", cls: "bg-amber-50 text-warn", led: "led-warn" },
+  delete: { text: "삭제", cls: "bg-red-50 text-fault", led: "led-fault" },
 };
 
 export function AuditLogModal({ logs, title, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-panel border border-line rounded-xl shadow-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold">{title} 변경이력</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <h3 className="font-semibold text-ink">{title} 변경이력</h3>
+          <button onClick={onClose} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-0.5"><X size={18} /></button>
         </div>
 
         {logs.length === 0 ? (
-          <p className="text-sm text-slate-400 py-4 text-center">변경 이력이 없습니다.</p>
+          <p className="text-sm text-ink-3 py-4 text-center">변경 이력이 없습니다.</p>
         ) : (
           <div className="space-y-3">
             {logs.map((log) => {
-              const al = actionLabels[log.action] || { text: log.action, cls: "bg-slate-100 text-slate-700" };
+              const al = actionLabels[log.action] || { text: log.action, cls: "bg-slate-100 text-ink", led: "led-idle" };
               return (
-                <div key={log.id} className="border-b pb-2 last:border-0">
+                <div key={log.id} className="border-b border-line pb-2 last:border-0">
                   <div className="flex items-center gap-2 text-xs">
-                    <span className="text-slate-400">{log.created_at}</span>
-                    <span className="font-medium">{log.changed_by || "-"}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-xs ${al.cls}`}>{al.text}</span>
+                    <span className="num text-ink-3">{log.created_at}</span>
+                    <span className="font-medium text-ink">{log.changed_by || "-"}</span>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${al.cls}`}><span className={`led ${al.led}`} />{al.text}</span>
                   </div>
 
                   {log.changed_fields?.length > 0 && (
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className="mt-1 text-xs text-ink-2">
                       {log.changed_fields.map((f) => (
                         <span key={f} className="inline-block bg-slate-100 rounded px-1 mr-1">{f}</span>
                       ))}
@@ -63,9 +63,9 @@ export function AuditLogModal({ logs, title, onClose }: Props) {
                     <div className="mt-1 text-xs space-y-0.5">
                       {Object.keys(log.old_values).map((k) => (
                         <div key={k}>
-                          <span className="text-slate-400">{k}:</span>{" "}
-                          <span className="text-red-500 line-through">{String(log.old_values[k])}</span>{" → "}
-                          <span className="text-green-600">{String(log.new_values?.[k] ?? "")}</span>
+                          <span className="text-ink-3">{k}:</span>{" "}
+                          <span className="num text-fault line-through">{String(log.old_values[k])}</span>{" → "}
+                          <span className="num text-signal">{String(log.new_values?.[k] ?? "")}</span>
                         </div>
                       ))}
                     </div>
@@ -76,8 +76,8 @@ export function AuditLogModal({ logs, title, onClose }: Props) {
                     <div className="mt-1 text-xs space-y-0.5">
                       {Object.keys(log.new_values).map((k) => (
                         <div key={k}>
-                          <span className="text-slate-400">{k}:</span>{" "}
-                          <span className="text-green-600">{String(log.new_values[k])}</span>
+                          <span className="text-ink-3">{k}:</span>{" "}
+                          <span className="num text-signal">{String(log.new_values[k])}</span>
                         </div>
                       ))}
                     </div>
@@ -88,8 +88,8 @@ export function AuditLogModal({ logs, title, onClose }: Props) {
                     <div className="mt-1 text-xs space-y-0.5">
                       {Object.keys(log.old_values).map((k) => (
                         <div key={k}>
-                          <span className="text-slate-400">{k}:</span>{" "}
-                          <span className="text-red-500 line-through">{String(log.old_values[k])}</span>
+                          <span className="text-ink-3">{k}:</span>{" "}
+                          <span className="num text-fault line-through">{String(log.old_values[k])}</span>
                         </div>
                       ))}
                     </div>

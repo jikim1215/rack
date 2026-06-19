@@ -22,7 +22,12 @@ export default function DistributionPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">배선반 관리 (MDF/TPS)</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <div className="eyebrow">CABLING</div>
+          <h2 className="text-2xl font-bold tracking-tight">배선반 관리 (MDF/TPS)</h2>
+        </div>
+      </div>
       <DistributionView frames={frames} pairs={pairs} buildings={buildings} />
     </div>
   );

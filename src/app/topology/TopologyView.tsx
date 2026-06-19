@@ -199,20 +199,20 @@ export function TopologyView({ assets, connections }: Props) {
   return (
     <div className="space-y-4">
       {/* Header stats & legend */}
-      <div className="bg-white rounded-lg border p-4 flex flex-wrap items-center gap-6">
-        <div className="text-sm text-gray-500">
-          전체 자산 <span className="font-bold text-gray-900">{totalAssets}</span>대
+      <div className="panel p-4 flex flex-wrap items-center gap-6">
+        <div className="text-sm text-ink-2">
+          전체 자산 <span className="num font-bold text-ink">{totalAssets}</span>대
           {' · '}
-          연결 <span className="font-bold text-gray-900">{totalConnections}</span>건
+          연결 <span className="num font-bold text-ink">{totalConnections}</span>건
         </div>
         <div className="flex items-center gap-4 ml-auto">
           {Object.entries(typeColors).map(([type, color]) => {
             const Icon = typeIcons[type];
             return (
-              <div key={type} className="flex items-center gap-1.5 text-sm">
+              <div key={type} className="flex items-center gap-1.5 text-sm text-ink-2">
                 <Icon size={16} style={{ color }} />
                 <span>{typeLabels[type]}</span>
-                <span className="text-gray-400">({typeCounts[type] || 0})</span>
+                <span className="num text-ink-3">({typeCounts[type] || 0})</span>
               </div>
             );
           })}
@@ -220,9 +220,9 @@ export function TopologyView({ assets, connections }: Props) {
       </div>
 
       {/* SVG canvas */}
-      <div className="bg-white rounded-lg border overflow-auto">
+      <div className="panel overflow-auto">
         {assets.length === 0 ? (
-          <div className="flex items-center justify-center h-64 text-gray-400">
+          <div className="flex items-center justify-center h-64 text-ink-3">
             표시할 자산이 없습니다.
           </div>
         ) : (
