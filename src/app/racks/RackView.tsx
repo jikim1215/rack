@@ -17,6 +17,9 @@ const typeLabels: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   active: "운용중", inactive: "미사용", maintenance: "점검중", decommissioned: "폐기", eos: "EoS(단종)",
 };
+const typeAbbr: Record<string, string> = {
+  server: "S", network: "N", security: "F", telecom: "T", other: "E",
+};
 
 interface Asset {
   id: number;
@@ -39,10 +42,13 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [auditLogs, setAuditLogs] = useState<any[] | null>(null);
   const [auditRackName, setAuditRackName] = useState("");
+  const [rackSearch, setRackSearch] = useState("");
 
-  const filteredRacks = selectedLocation
-    ? racks.filter((r) => r.location_id === selectedLocation)
-    : racks;
+  const filteredRacks = racks.filter((r) => {
+    if (selectedLocation && r.location_id !== selectedLocation) return false;
+    if (rackSearch && !r.rack_name.toLowerCase().includes(rackSearch.toLowerCase())) return false;
+    return true;
+  });
 
   function getAssetsAt(rackId: number, unit: number) {
     return assets.filter(
@@ -70,6 +76,13 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
 
           ))}
         </select>
+        <input
+          type="text"
+          placeholder="랙 이름 검색..."
+          value={rackSearch}
+          onChange={(e) => setRackSearch(e.target.value)}
+          className="form-input text-sm w-40"
+        />
         <div className="flex gap-3 ml-auto text-xs text-ink-2">
           {Object.entries(typeColors).map(([type, color]) => (
             <div key={type} className="flex items-center gap-1">
@@ -135,18 +148,21 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
               {(conflictCount > 0 || overflowing.length > 0 || usagePercent > 100) && (
                 <div className="space-y-1 mb-2">
                   {conflictCount > 0 && (
-                    <div className="text-xs text-fault bg-red-50 rounded px-2 py-1">
+                    <div className="text-xs text-fault bg-red-50/10 rounded px-2 py-1">
                       <span className="led led-fault" />⚠ 슬롯 충돌 장비 <span className="num">{conflictCount}</span>대
+                      <span className="block text-ink-3 mt-0.5">→ 자산관리에서 배치 위치를 수정하세요</span>
                     </div>
                   )}
                   {overflowing.length > 0 && (
-                    <div className="text-xs text-warn bg-amber-50 rounded px-2 py-1">
+                    <div className="text-xs text-warn bg-amber-50/10 rounded px-2 py-1">
                       <span className="led led-warn" />⚠ 범위 초과 <span className="num">{overflowing.length}</span>건
+                      <span className="block text-ink-3 mt-0.5">→ 장비가 랙 유닛 수를 초과합니다</span>
                     </div>
                   )}
                   {usagePercent > 100 && (
-                    <div className="text-xs text-fault bg-red-50 rounded px-2 py-1">
+                    <div className="text-xs text-fault bg-red-50/10 rounded px-2 py-1">
                       <span className="led led-fault" />⚠ 사용률 <span className="num">{usagePercent}%</span> 초과
+                      <span className="block text-ink-3 mt-0.5">→ 랙 증설 또는 장비 재배치를 검토하세요</span>
                     </div>
                   )}
                 </div>
@@ -212,7 +228,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
                         onMouseLeave={() => setHoveredAsset(null)}
                       >
                         <span className="num text-[10px] text-white/60 w-7 text-center shrink-0">{unit}U</span>
-                        <span className="text-xs text-white font-medium truncate px-1">{asset.asset_name}</span>
+                        <span className="text-xs text-white font-medium truncate px-1"><span className="text-white/50 mr-0.5">{typeAbbr[asset.asset_type] || "?"}</span>{asset.asset_name}</span>
 
                         <span className="num text-[10px] text-white/60 ml-auto pr-1 shrink-0">{asset.rack_unit_size}U</span>
                       </div>

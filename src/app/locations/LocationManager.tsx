@@ -242,15 +242,15 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
                       <span className="num">{rack.used_units}</span>U / <span className="num">{rack.total_units}</span>U (<span className="num">{pct}</span>%) · <span className="num">{rack.asset_count}</span>대
                     </div>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 text-xs">
                     <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, rack_name: rack.rack_name, total_units: rack.total_units, description: rack.description }); setShowRackForm(true); }}
-                      className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="수정"><Pencil size={14} /></button>
+                      className="flex items-center gap-1 px-2 py-1 text-ink-2 hover:text-ink hover:bg-surface rounded"><Pencil size={12} /> 수정</button>
                     <button onClick={async () => {
                       const logs = await fetchAuditLogs("rack", rack.id);
                       if (logs) { setAuditLogs(logs); setAuditRackName(rack.rack_name); }
-                    }} className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="이력"><History size={14} /></button>
+                    }} className="flex items-center gap-1 px-2 py-1 text-ink-2 hover:text-ink hover:bg-surface rounded"><History size={12} /> 이력</button>
                     <button onClick={() => deleteRack(rack.id)}
-                      className="p-1.5 text-fault hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
+                      className="flex items-center gap-1 px-2 py-1 text-fault hover:bg-red-50/10 rounded"><Trash2 size={12} /> 삭제</button>
                   </div>
                 </div>
                 <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">
