@@ -82,6 +82,12 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
 
   return (
     <div>
+      {/* 사용 가이드 */}
+      <div className="text-xs text-ink-3 mb-4 space-y-0.5 border-l-2 border-line pl-3">
+        <p>• 위치/이름으로 랙을 찾으세요</p>
+        <p>• <strong className="text-ink-2">이상 랙만 보기</strong>를 켜면 충돌·초과 경고가 있는 랙만 표시됩니다</p>
+        <p>• 장비 위에 마우스를 올리면 상세 정보가 보입니다</p>
+      </div>
       {/* 위치 필터 */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <span className="text-sm text-ink-3">위치:</span>
@@ -106,7 +112,7 @@ export function RackView({ locations, racks, assets }: { locations: any[]; racks
         <label className="flex items-center gap-1.5 text-sm text-ink-2 cursor-pointer">
           <input type="checkbox" checked={showWarningsOnly} onChange={(e) => setShowWarningsOnly(e.target.checked)}
             className="rounded border-line" />
-          경고만
+          이상 랙만 보기
         </label>
         <div className="flex gap-3 ml-auto text-xs text-ink-2 whitespace-nowrap">
           {Object.entries(typeColors).map(([type, color]) => (

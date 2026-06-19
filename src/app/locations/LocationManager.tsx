@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, MapPin, HardDrive, Pencil, Trash2, X, Save, History } from "lucide-react";
+import { Plus, MapPin, HardDrive, Pencil, Trash2, X, Save, History, AlertTriangle } from "lucide-react";
 import { AuditLogModal, fetchAuditLogs } from "@/components/AuditLogModal";
+import { useToast } from "@/components/Toast";
 
 interface Location {
   id: number;
@@ -28,6 +29,7 @@ interface Rack {
 }
 
 export function LocationManager({ locations: initLocs, racks: initRacks }: { locations: Location[]; racks: Rack[] }) {
+  const { addToast } = useToast();
   const [locations, setLocations] = useState(initLocs);
   const [racks, setRacks] = useState(initRacks);
   const [showLocForm, setShowLocForm] = useState(false);
@@ -40,6 +42,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
   const [auditLogs, setAuditLogs] = useState<any[] | null>(null);
   const [auditRackName, setAuditRackName] = useState("");
   const [selectedLocId, setSelectedLocId] = useState<number | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const displayedRacks = selectedLocId
     ? racks.filter((r) => r.location_id === selectedLocId)
@@ -59,22 +62,29 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       setShowLocForm(false);
       setEditLocId(null);
       setLocForm({ location_name: "", building: "", floor: "", room: "" });
+      addToast(editLocId ? "위치가 수정되었습니다." : "위치가 추가되었습니다.", "success");
     } else {
       const data = await res.json();
-      alert(data.error || "저장에 실패했습니다.");
+      addToast(data.error || "저장에 실패했습니다.", "error");
     }
   }
 
-  async function deleteLoc(id: number) {
-    if (!confirm("위치와 소속 랙이 모두 삭제됩니다. 계속하시겠습니까?")) return;
-    const res = await fetch(`/api/locations/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setLocations((prev) => prev.filter((l) => l.id !== id));
-      setRacks((prev) => prev.filter((r) => r.location_id !== id));
-    } else {
-      const data = await res.json();
-      alert(data.error || "삭제에 실패했습니다.");
-    }
+  function deleteLoc(id: number) {
+    setConfirmDialog({
+      message: "위치와 소속 랙이 모두 삭제됩니다. 계속하시겠습니까?",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        const res = await fetch(`/api/locations/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          setLocations((prev) => prev.filter((l) => l.id !== id));
+          setRacks((prev) => prev.filter((r) => r.location_id !== id));
+          addToast("위치가 삭제되었습니다.", "success");
+        } else {
+          const data = await res.json();
+          addToast(data.error || "삭제에 실패했습니다.", "error");
+        }
+      },
+    });
   }
 
   async function saveRack() {
@@ -95,31 +105,38 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       setShowRackForm(false);
       setEditRackId(null);
       setRackForm({ location_id: 0, rack_name: "", total_units: 42, description: "" });
+      addToast(editRackId ? "랙이 수정되었습니다." : "랙이 추가되었습니다.", "success");
     } else {
       const data = await res.json();
-      alert(data.error || "저장에 실패했습니다.");
+      addToast(data.error || "저장에 실패했습니다.", "error");
     }
   }
 
-  async function deleteRack(id: number) {
-    if (!confirm("랙을 삭제하시겠습니까? 소속 자산의 랙 정보가 해제됩니다.")) return;
-    const res = await fetch(`/api/racks/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.releasedAssets > 0) {
-        alert(`랙이 삭제되었습니다. 소속 자산 ${data.releasedAssets}건의 랙 정보가 해제되었습니다.`);
-      }
-      const deletedRack = racks.find((r) => r.id === id);
-      setRacks((prev) => prev.filter((r) => r.id !== id));
-      if (deletedRack) {
-        setLocations((prev) => prev.map((l) =>
-          l.id === deletedRack.location_id ? { ...l, rack_count: Math.max(0, l.rack_count - 1) } : l
-        ));
-      }
-    } else {
-      const data = await res.json().catch(() => ({}));
-      alert(data.error || "삭제에 실패했습니다.");
-    }
+  function deleteRack(id: number) {
+    setConfirmDialog({
+      message: "랙을 삭제하시겠습니까? 소속 자산의 랙 정보가 해제됩니다.",
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        const res = await fetch(`/api/racks/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          const data = await res.json();
+          const msg = data.releasedAssets > 0
+            ? `랙이 삭제되었습니다. 소속 자산 ${data.releasedAssets}건의 랙 정보가 해제되었습니다.`
+            : "랙이 삭제되었습니다.";
+          addToast(msg, "success");
+          const deletedRack = racks.find((r) => r.id === id);
+          setRacks((prev) => prev.filter((r) => r.id !== id));
+          if (deletedRack) {
+            setLocations((prev) => prev.map((l) =>
+              l.id === deletedRack.location_id ? { ...l, rack_count: Math.max(0, l.rack_count - 1) } : l
+            ));
+          }
+        } else {
+          const data = await res.json().catch(() => ({}));
+          addToast(data.error || "삭제에 실패했습니다.", "error");
+        }
+      },
+    });
   }
 
   return (
@@ -127,7 +144,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       {/* 위치 */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-lg flex items-center gap-2"><MapPin size={18} /> 위치 목록</h3>
+          <h3 className="font-semibold text-lg flex items-center gap-2"><MapPin size={18} /> 위치 목록 <span className="text-xs font-normal text-ink-3 ml-1">— 클릭하면 우측 랙이 필터됩니다</span></h3>
           <button onClick={() => { setShowLocForm(true); setEditLocId(null); setLocForm({ location_name: "", building: "", floor: "", room: "" }); }}
 
             className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
@@ -274,6 +291,25 @@ export function LocationManager({ locations: initLocs, racks: initRacks }: { loc
       {/* 랙 이력 모달 (공통 컴포넌트) */}
       {auditLogs !== null && (
         <AuditLogModal logs={auditLogs} title={auditRackName} onClose={() => setAuditLogs(null)} />
+      )}
+
+      {/* 커스텀 확인 모달 */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={() => setConfirmDialog(null)}>
+          <div className="bg-panel border border-line rounded-xl shadow-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={20} className="text-warning shrink-0" />
+              <h3 className="font-semibold">확인</h3>
+            </div>
+            <p className="text-sm text-ink-2 mb-5">{confirmDialog.message}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirmDialog(null)}
+                className="px-4 py-2 border border-line rounded text-sm text-ink-2 hover:text-ink hover:bg-surface">취소</button>
+              <button onClick={confirmDialog.onConfirm}
+                className="px-4 py-2 bg-fault text-white rounded text-sm hover:bg-red-700">삭제</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
