@@ -1,91 +1,106 @@
 @import "tailwindcss";
 
 /* ──────────────────────────────────────────────────────────────
-   운영 콘솔(Operations Console) 디자인 시스템
-   명제: "색은 신호일 때만 쓴다" — 모노크롬 계기판 섀시 + 상태 LED
+   운영 콘솔 · Apple-inspired 디자인 시스템
+   ────────────────────────────────────────────────────────────── 
+   원칙:
+   1. 색은 신호일 때만 쓴다 (signal / warn / fault)
+   2. 인터랙티브 = Action Blue (#0066cc) 단일 악센트
+   3. 그림자 없는 UI — 표면색 전환이 구획을 만든다
+   4. SF Pro 체계: 600 headline, 400 body @17px, negative tracking
+   5. pill 버튼, 18px 카드 radius, scale(0.95) press
    ────────────────────────────────────────────────────────────── */
 
 @theme {
-  /* 계기판 섀시 (잉크 + 헤어라인) */
-  --color-rail: #0e1626;       /* 사이드바/계기 크롬 */
-  --color-rail-2: #0b1220;     /* 더 짙은 잉크 */
-  --color-ink: #0b1220;        /* 본문 텍스트 / 버튼 */
-  --color-ink-2: #475569;      /* 보조 텍스트 */
-  --color-ink-3: #8b97a8;      /* 캡션 */
-  --color-surface: #f4f6fb;    /* 앱 배경 */
-  --color-panel: #ffffff;      /* 패널 */
-  --color-line: #dce3ee;       /* 헤어라인 */
-  --color-line-strong: #c3cddd;
+  /* ── 표면 (Apple 톤) ── */
+  --color-rail: #1d1d1f;
+  --color-rail-2: #000000;
+  --color-ink: #1d1d1f;
+  --color-ink-2: #6e6e73;
+  --color-ink-3: #86868b;
+  --color-surface: #f5f5f7;
+  --color-panel: #ffffff;
+  --color-line: #d2d2d7;
+  --color-line-strong: #c7c7cc;
 
-  /* 신호 (운영 상태 = 유일한 채도색) */
-  --color-signal: #0e9f6e;     /* link-up / 운용중 */
-  --color-warn: #d97706;       /* 점검 / 경고 */
-  --color-fault: #dc2626;      /* 장애 / 만료 */
-  --color-idle: #94a3b8;       /* 미사용 / 유휴 */
+  /* ── 신호 (운영 상태) ── */
+  --color-signal: #34c759;
+  --color-warn: #ff9f0a;
+  --color-warning: #ff9f0a;
+  --color-fault: #ff3b30;
+  --color-idle: #8e8e93;
 
-  --font-mono: ui-monospace, "Cascadia Mono", "Cascadia Code", Consolas,
-    "D2Coding", "D2Coding ligature", "DejaVu Sans Mono", monospace;
+  /* ── Action Blue (인터랙티브 단일 악센트) ── */
+  --color-tint: #0066cc;
+
+  --font-mono: "SF Mono", ui-monospace, "Cascadia Mono", Consolas,
+    "D2Coding", monospace;
 }
 
 :root {
-  /* 레거시 변수 호환 (기존 컴포넌트가 참조) */
-  --bg: #f4f6fb;
+  --bg: #f5f5f7;
   --bg-card: #ffffff;
-  --text-primary: #0b1220;
-  --text-secondary: #475569;
-  --border: #dce3ee;
-  --accent: #0b1220;
-  --accent-hover: #0e1626;
-  --success: #0e9f6e;
-  --warning: #d97706;
-  --danger: #dc2626;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --border: #d2d2d7;
+  --accent: #1d1d1f;
+  --accent-hover: #000000;
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --danger: #ff3b30;
 }
+
+/* ── 베이스 ────────────────────────────────────────────────── */
 
 body {
   background: var(--color-surface);
   color: var(--color-ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕",
-    system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* ── 타이포그래피 시그니처 ──────────────────────────────────── */
+/* ── 타이포그래피 ──────────────────────────────────────────── */
 
-/* 측정값은 전부 tabular 모노 readout */
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
-/* 섹션 라벨 / 계기 캡션 (eyebrow) */
 .eyebrow {
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--color-ink-3);
 }
 
-/* ── 계기 패널 ──────────────────────────────────────────────── */
+/* ── 패널 (Apple 카드 — 그림자 없음, hairline만) ──────────── */
+
 .panel {
   background: var(--color-panel);
-  border: 1px solid var(--color-line);
-  border-radius: 0.625rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 18px;
 }
 
-/* 패널 상단 헤어라인 라벨 행 */
 .panel-head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.875rem 1.25rem;
-  border-bottom: 1px solid var(--color-line);
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-/* ── 상태 LED (시그니처 원자) ──────────────────────────────── */
+/* ── 상태 LED ──────────────────────────────────────────────── */
+
 .led {
   width: 0.5rem;
   height: 0.5rem;
@@ -94,12 +109,11 @@ body {
   background: var(--color-idle);
   flex: none;
 }
-.led-up    { background: var(--color-signal); box-shadow: 0 0 0 3px rgba(14, 159, 110, 0.16); }
-.led-warn  { background: var(--color-warn);   box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.16); }
-.led-fault { background: var(--color-fault);  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16); }
-.led-idle  { background: var(--color-idle);   box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16); }
+.led-up    { background: var(--color-signal); box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.16); }
+.led-warn  { background: var(--color-warn);   box-shadow: 0 0 0 3px rgba(255, 159, 10, 0.16); }
+.led-fault { background: var(--color-fault);  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.16); }
+.led-idle  { background: var(--color-idle);   box-shadow: 0 0 0 3px rgba(142, 142, 147, 0.12); }
 
-/* 라이브 펄스 (헤더 상태등) */
 .led-live { position: relative; }
 .led-live::after {
   content: "";
@@ -107,15 +121,16 @@ body {
   inset: 0;
   border-radius: 9999px;
   background: var(--color-signal);
-  animation: led-pulse 2s ease-out infinite;
+  animation: led-pulse 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 @keyframes led-pulse {
-  0%   { transform: scale(1);   opacity: 0.7; }
-  70%  { transform: scale(2.6); opacity: 0; }
-  100% { transform: scale(2.6); opacity: 0; }
+  0%   { transform: scale(1);   opacity: 0.6; }
+  70%  { transform: scale(2.8); opacity: 0; }
+  100% { transform: scale(2.8); opacity: 0; }
 }
 
-/* ── 잉크 버튼 ──────────────────────────────────────────────── */
+/* ── 버튼 (Apple pill grammar) ─────────────────────────────── */
+
 .btn-ink {
   display: inline-flex;
   align-items: center;
@@ -123,85 +138,119 @@ body {
   gap: 0.5rem;
   background: var(--color-ink);
   color: #fff;
-  padding: 0.625rem 1rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: background-color 0.15s, transform 0.08s;
+  padding: 11px 22px;
+  border-radius: 9999px;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: -0.374px;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
 }
-.btn-ink:hover { background: var(--color-rail); }
-.btn-ink:active { transform: translateY(1px); }
-.btn-ink:disabled { opacity: 0.5; }
+.btn-ink:hover {
+  background: var(--color-rail-2);
+}
+.btn-ink:active {
+  transform: scale(0.95);
+}
+.btn-ink:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
 
 /* ── 폼 입력 ────────────────────────────────────────────────── */
+
 .form-input {
   width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
+  padding: 11px 16px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
   background: var(--color-panel);
   outline: none;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .form-input:focus {
-  box-shadow: 0 0 0 3px rgba(14, 159, 110, 0.22);
-  border-color: var(--color-signal);
+  box-shadow: 0 0 0 4px rgba(0, 102, 204, 0.15);
+  border-color: var(--color-tint);
 }
 
-/* 키보드 포커스 가시성 (접근성 바닥) */
+/* ── 포커스 (접근성) ───────────────────────────────────────── */
+
 :focus-visible {
-  outline: 2px solid var(--color-signal);
+  outline: 3px solid rgba(0, 102, 204, 0.4);
   outline-offset: 2px;
 }
 
-/* ── 호버 강조 공통 ────────────────────────────────────────── */
+/* ── 인터랙션 ──────────────────────────────────────────────── */
+
 .hover-card {
-  transition: box-shadow 0.15s, transform 0.1s, border-color 0.15s;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hover-card:hover {
-  box-shadow: 0 6px 18px rgba(11, 18, 32, 0.08);
   border-color: var(--color-line-strong);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .hover-row {
-  transition: background-color 0.1s;
+  transition: background-color 0.2s;
 }
 .hover-row:hover {
-  background-color: #f1f5fb !important;
+  background-color: rgba(0, 0, 0, 0.02) !important;
 }
 
-/* 랙 장비 호버 */
 .hover-rack-item {
-  transition: opacity 0.1s, outline 0.1s;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hover-rack-item:hover {
-  opacity: 0.85;
-  outline: 2px solid #fff;
+  opacity: 0.88;
+  outline: 2px solid rgba(255, 255, 255, 0.9);
   outline-offset: -1px;
   z-index: 1;
 }
 
-/* 포트/배선 셀 호버 */
 .hover-cell {
-  transition: transform 0.1s, box-shadow 0.1s;
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hover-cell:hover {
-  transform: scale(1.15);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   z-index: 10;
 }
 
-/* 사이드바 메뉴 호버 */
 .hover-nav {
-  transition: background-color 0.15s, padding-left 0.15s;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .hover-nav:hover {
   padding-left: 1.25rem;
 }
 
-/* ── 모션 민감 사용자 배려 ─────────────────────────────────── */
+/* ── 스크롤바 (macOS native) ───────────────────────────────── */
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.22);
+  background-clip: content-box;
+}
+
+/* ── 선택 영역 ─────────────────────────────────────────────── */
+
+::selection {
+  background: rgba(0, 102, 204, 0.2);
+  color: inherit;
+}
+
+/* ── 모션 민감 사용자 ──────────────────────────────────────── */
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
@@ -210,19 +259,17 @@ body {
   }
 }
 
-/* ── 인쇄 레이아웃 ──────────────────────────────────────────── */
+/* ── 인쇄 ──────────────────────────────────────────────────── */
+
 @media print {
   aside, nav, .no-print { display: none !important; }
   main { padding: 0 !important; margin: 0 !important; }
   body { background: white !important; }
-  .panel, .bg-white { box-shadow: none !important; }
+  .panel, .bg-white { box-shadow: none !important; border: 1px solid #d2d2d7 !important; }
   table { page-break-inside: auto; }
   tr { page-break-inside: avoid; }
   .print-only { display: block !important; }
-  button, a[href], .hover-card {
-    box-shadow: none !important;
-    transform: none !important;
-  }
+  button, a[href], .hover-card { transform: none !important; }
 }
 
 .print-only { display: none; }
