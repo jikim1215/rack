@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Link2, X } from "lucide-react";
 
 const portStatusColors: Record<string, string> = {
   used: "bg-signal",
@@ -26,6 +27,7 @@ interface Port {
   status: string;
   vlan: string;
   description: string;
+  connected_to_port_id: number | null;
   connected_port_name: string | null;
   connected_asset_name: string | null;
   asset_name: string;
@@ -37,8 +39,11 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
   const [selectedAsset, setSelectedAsset] = useState<number | null>(defaultAsset);
   const [statusFilter, setStatusFilter] = useState("");
   const [hoveredPort, setHoveredPort] = useState<Port | null>(null);
+  const [connectingPort, setConnectingPort] = useState<Port | null>(null);
+  const [connectSearch, setConnectSearch] = useState("");
+  const [allPorts, setAllPorts] = useState(ports);
 
-  const assetPorts = ports.filter((p) => p.asset_id === selectedAsset);
+  const assetPorts = allPorts.filter((p) => p.asset_id === selectedAsset);
   const filtered = statusFilter ? assetPorts.filter((p) => p.status === statusFilter) : assetPorts;
   const selectedDevice = networkAssets.find((a: any) => a.id === selectedAsset);
 
@@ -49,6 +54,49 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
     unused: assetPorts.filter((p) => p.status === "unused").length,
     reserved: assetPorts.filter((p) => p.status === "reserved").length,
   };
+
+  async function connectPort(portId: number, targetPortId: number | null) {
+    const res = await fetch(`/api/ports/${portId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ connected_to_port_id: targetPortId }),
+    });
+    if (res.ok) {
+      // 로컬 상태 업데이트
+      setAllPorts((prev) => {
+        const updated = [...prev];
+        // 기존 연결 해제
+        const srcPort = updated.find((p) => p.id === portId);
+        if (srcPort?.connected_to_port_id) {
+          const oldTarget = updated.find((p) => p.id === srcPort.connected_to_port_id);
+          if (oldTarget) { oldTarget.connected_to_port_id = null; oldTarget.connected_asset_name = null; oldTarget.connected_port_name = null; }
+        }
+        if (targetPortId) {
+          const targetPort = updated.find((p) => p.id === targetPortId);
+          const targetAsset = networkAssets.find((a: any) => a.id === targetPort?.asset_id);
+          // 대상의 기존 연결 해제
+          if (targetPort?.connected_to_port_id) {
+            const oldSrc = updated.find((p) => p.id === targetPort.connected_to_port_id);
+            if (oldSrc) { oldSrc.connected_to_port_id = null; oldSrc.connected_asset_name = null; oldSrc.connected_port_name = null; }
+          }
+          // 양방향 연결
+          if (srcPort && targetPort) {
+            srcPort.connected_to_port_id = targetPortId;
+            srcPort.connected_asset_name = targetAsset?.asset_name || null;
+            srcPort.connected_port_name = targetPort.port_name;
+            targetPort.connected_to_port_id = portId;
+            targetPort.connected_asset_name = networkAssets.find((a: any) => a.id === srcPort.asset_id)?.asset_name || null;
+            targetPort.connected_port_name = srcPort.port_name;
+          }
+        } else {
+          if (srcPort) { srcPort.connected_to_port_id = null; srcPort.connected_asset_name = null; srcPort.connected_port_name = null; }
+        }
+        return updated;
+      });
+      setConnectingPort(null);
+      setConnectSearch("");
+    }
+  }
 
   return (
     <div className="flex gap-6">
@@ -211,11 +259,16 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
                         </span>
                       </td>
                       <td className="p-3 text-xs">
-                        {port.connected_asset_name ? (
-                          <span className="text-signal">{port.connected_asset_name} · {port.connected_port_name}</span>
-                        ) : (
-                          <span className="text-ink-3 italic">미연결</span>
-                        )}
+                        <button
+                          onClick={() => { setConnectingPort(port); setConnectSearch(""); }}
+                          className="text-left hover:underline"
+                        >
+                          {port.connected_asset_name ? (
+                            <span className="text-signal">{port.connected_asset_name} · {port.connected_port_name}</span>
+                          ) : (
+                            <span className="text-ink-3 italic flex items-center gap-1"><Link2 size={12} /> 연결 설정</span>
+                          )}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -228,6 +281,85 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
           </>
         )}
       </div>
+
+      {/* 포트 연결 설정 모달 */}
+      {connectingPort && (
+        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={() => setConnectingPort(null)}>
+          <div className="bg-panel border border-line rounded-xl shadow-xl p-6 max-w-md w-full max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold">포트 연결 설정</h3>
+                <p className="text-xs text-ink-3 mt-1">
+                  {networkAssets.find((a: any) => a.id === connectingPort.asset_id)?.asset_name} — {connectingPort.port_name || `Port ${connectingPort.port_number}`}
+                </p>
+              </div>
+              <button onClick={() => setConnectingPort(null)} className="text-ink-2 hover:text-ink"><X size={18} /></button>
+            </div>
+
+            {/* 현재 연결 해제 */}
+            {connectingPort.connected_asset_name && (
+              <div className="panel p-3 mb-4 flex items-center justify-between">
+                <div className="text-sm">
+                  <span className="text-signal font-medium">{connectingPort.connected_asset_name}</span>
+                  <span className="text-ink-3 ml-1">· {connectingPort.connected_port_name}</span>
+                </div>
+                <button
+                  onClick={() => connectPort(connectingPort.id, null)}
+                  className="text-xs text-fault hover:underline"
+                >연결 해제</button>
+              </div>
+            )}
+
+            {/* 대상 포트 검색 + 선택 */}
+            <input
+              type="text"
+              placeholder="장비 또는 포트 검색..."
+              value={connectSearch}
+              onChange={(e) => setConnectSearch(e.target.value)}
+              className="form-input text-sm mb-3"
+              autoFocus
+            />
+            <div className="space-y-1 max-h-60 overflow-y-auto">
+              {networkAssets
+                .filter((a: any) => a.id !== connectingPort.asset_id)
+                .map((asset: any) => {
+                  const aPorts = allPorts.filter((p) => p.asset_id === asset.id);
+                  if (aPorts.length === 0) return null;
+                  const matchSearch = !connectSearch ||
+                    asset.asset_name.toLowerCase().includes(connectSearch.toLowerCase()) ||
+                    aPorts.some((p) => p.port_name.toLowerCase().includes(connectSearch.toLowerCase()));
+                  if (!matchSearch) return null;
+                  return (
+                    <div key={asset.id}>
+                      <div className="text-xs eyebrow text-ink-3 px-2 pt-2">{asset.asset_name}</div>
+                      {aPorts
+                        .filter((p) => !connectSearch || p.port_name.toLowerCase().includes(connectSearch.toLowerCase()) || asset.asset_name.toLowerCase().includes(connectSearch.toLowerCase()))
+                        .map((p) => {
+                          const isSelf = p.id === connectingPort.id;
+                          const isConnected = p.connected_to_port_id !== null;
+                          return (
+                            <button
+                              key={p.id}
+                              disabled={isSelf}
+                              onClick={() => connectPort(connectingPort.id, p.id)}
+                              className={`w-full text-left px-3 py-1.5 text-sm rounded flex items-center justify-between ${
+                                isSelf ? "opacity-30" : "hover:bg-surface"
+                              }`}
+                            >
+                              <span className="num">{p.port_name || `Port ${p.port_number}`}</span>
+                              <span className="text-xs text-ink-3">
+                                {isConnected ? `→ ${p.connected_asset_name}` : "미연결"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
