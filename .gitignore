@@ -1,0 +1,80 @@
+# 의존성 / 빌드 산출물
+node_modules/
+# bun 락파일 — 이 프로젝트는 npm(package-lock.json) 기준. 병행 락파일 금지.
+bun.lock
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# 런타임 SQLite DB (민감: KISA 내부 자산/IP 데이터 — 절대 커밋 금지, db:seed + import로 재생성)
+data.db
+data.db-wal
+data.db-shm
+data.db.bak-*
+*.db.gz
+restored.db
+restored.db-wal
+restored.db-shm
+
+# 시크릿 / 환경변수 (.env.example 은 추적)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# 검증 산출물 (내부망 스크린샷·트랜스크립트 포함 — 민감)
+artifacts/
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# GJC 워크플로 산출물 전체 제외 (기획/스펙 문서에 실 조직·시설·네트워크 대역·통계 상세 포함 — 커밋 금지)
+.gjc/
+**/audit.jsonl
+
+# 기관 원천 데이터 (실자산 대장/실장도 원본 — 민감, 임포트 후 원본은 별도 보관)
+*.xlsx
+*.pptx
+*.hwpx
+*.hwp
+!vendor/*.tgz
+data/
+
+# 검토 루프·데이터 대사 임시 산출물 (scripts 닷파일: 트랜스크립트/프롬프트/드라이버/대사 결과)
+scripts/.*
+
+# 일회성 데이터 이관/보강/파싱 스크립트 (실 원천파일명·실 네트워크 대역·실 시설/조직명·개인명 하드코딩 — 커밋 금지)
+scripts/enrich-zone.mjs
+scripts/place-assets.mjs
+scripts/parse-rackmap.mjs
+scripts/enrich-rackmap-pptx.mjs
+scripts/import-rackmap-xlsx.mjs
+scripts/merge-candidates.mjs
+scripts/merge-confirmed-pairs.mjs
+scripts/merge-enrich.mjs
+scripts/promote-subassets.mjs
+scripts/import-ax-ledgers.mjs
+scripts/review-ax-ledgers.mjs
+scripts/import-asset-final.ts
+scripts/import-subassets.mjs
+scripts/net-assets-clean.mjs
+scripts/asset-template-fill.mjs
+scripts/template-fill.mjs
+scripts/verify-rackmap-import.mjs
+scripts/run-web-import.ts
+
+# 내부 인프라 공존(itam·공존시스템) 작업노트 — 내부 네트워크/인증서/호스트 상세 포함, 커밋 금지
+docs/itam-공존-작업정리.md
+# 로컬 스크래치 / VM 배포·검증 헬퍼 (환경 종속: VM IP·SSH 키 경로 하드코딩 — 커밋 금지)
+/_*
+rollback-bootstrap.sh
+# 원격 인증용 임시 PAT 입력 헬퍼 (토큰 파일 pat.txt 생성 위치 — 절대 커밋 금지)
+gltmp/
+
+# 오프라인 릴리스 번들 (빌드 산출물 — dist/에서 재생성, 수십 MB)
+/asset-inventory-offline*.tar.gz

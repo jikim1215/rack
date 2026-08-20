@@ -1,0 +1,15 @@
+[Unit]
+Description=정보시스템 자산관리 — 로그 보존 프루닝(감사로그/접속기록 1년 초과 삭제)
+After=network.target
+
+[Service]
+Type=oneshot
+# 앱 설치 경로에 맞게 수정 (오프라인 번들 setup.sh가 치환)
+WorkingDirectory=/opt/asset-inventory
+Environment=ASSET_DB_CWD=/opt/asset-inventory
+Environment=ASSET_LOCK_PATH=/var/lib/asset-inventory/maintenance.lock
+Environment=RETENTION_DAYS=365
+# 번들된 Node로 실행 (백업과 maintenance.lock으로 상호배제)
+ExecStart=/opt/asset-inventory/node/bin/node --experimental-strip-types /opt/asset-inventory/scripts/deploy/retention-runner.ts
+User=asset
+Group=asset

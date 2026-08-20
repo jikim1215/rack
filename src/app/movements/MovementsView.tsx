@@ -1,0 +1,754 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  RotateCcw,
+  Clock,
+  Plus,
+  Check,
+  X,
+} from "lucide-react";
+import { useToast } from "@/components/Toast";
+import { UsageGuide } from "@/components/UsageGuide";
+
+interface Movement {
+  id: number;
+  asset_id: number | null;
+  asset_name: string | null;
+  movement_type: string;
+  movement_date: string;
+  requester: string;
+  approver: string;
+  department: string;
+  purpose: string;
+  equipment_desc: string;
+  serial_number: string;
+  model: string;
+  size_u: string;
+  manufacturer: string;
+  rack_position: string;
+  power_watts: string;
+  power_redundant: string;
+  status: string;
+  notes: string;
+  created_by: string;
+  created_at: string;
+}
+
+interface Asset {
+  id: number;
+  asset_name: string;
+  serial_number: string;
+  manufacturer?: string;
+  model?: string;
+  rack_unit_size?: number | null;
+  rack_unit_start?: number | null;
+  rack_side?: string | null;
+  rack_name?: string | null;
+}
+
+// 자산 실장 정보 → "랙명 시작U~끝U (L/R)" 문자열. 미실장이면 빈 문자열.
+function formatRackPosition(a: Asset): string {
+  if (!a.rack_name || a.rack_unit_start == null) return "";
+  const size = a.rack_unit_size && a.rack_unit_size > 1 ? a.rack_unit_size : 1;
+  const end = a.rack_unit_start + size - 1;
+  const range = size > 1 ? `${a.rack_unit_start}~${end}U` : `${a.rack_unit_start}U`;
+  const side = a.rack_side === "L" || a.rack_side === "R" ? ` (${a.rack_side})` : "";
+  return `${a.rack_name} ${range}${side}`;
+}
+
+const typeLabels: Record<string, string> = {
+  bring_in: "반입",
+  bring_out: "반출",
+  return: "반납",
+};
+
+const typeColors: Record<string, string> = {
+  bring_in: "bg-slate-100 text-ink",
+  bring_out: "bg-warn/10 text-warn",
+  return: "bg-signal/10 text-signal",
+};
+
+const typeIcons: Record<string, typeof ArrowDownToLine> = {
+  bring_in: ArrowDownToLine,
+  bring_out: ArrowUpFromLine,
+  return: RotateCcw,
+};
+
+const statusLabels: Record<string, string> = {
+  requested: "신청",
+  approved: "승인",
+  completed: "완료",
+  rejected: "반려",
+};
+
+const statusColors: Record<string, string> = {
+  requested: "bg-slate-100 text-ink-2",
+  approved: "bg-warn/10 text-warn",
+  completed: "bg-signal/10 text-signal",
+  rejected: "bg-fault/10 text-fault",
+};
+
+const statusLeds: Record<string, string> = {
+  requested: "led-idle",
+  approved: "led-warn",
+  completed: "led-up",
+  rejected: "led-fault",
+};
+
+export default function MovementsView({
+  movements: initialMovements,
+  assets,
+}: {
+  movements: Movement[];
+  assets: Asset[];
+}) {
+  const { addToast } = useToast();
+  const [movements, setMovements] = useState<Movement[]>(initialMovements);
+  const [showForm, setShowForm] = useState(false);
+  const [filterType, setFilterType] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+
+  // form state
+  const [formType, setFormType] = useState("bring_in");
+  const [formAssetId, setFormAssetId] = useState<string>("");
+  const [formEquipDesc, setFormEquipDesc] = useState("");
+  const [formSerial, setFormSerial] = useState("");
+  const [formModel, setFormModel] = useState("");
+  const [formSizeU, setFormSizeU] = useState("");
+  const [formManufacturer, setFormManufacturer] = useState("");
+  const [formRackPos, setFormRackPos] = useState("");
+  const [formPowerWatts, setFormPowerWatts] = useState("");
+  const [formPowerRedundant, setFormPowerRedundant] = useState("");
+  const [formDate, setFormDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [formRequester, setFormRequester] = useState("");
+  const [formDept, setFormDept] = useState("");
+  const [formPurpose, setFormPurpose] = useState("");
+
+  const [formNotes, setFormNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const isManualEntry = formAssetId === "manual";
+
+  const filtered = useMemo(() => {
+    return movements.filter((m) => {
+      if (filterType !== "all" && m.movement_type !== filterType) return false;
+      if (filterStatus !== "all" && m.status !== filterStatus) return false;
+      if (filterFrom && m.movement_date < filterFrom) return false;
+      if (filterTo && m.movement_date > filterTo) return false;
+      return true;
+    });
+  }, [movements, filterType, filterStatus, filterFrom, filterTo]);
+
+  const stats = useMemo(() => {
+    const bringIn = movements.filter((m) => m.movement_type === "bring_in").length;
+    const returned = movements.filter((m) => m.movement_type === "return").length;
+    const pending = movements.filter((m) => m.status === "requested" || m.status === "approved").length;
+    return { bringIn, returned, pending };
+  }, [movements]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        movement_type: formType,
+        movement_date: formDate,
+        asset_id: isManualEntry || !formAssetId ? null : Number(formAssetId),
+        requester: formRequester,
+        department: formDept,
+        purpose: formPurpose,
+
+        equipment_desc: formEquipDesc,
+        serial_number: formSerial,
+        model: formModel,
+        size_u: formSizeU,
+        manufacturer: formManufacturer,
+        rack_position: formRackPos,
+        power_watts: formPowerWatts,
+        power_redundant: formPowerRedundant,
+        notes: formNotes,
+      };
+
+      const res = await fetch("/api/movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) throw new Error("저장 실패");
+      const created = await res.json();
+      setMovements((prev) => [created, ...prev]);
+      resetForm();
+      setShowForm(false);
+      addToast(`${typeLabels[created.movement_type] || "이동"} 신청이 등록되었습니다.`, "success");
+    } catch {
+      addToast("저장에 실패했습니다.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function resetForm() {
+    setFormType("bring_in");
+    setFormAssetId("");
+    setFormEquipDesc("");
+    setFormSerial("");
+    setFormModel("");
+    setFormSizeU("");
+    setFormManufacturer("");
+    setFormRackPos("");
+    setFormPowerWatts("");
+    setFormPowerRedundant("");
+    setFormDate(new Date().toISOString().slice(0, 10));
+    setFormRequester("");
+    setFormDept("");
+    setFormPurpose("");
+
+    setFormNotes("");
+  }
+
+  // 자산 선택 시 물리정보 자동 채움(빈 값만 채우고 사용자가 이미 입력한 값은 보존)
+  function handleAssetChange(next: string) {
+    setFormAssetId(next);
+    if (next === "" || next === "manual") return;
+    const a = assets.find((x) => String(x.id) === next);
+    if (!a) return;
+    if (!formSerial) setFormSerial(a.serial_number || "");
+    if (!formModel) setFormModel(a.model || "");
+    if (!formManufacturer) setFormManufacturer(a.manufacturer || "");
+    if (!formSizeU && a.rack_unit_size != null) setFormSizeU(`${a.rack_unit_size}U`);
+    if (!formRackPos) {
+      const rackPos = formatRackPosition(a);
+      if (rackPos) setFormRackPos(rackPos);
+    }
+  }
+
+  async function updateStatus(id: number, status: string) {
+    // 완료는 자동 후속처리가 있는 전이 — confirm 4요소(대상/동작/자동처리/되돌리기) 명시 (외부 검토 P1-1·P1-2 합의)
+    if (status === "completed") {
+      const m = movements.find((x) => x.id === id);
+      const name = m?.asset_name || m?.equipment_desc || "해당 장비";
+      const auto = m?.movement_type === "bring_out"
+        ? "자동 처리: 랙 실장 해제 + 예비 상태 전환 (IP·부속자산 연결은 유지됩니다)"
+        : m?.movement_type === "bring_in" && !m?.asset_id
+          ? "자동 처리: 자산 대장에 신규 등록"
+          : "자동 처리: 없음";
+      if (!confirm(`'${name}' ${typeLabels[m?.movement_type || ""] || "이동"} 건을 완료 처리하시겠습니까?\n\n${auto}\n완료 후 상태 되돌리기는 지원되지 않습니다(이력은 감사로그에 남음).`)) return;
+    }
+    const res = await fetch(`/api/movements/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      addToast(err.error || "처리에 실패했습니다.", "error");
+      return;
+    }
+    const updated = await res.json();
+    setMovements((prev) => prev.map((m) => (m.id === id ? updated : m)));
+    addToast(`${typeLabels[updated.movement_type] || "이동"} 건이 '${statusLabels[status] || status}' 처리되었습니다.`, "success");
+
+    // 라이프사이클 넛지: 완료 시점에 자산의 다음 단계를 안내
+    if (status === "completed" && updated.asset_id) {
+      try {
+        const asset = await (await fetch(`/api/assets/${updated.asset_id}`)).json();
+        if (updated.movement_type === "bring_in") {
+          if (asset.rack_id == null) {
+            addToast(`'${asset.asset_name}' 반입 완료 — 다음 단계는 랙 실장입니다.`, "info",
+              { label: "랙 실장도에서 배치", href: "/racks" });
+          } else if (!(asset.ip_address || "").trim()) {
+            addToast(`'${asset.asset_name}' 반입 완료 — IP가 아직 없습니다.`, "info",
+              { label: "자산관리에서 IP 부여", href: "/assets?missing=ip" });
+          }
+        } else if (updated.movement_type === "bring_out" && asset.rack_id != null) {
+          addToast(`'${asset.asset_name}'이(가) 반출 완료됐지만 아직 랙에 실장되어 있습니다.`, "info",
+            { label: "랙 실장도에서 해제", href: "/racks" });
+        }
+      } catch { /* 넛지는 부가 기능 — 실패해도 본 처리에는 영향 없음 */ }
+    }
+  }
+
+  async function handleDelete(id: number) {
+    const m = movements.find((x) => x.id === id);
+    const name = m?.asset_name || m?.equipment_desc || "이";
+    if (!confirm(`'${name}' ${typeLabels[m?.movement_type || ""] || "이동"} 건을 삭제하시겠습니까?\n\n신청 기록이 목록에서 제거됩니다(감사로그는 보존). 삭제는 되돌릴 수 없습니다.`)) return;
+    const res = await fetch(`/api/movements/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
+    setMovements((prev) => prev.filter((m) => m.id !== id));
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* 통계 카드 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="panel p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 text-ink flex items-center justify-center">
+            <ArrowDownToLine className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="eyebrow">반입</p>
+            <p className="text-2xl font-bold num">{stats.bringIn}건</p>
+          </div>
+        </div>
+        <div className="panel p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 text-ink flex items-center justify-center">
+            <RotateCcw className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="eyebrow">반납</p>
+            <p className="text-2xl font-bold num">{stats.returned}건</p>
+          </div>
+        </div>
+        <div className="panel p-4 flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 text-ink flex items-center justify-center">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="eyebrow">처리대기</p>
+            <p className="text-2xl font-bold num">{stats.pending}건</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 필터 + 신청 버튼 */}
+      <div className="panel p-5">
+        <div className="flex flex-wrap items-end gap-3 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              유형
+            </label>
+            <select
+              className="form-input"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+            >
+              <option value="all">전체</option>
+              <option value="bring_in">반입</option>
+              <option value="return">반납</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              상태
+            </label>
+            <select
+              className="form-input"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="all">전체</option>
+              <option value="requested">신청</option>
+              <option value="approved">승인</option>
+              <option value="completed">완료</option>
+              <option value="rejected">반려</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              시작일
+            </label>
+            <input
+              type="date"
+              className="form-input"
+              value={filterFrom}
+              onChange={(e) => setFilterFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              종료일
+            </label>
+            <input
+              type="date"
+              className="form-input"
+              value={filterTo}
+              onChange={(e) => setFilterTo(e.target.value)}
+            />
+          </div>
+          <div className="ml-auto">
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="btn-ink flex items-center gap-1.5 px-4 py-2 rounded-lg transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              반입/반출 신청
+            </button>
+          </div>
+        </div>
+
+        {/* 사용 가이드 (접기/펼치기) */}
+        <UsageGuide
+          className="mb-4 text-right"
+          items={[
+            <>절차: <strong className="text-ink-2">신청 → 승인(승인권한 보유자) → 완료</strong> — 각 단계가 감사로그에 남습니다</>,
+            <>반출 완료 시 해당 장비의 <strong className="text-ink-2">랙 실장이 자동 해제</strong>되고 예비 상태로 전환됩니다</>,
+            <>반입 완료 시 다음 단계(랙 실장 → IP 부여) 안내가 토스트로 뜹니다</>,
+            <>대장에 없는 장비는 <strong className="text-ink-2">'직접 입력'</strong>으로 기재 후 반입 완료 시 자산으로 자동 등록됩니다</>,
+          ]}
+        />
+
+        {/* 신청 폼 */}
+        {showForm && (
+          <form
+            onSubmit={handleSubmit}
+            className="border-t pt-4 mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          >
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                유형 *
+              </label>
+              <select
+                className="form-input"
+                value={formType}
+                onChange={(e) => setFormType(e.target.value)}
+                required
+              >
+                <option value="bring_in">반입</option>
+                <option value="return">반납</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                자산 선택
+              </label>
+              <select
+                className="form-input"
+                value={formAssetId}
+                onChange={(e) => handleAssetChange(e.target.value)}
+              >
+                <option value="">-- 선택 --</option>
+                <option value="manual">직접입력</option>
+                {assets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.asset_name}
+                    {a.serial_number ? ` (${a.serial_number})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                품목/장비명{isManualEntry ? " *" : ""}
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={formEquipDesc}
+                onChange={(e) => setFormEquipDesc(e.target.value)}
+                placeholder="예: 랙서버 / 스토리지"
+                required={isManualEntry}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                품목(SN)
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={formSerial}
+                onChange={(e) => setFormSerial(e.target.value)}
+                placeholder="시리얼번호"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                모델(크기 U)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="form-input flex-1"
+                  value={formModel}
+                  onChange={(e) => setFormModel(e.target.value)}
+                  placeholder="모델명"
+                />
+                <input
+                  type="text"
+                  className="form-input w-20"
+                  value={formSizeU}
+                  onChange={(e) => setFormSizeU(e.target.value)}
+                  placeholder="예: 2U"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                제조사(랙상면 위치)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="form-input flex-1"
+                  value={formManufacturer}
+                  onChange={(e) => setFormManufacturer(e.target.value)}
+                  placeholder="제조사"
+                />
+                <input
+                  type="text"
+                  className="form-input w-28"
+                  value={formRackPos}
+                  onChange={(e) => setFormRackPos(e.target.value)}
+                  placeholder="랙상면 위치"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                소비전력
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={formPowerWatts}
+                onChange={(e) => setFormPowerWatts(e.target.value)}
+                placeholder="예: 750W"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                전원 이중화 여부
+              </label>
+              <select
+                className="form-input"
+                value={formPowerRedundant}
+                onChange={(e) => setFormPowerRedundant(e.target.value)}
+              >
+                <option value="">미기재</option>
+                <option value="yes">이중화(Y)</option>
+                <option value="no">단일(N)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                일자 *
+              </label>
+              <input
+                type="date"
+                className="form-input"
+                value={formDate}
+                onChange={(e) => setFormDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                신청자
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={formRequester}
+                onChange={(e) => setFormRequester(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                부서
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={formDept}
+                onChange={(e) => setFormDept(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                사유
+              </label>
+              <input
+                type="text"
+                className="form-input"
+                value={formPurpose}
+                onChange={(e) => setFormPurpose(e.target.value)}
+              />
+            </div>
+
+
+            <div className="md:col-span-2 lg:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                비고
+              </label>
+              <textarea
+                className="form-input"
+                rows={2}
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+              />
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3 flex gap-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="btn-ink px-4 py-2 rounded-lg transition-colors text-sm disabled:opacity-50"
+              >
+                {saving ? "저장 중..." : "신청하기"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  resetForm();
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                취소
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* 목록 테이블 */}
+      <div className="panel overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="text-left p-3 font-medium text-gray-600">
+                  유형
+                </th>
+                <th className="text-left p-3 font-medium text-gray-600">
+                  자산/장비
+                </th>
+                <th className="text-left p-3 font-medium text-gray-600">
+                  일자
+                </th>
+                <th className="text-left p-3 font-medium text-gray-600">
+                  신청자
+                </th>
+                <th className="text-left p-3 font-medium text-gray-600">
+                  부서
+                </th>
+                <th className="text-left p-3 font-medium text-gray-600">
+                  사유
+                </th>
+                <th className="text-left p-3 font-medium text-gray-600">
+                  상태
+                </th>
+                <th className="text-left p-3 font-medium text-gray-600">
+                  관리
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-ink-3">
+                    데이터가 없습니다
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((m) => {
+                  const Icon = typeIcons[m.movement_type] || ArrowDownToLine;
+                  return (
+                    <tr key={m.id} className="border-b hover-row">
+                      <td className="p-3">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeColors[m.movement_type] || ""}`}
+                        >
+                          <Icon className="w-3 h-3" />
+                          {typeLabels[m.movement_type] || m.movement_type}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <div>{m.asset_name || m.equipment_desc || "-"}</div>
+                        {(() => {
+                          const meta = [
+                            m.serial_number && `SN ${m.serial_number}`,
+                            m.model && (m.size_u ? `${m.model} (${m.size_u})` : m.model),
+                            m.manufacturer && (m.rack_position ? `${m.manufacturer} · ${m.rack_position}` : m.manufacturer),
+                            m.power_watts,
+                            m.power_redundant === "yes" ? "이중화" : m.power_redundant === "no" ? "단일전원" : "",
+                          ].filter(Boolean);
+                          return meta.length > 0 ? (
+                            <div className="text-xs text-ink-3 mt-0.5">{meta.join(" · ")}</div>
+                          ) : null;
+                        })()}
+                      </td>
+                      <td className="p-3 text-ink-2 num">{m.movement_date}</td>
+                      <td className="p-3">{m.requester}</td>
+                      <td className="p-3">{m.department}</td>
+                      <td className="p-3 text-gray-600 max-w-[200px] truncate">
+                        {m.purpose}
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusColors[m.status] || ""}`}
+                        >
+                          <span
+                            className={`led ${statusLeds[m.status] || "led-idle"}`}
+                          />
+                          {statusLabels[m.status] || m.status}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          {m.status === "requested" && (
+                            <>
+                              <button
+                                onClick={() =>
+                                  updateStatus(m.id, "approved")
+                                }
+                                className="p-1 text-ink-2 hover:text-ink hover:bg-slate-100 rounded"
+                                title="승인"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  updateStatus(m.id, "rejected")
+                                }
+                                className="p-1 text-fault hover:bg-red-50 rounded"
+                                title="반려"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                          {m.status === "approved" && (
+                            <button
+                              onClick={() =>
+                                updateStatus(m.id, "completed")
+                              }
+                              className="px-2 py-1 text-xs bg-signal/10 text-signal hover:bg-signal/20 rounded"
+                            >
+                              완료
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDelete(m.id)}
+                            className="p-1 text-ink-3 hover:text-fault hover:bg-red-50 rounded"
+                            title="삭제"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

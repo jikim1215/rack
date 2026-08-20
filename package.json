@@ -1,0 +1,36 @@
+{
+  "name": "asset-inventory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "정보시스템 자산 현황관리 시스템 (폐쇄망/멀티팀)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:seed": "node scripts/db-seed.mjs",
+    "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
+    "check": "tsc --noEmit",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@types/nodemailer": "^8.0.1",
+    "better-sqlite3": "^11.8.0",
+    "lucide-react": "^0.468.0",
+    "next": "~15.3.0",
+    "nodemailer": "^9.0.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/bun": "latest",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "postcss": "^8.5.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

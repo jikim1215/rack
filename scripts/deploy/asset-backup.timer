@@ -1,0 +1,11 @@
+[Unit]
+Description=정보시스템 자산관리 — DB 백업 일일 타이머 (AC-22)
+
+[Timer]
+# 매일 02:00 (보존 프루닝 03:30과 시간대 분리 + maintenance.lock으로 동시성 방지)
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=asset-backup.service
+
+[Install]
+WantedBy=timers.target

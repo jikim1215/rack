@@ -1,0 +1,11 @@
+[Unit]
+Description=정보시스템 자산관리 — 로그 보존 프루닝 일일 타이머(AC-20)
+
+[Timer]
+# 매일 03:30 실행 (백업 타이머와 시간대 분리 + maintenance.lock으로 동시성 방지)
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=asset-retention.service
+
+[Install]
+WantedBy=timers.target

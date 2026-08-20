@@ -1,0 +1,13 @@
+[Unit]
+Description=정보시스템 자산관리 — DB 백업 (AC-22, prune와 maintenance.lock 상호배제)
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/asset-inventory
+Environment=ASSET_DB_CWD=/opt/asset-inventory
+Environment=ASSET_LOCK_PATH=/var/lib/asset-inventory/maintenance.lock
+Environment=BACKUP_KEEP_DAYS=30
+ExecStart=/bin/bash /opt/asset-inventory/scripts/deploy/backup.sh
+User=asset
+Group=asset
