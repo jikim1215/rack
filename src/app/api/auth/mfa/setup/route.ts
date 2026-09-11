@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/audit";
 import {
   generateSecret, verifyTotp, otpauthUri, formatSecretForDisplay, generateBackupCodes,
 } from "@/lib/totp";
+import { encodeQr, qrSvgPath } from "@/lib/qr";
 import { asBody, str, ValidationError } from "@/lib/validation/input";
 import type { UserRow } from "@/lib/db-types";
 
@@ -43,10 +44,14 @@ export const POST = withApi(async () => {
   const secret = generateSecret();
   // 활성화는 PUT(코드 확인) 에서. 여기서는 시크릿만 심어둔다 — 확인 못 하면 켜지지 않는다.
   db.prepare("UPDATE users SET totp_secret = ?, totp_enabled = 0, totp_last_counter = 0 WHERE id = ?").run(secret, actor.userId);
+  const uri = otpauthUri(secret, actor.username);
+  // QR 은 서버에서 행렬로 만들어 SVG path 로 내린다 — 클라이언트는 <path d> 만 그린다(외부 라이브러리·이미지 불필요).
+  const qr = qrSvgPath(encodeQr(uri, "M"));
   return NextResponse.json({
     secret,
     secretDisplay: formatSecretForDisplay(secret),
-    otpauthUri: otpauthUri(secret, actor.username),
+    otpauthUri: uri,
+    qr,
     digits: 6,
     periodSec: 30,
   });

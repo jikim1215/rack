@@ -13,7 +13,8 @@ interface Status {
 
 export function MfaTab({ active }: { active: boolean }) {
   const [status, setStatus] = useState<Status | null>(null);
-  const [secret, setSecret] = useState<{ secret: string; secretDisplay: string; otpauthUri: string } | null>(null);
+  const [secret, setSecret] = useState<{ secret: string; secretDisplay: string; otpauthUri: string; qr: { path: string; viewBox: number } } | null>(null);
+  const [showManual, setShowManual] = useState(false);
   const [code, setCode] = useState("");
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [msg, setMsg] = useState("");
@@ -40,6 +41,7 @@ export function MfaTab({ active }: { active: boolean }) {
       const data = await res.json();
       if (!res.ok) return say(data.error || "시작할 수 없습니다.", true);
       setSecret(data);
+      setShowManual(false);
       setBackupCodes(null);
       say("");
     } finally { setLoading(false); }
@@ -147,25 +149,44 @@ export function MfaTab({ active }: { active: boolean }) {
       {secret && (
         <form onSubmit={confirm} className="space-y-4 border border-line rounded-lg p-4">
           <div>
-            <p className="text-sm font-medium text-ink-2 mb-2">1. 인증 앱에 아래 키를 등록하세요</p>
-            <p className="text-xs text-ink-3 mb-2">
-              Google Authenticator · Microsoft Authenticator 등에서 &ldquo;직접 입력(수동 추가)&rdquo; 을 선택하고 아래 키를 입력합니다.
+            <p className="text-sm font-medium text-ink-2 mb-2">1. 인증 앱으로 QR 코드를 스캔하세요</p>
+            <p className="text-xs text-ink-3 mb-3">
+              Google Authenticator · Microsoft Authenticator 등에서 <strong className="text-ink-2">+ → QR 코드 스캔</strong>을 누르고 아래를 비추면 바로 등록됩니다.
             </p>
-            <div className="flex items-center gap-2">
-              <code className="num flex-1 bg-surface border border-line rounded px-3 py-2 text-sm tracking-wider break-all">
-                {secret.secretDisplay}
-              </code>
-              <button type="button" onClick={copySecret} className="px-2 py-2 rounded border border-line text-ink-2 hover:bg-slate-50" title="클립보드에 복사">
-                {copied ? <Check size={15} className="text-signal" /> : <Copy size={15} />}
-              </button>
+            <div className="flex flex-col sm:flex-row gap-4 items-start">
+              {/* QR — 서버가 만든 path 만 그린다. crisp-edges 로 모듈 경계가 번지지 않게(스캔 성공률). */}
+              <div className="shrink-0 bg-white border border-line rounded-lg p-2" aria-label="2단계 인증 등록 QR 코드">
+                <svg
+                  viewBox={`0 0 ${secret.qr.viewBox} ${secret.qr.viewBox}`}
+                  width={220} height={220}
+                  shapeRendering="crispEdges"
+                  role="img"
+                >
+                  <rect width="100%" height="100%" fill="#fff" />
+                  <path d={secret.qr.path} fill="#000" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0 text-xs text-ink-3 space-y-2">
+                <p>스캔이 안 되면 화면을 밝게 하거나 브라우저 확대(Ctrl +)를 해 보세요.</p>
+                <button type="button" onClick={() => setShowManual((v) => !v)} className="text-ink-2 hover:text-ink underline underline-offset-2">
+                  {showManual ? "키 직접 입력 닫기" : "카메라를 쓸 수 없나요? 키 직접 입력"}
+                </button>
+                {showManual && (
+                  <div className="space-y-2">
+                    <p>앱에서 &ldquo;직접 입력(수동 추가)&rdquo; 을 선택하고 아래 키를 입력합니다.</p>
+                    <div className="flex items-center gap-2">
+                      <code className="num flex-1 bg-surface border border-line rounded px-3 py-2 text-sm tracking-wider break-all text-ink">
+                        {secret.secretDisplay}
+                      </code>
+                      <button type="button" onClick={copySecret} className="px-2 py-2 rounded border border-line text-ink-2 hover:bg-slate-50" title="클립보드에 복사">
+                        {copied ? <Check size={15} className="text-signal" /> : <Copy size={15} />}
+                      </button>
+                    </div>
+                    <p className="text-[11px]">계정명 · 6자리 · 30초 · SHA1 (대부분 앱의 기본값)</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <details className="mt-2">
-              <summary className="text-xs text-ink-3 cursor-pointer">otpauth 주소로 등록하기</summary>
-              <code className="block mt-1 text-[11px] text-ink-3 break-all bg-surface border border-line rounded px-2 py-1.5">
-                {secret.otpauthUri}
-              </code>
-            </details>
-            <p className="text-[11px] text-ink-3 mt-2">계정명 · 6자리 · 30초 · SHA1 (대부분 앱의 기본값)</p>
           </div>
           <div>
             <p className="text-sm font-medium text-ink-2 mb-2">2. 앱에 표시된 6자리 코드를 입력하세요</p>
