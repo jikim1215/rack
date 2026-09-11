@@ -103,6 +103,7 @@
 
 - 이메일 기반 로그인 ID, SHA-512 클라이언트 해싱 → scrypt 서버 이중 해싱
 - HMAC-SHA512 서명 세션 토큰(기본 8h, `SESSION_TTL_HOURS`), `SameSite=strict` 쿠키, 세션 만료 배너
+- **2단계 인증(TOTP, RFC 6238)** — 사용자별 등록, 인증 앱은 서버와 통신하지 않아 폐쇄망 동작. replay 차단·백업코드·시도 제한. 외부 패키지 없이 `node:crypto` 로 구현
 - 로그인 5회 실패 → 15분 잠금, 비밀번호 정책(최소 8자·2종 조합)
 - 3역할 접근제어: **총괄(admin) / 팀(team) / 전체열람(viewer)**
 - 부서 기반 **row-level 멀티팀 스코프** — 모든 쓰기 API에서 (역할, 소유팀) 서버 인가 검증
@@ -162,7 +163,7 @@ npm run dev            # http://localhost:3000
 | 팀(team) | `user@example.go.kr` | `user123` |
 | 전체열람(viewer) | `viewer@example.go.kr` | `viewer123` |
 
-기타 스크립트: `npm test`(단위 테스트), `npm run check`(타입 체크), `npm run smoke`(스모크), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견 E2E).
+기타 스크립트: `npm test`(단위 테스트), `npm run check`(타입 체크), `npm run smoke`(스모크), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견·2단계인증 E2E), `node scripts/bench-scale.mjs 10000`(자산 N건 시나리오 쿼리 벤치 — 운영 DB 복사본에서만).
 
 ## 프로젝트 구조
 

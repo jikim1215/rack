@@ -15,7 +15,7 @@ export const GET = withApi(async () => {
 
   const db = getDb();
   const users = db
-    .prepare('SELECT id, username, display_name, role, team_id, is_active, allowed_ips, created_at FROM users ORDER BY id')
+    .prepare('SELECT id, username, display_name, role, team_id, is_active, allowed_ips, totp_enabled, created_at FROM users ORDER BY id')
     .all() as Pick<UserRow, 'id' | 'username' | 'display_name' | 'role' | 'team_id' | 'is_active' | 'allowed_ips' | 'created_at'>[];
   return NextResponse.json(users);
 });

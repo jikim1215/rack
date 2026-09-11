@@ -15,6 +15,12 @@ export interface UserRow {
   team_id: number | null;
   token_version: number;
   allowed_ips: string;
+  /** 2단계 인증(TOTP) — src/lib/totp.ts */
+  totp_secret: string;
+  totp_enabled: number;
+  totp_last_counter: number;
+  /** 1회용 백업 코드 scrypt 해시 JSON 배열 */
+  backup_codes: string;
   created_at: string;
 }
 

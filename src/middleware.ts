@@ -21,7 +21,7 @@ function getSecret(): string {
   return secret;
 }
 
-async function decodeToken(token: string): Promise<{ role?: string; exp?: number; mcp?: boolean } | null> {
+async function decodeToken(token: string): Promise<{ role?: string; exp?: number; mcp?: boolean; pur?: string } | null> {
   try {
     const [json, sig] = token.split(".");
     if (!json || !sig) return null;
@@ -39,6 +39,8 @@ async function decodeToken(token: string): Promise<{ role?: string; exp?: number
     if (sig !== expected) return null;
     const payload = JSON.parse(atob(json.replace(/-/g, "+").replace(/_/g, "/")));
     if (!(payload.exp > Date.now())) return null;
+    // 2단계 인증 대기 토큰(pur='mfa')은 세션으로 치지 않는다 — auth.ts getSession 과 동일 정책.
+    if (payload.pur === "mfa") return null;
     return payload;
   } catch {
     return null;

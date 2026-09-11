@@ -56,6 +56,15 @@ function initSchema(db: Database.Database) {
       must_change_password INTEGER DEFAULT 0,
       team_id INTEGER REFERENCES teams(id),
       token_version INTEGER DEFAULT 0,
+      -- 2단계 인증(TOTP, RFC 6238) — 폐쇄망에서 사용 가능한 유일한 표준 방식(인증 앱이 서버와 통신하지 않는다).
+      --   totp_secret       : base32 시크릿 (등록 시 생성, 미활성이면 빈 문자열)
+      --   totp_enabled      : 최초 코드 검증까지 끝난 상태만 1 (시크릿만 있고 미확인은 0)
+      --   totp_last_counter : 마지막으로 성공한 counter — 같은 코드 재제출(replay) 차단
+      --   backup_codes      : 1회용 백업코드 scrypt 해시 JSON 배열 (기기 분실 탈출구)
+      totp_secret TEXT DEFAULT '',
+      totp_enabled INTEGER DEFAULT 0,
+      totp_last_counter INTEGER DEFAULT 0,
+      backup_codes TEXT DEFAULT '[]',
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
@@ -907,6 +916,16 @@ function initSchema(db: Database.Database) {
       db.pragma("legacy_alter_table = OFF");
       db.pragma("foreign_keys = ON");
       assertNoFkViolations(db, "migration rebuild");
+    }
+    // 2단계 인증(TOTP) 컴럼 — 반드시 **재빌드 이후**에 추가한다.
+    //   위 users_new 재빌드는 고정 컴럼 목록으로 테이블을 다시 만들어서, 앞에서 ALTER 하면 조용히 탈락된다
+    //   (과거 token_version 이 같은 방식으로 사라졌던 사고와 동일 구조 — rack_side 처리 방식을 따른다).
+    {
+      const uCols2 = new Set((db.prepare("PRAGMA table_info(users)").all() as PragmaColumn[]).map((c) => c.name));
+      if (!uCols2.has("totp_secret")) db.exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT ''`);
+      if (!uCols2.has("totp_enabled")) db.exec(`ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0`);
+      if (!uCols2.has("totp_last_counter")) db.exec(`ALTER TABLE users ADD COLUMN totp_last_counter INTEGER DEFAULT 0`);
+      if (!uCols2.has("backup_codes")) db.exec(`ALTER TABLE users ADD COLUMN backup_codes TEXT DEFAULT '[]'`);
     }
   }
 

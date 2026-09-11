@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { verifyPassword, createSessionToken, sessionCookieOptions } from "@/lib/auth";
+import { verifyPassword, createSessionToken, createMfaPendingToken, sessionCookieOptions, MFA_PENDING_TTL_MS } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { withApi, readJson } from "@/lib/api-authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
@@ -139,6 +139,33 @@ export const POST = withApi(async (req: NextRequest) => {
       { error: "허용되지 않은 접속 위치(IP)입니다. 관리자에게 문의하세요." },
       { status: 403 }
     );
+  }
+
+  // ── 2단계 인증(TOTP) ──
+  // 비밀번호는 맞았으나 아직 세션을 주지 않는다. 인증 앱 코드(또는 백업코드)를 /api/auth/mfa 에서 교환해야 한다.
+  //   시도 횟수는 여기서 초기화하지 않는다 — 2단계까지 끝나야 성공이므로, 비밀번호만 맞힌 상태에서
+  //   잠금 카운터를 리셋하면 코드 무차별 대입의 브레이크가 풀려버린다.
+  if (user.totp_enabled) {
+    logAccess(db, { userId: user.id, username: user.username, ip, userAgent, action: "fail", resultCode: "200", failureReason: "mfa_required" });
+    const pending = createMfaPendingToken({
+      userId: user.id,
+      username: user.username,
+      displayName: user.display_name,
+      role: user.role,
+      teamId: user.team_id ?? null,
+      tv: user.token_version ?? 0,
+      mcp: !!user.must_change_password,
+    });
+    const res = NextResponse.json({ ok: false, mfaRequired: true, expiresInSec: Math.floor(MFA_PENDING_TTL_MS / 1000) });
+    const opts = sessionCookieOptions();
+    res.cookies.set(opts.name, pending, {
+      httpOnly: opts.httpOnly,
+      secure: opts.secure,
+      sameSite: opts.sameSite,
+      path: opts.path,
+      maxAge: Math.floor(MFA_PENDING_TTL_MS / 1000),
+    });
+    return res;
   }
 
   // 로그인 성공 → 두 키 모두 시도 횟수 초기화

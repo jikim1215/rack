@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Key, Users, Shield, Mail } from "lucide-react";
+import { Key, Users, Shield, Mail, ShieldCheck } from "lucide-react";
 import { PasswordTab } from "./tabs/PasswordTab";
+import { MfaTab } from "./tabs/MfaTab";
 import { UsersTab } from "./tabs/UsersTab";
 import { TeamsTab } from "./tabs/TeamsTab";
 import { PermissionsTab } from "./tabs/PermissionsTab";
 import { MailTab } from "./tabs/MailTab";
 import type { User, Team } from "./tabs/types";
 
-type Tab = "password" | "users" | "teams" | "permissions" | "mail";
+type Tab = "password" | "mfa" | "users" | "teams" | "permissions" | "mail";
 
 interface Props {
   currentUser: { userId: number; username: string; displayName: string; role: string } | null;
@@ -19,6 +20,7 @@ interface Props {
 
 const TABS: Array<{ key: Tab; label: string; icon: React.ElementType; adminOnly: boolean }> = [
   { key: "password", label: "비밀번호 변경", icon: Key, adminOnly: false },
+  { key: "mfa", label: "2단계 인증", icon: ShieldCheck, adminOnly: false },
   { key: "users", label: "사용자 관리", icon: Users, adminOnly: true },
   { key: "teams", label: "팀 관리", icon: Users, adminOnly: true },
   { key: "permissions", label: "메뉴 권한", icon: Shield, adminOnly: true },
@@ -63,6 +65,9 @@ export function SettingsView({ currentUser, users: initialUsers, teams: initialT
       {/* 각 탭은 activeTab 전환 시에도 로컬 state 를 잃지 않도록 조건부 렌더 대신 hidden 처리로 마운트를 유지한다. */}
       <div className={activeTab === "password" ? "" : "hidden"}>
         <PasswordTab />
+      </div>
+      <div className={activeTab === "mfa" ? "" : "hidden"}>
+        <MfaTab active={activeTab === "mfa"} />
       </div>
       {isAdmin && (
         <div className={activeTab === "users" ? "" : "hidden"}>

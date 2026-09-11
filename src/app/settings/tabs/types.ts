@@ -10,6 +10,8 @@ export interface User {
   created_at: string;
   team_id: number | null;
   allowed_ips?: string;
+  /** 2단계 인증 활성 여부 — 총괄이 기기 분실 계정을 해제할 수 있게 목록에 노출 */
+  totp_enabled?: number;
 }
 
 export interface Team {

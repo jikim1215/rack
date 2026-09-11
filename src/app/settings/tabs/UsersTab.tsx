@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Users, Plus, Save, ToggleLeft, ToggleRight, Trash2, KeyRound } from "lucide-react";
+import { Users, Plus, Save, ToggleLeft, ToggleRight, Trash2, KeyRound, ShieldOff } from "lucide-react";
 import { sha512 } from "@/lib/sha512";
 import { roleOptions, type Team, type User } from "./types";
 
@@ -170,6 +170,27 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
         setUserError(true);
       }
       await refreshUsers();
+    } catch {
+      setUserMsg("서버 연결에 실패했습니다.");
+      setUserError(true);
+    }
+  }
+
+  // 2단계 인증 해제 — 인증 기기를 잃고 백업 코드도 없는 사용자의 유일한 탈출구(총괄 전용).
+  async function handleResetMfa(user: User) {
+    setUserMsg("");
+    setUserError(false);
+    if (!confirm(`'${user.username}' 계정의 2단계 인증을 해제하시겠습니까?\n\n해제하면 그 계정은 비밀번호만으로 로그인합니다. 사용자에게 재등록을 안내하세요.\n(해제 내역은 감사로그에 남습니다)`)) return;
+    try {
+      const res = await fetch(`/api/users/${user.id}/mfa`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUserMsg(`'${user.username}' 2단계 인증을 해제했습니다. 사용자에게 설정 → 2단계 인증에서 재등록하도록 안내하세요.`);
+        onUsersChange(users.map((x) => (x.id === user.id ? { ...x, totp_enabled: 0 } : x)));
+      } else {
+        setUserMsg(data.error || "해제에 실패했습니다.");
+        setUserError(true);
+      }
     } catch {
       setUserMsg("서버 연결에 실패했습니다.");
       setUserError(true);
@@ -469,6 +490,15 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
                         >
                           <KeyRound size={16} />
                         </button>
+                        {!!u.totp_enabled && (
+                          <button
+                            onClick={() => handleResetMfa(u)}
+                            className="p-1 rounded text-warn hover:bg-amber-50"
+                            title="2단계 인증 해제 (기기 분실 시)"
+                          >
+                            <ShieldOff size={16} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteUser(u)}
                           className="p-1 rounded text-fault hover:bg-red-50"

@@ -87,11 +87,19 @@ export interface SessionPayload {
   tv?: number;
   /** mustChangePassword — 관리자 비밀번호 초기화/강제변경. true면 미들웨어가 /change-password 로 유도. */
   mcp?: boolean;
+  /**
+   * 토큰 용도. 없으면 정상 세션.
+   * "mfa" = 1차(비밀번호)만 통과한 임시 토큰 — 2단계 코드 교환 전용이라 세션으로 쓰지 못한다(getSession 이 거부).
+   */
+  pur?: "mfa";
   exp: number;
 }
 
-export function createSessionToken(payload: Omit<SessionPayload, "exp">): string {
-  const data: SessionPayload = { ...payload, exp: Date.now() + SESSION_TTL };
+/** 2단계 인증 대기 토큰 수명 — 코드 입력할 만큼만 짧게. */
+export const MFA_PENDING_TTL_MS = 3 * 60 * 1000;
+
+export function createSessionToken(payload: Omit<SessionPayload, "exp">, ttlMs: number = SESSION_TTL): string {
+  const data: SessionPayload = { ...payload, exp: Date.now() + ttlMs };
   const json = Buffer.from(JSON.stringify(data)).toString("base64url");
   const sig = createHmac("sha512", getSecret()).update(json).digest("base64url");
   return `${json}.${sig}`;
@@ -112,6 +120,14 @@ export function verifySessionToken(token: string): SessionPayload | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 2단계 인증 대기 토큰 발급 — 1차 인증(비밀번호) 통과 사실만 담는다.
+ * 이 토큰은 getSession 이 거부하므로 어떤 화면·API 접근에도 쓸 수 없다. 오직 /api/auth/mfa 교환용.
+ */
+export function createMfaPendingToken(payload: Omit<SessionPayload, "exp" | "pur">): string {
+  return createSessionToken({ ...payload, pur: "mfa" }, MFA_PENDING_TTL_MS);
 }
 
 export function sessionCookieOptions() {

@@ -11,6 +11,8 @@
 - [x] 토큰 서명 **상수시간 비교**(timingSafeEqual) — 타이밍 공격 방어. `verifySessionToken`.
 - [x] AUTH_SECRET 미설정/기본값이면 운영(NODE_ENV=production)에서 **기동 거부**(fail-fast). `getSecret`.
 - [x] 비밀번호 scrypt(N=16384,r=8,p=1) + 32바이트 솔트, 검증은 timingSafeEqual. `hashPassword`/`verifyPassword`.
+- [x] **2단계 인증(TOTP, RFC 6238)** — 사용자별 등록(설정 → 2단계 인증). 비밀번호 통과 시 세션 대신 3분 대기 토큰(`pur='mfa'`, getSession/미들웨어가 거부) 발급 → `/api/auth/mfa` 코드 교환. replay 차단(`totp_last_counter`), ±1스텝, 코드 시도 5회/15분 잠금(`m:<user>`), 백업코드 10개 scrypt 해시·1회용. 외부 패키지 0 (`src/lib/totp.ts`, RFC 4226/6238 벡터 테스트 통과). ADR-017.
+- [x] MFA 해제 경로 통제 — 본인: 현재 코드 필수(세션 탈취로는 못 끕) / 총괄: `/api/users/[id]/mfa` DELETE(감사로그 + 세션 무효화) / 서버 CLI `disable-mfa.cjs`(총괄 본인 잠김).
 
 ## 2. 비밀번호 정책 (AC-18)
 - [x] 최소 8자, 영문/숫자/특수문자 중 2종 이상, 256자 이하. `validatePasswordPolicy` (auth.ts) — 단일 출처.
@@ -56,6 +58,6 @@
 
 ## 점검 방법
 - 자동(단위): `scripts/verify-authz-matrix.ts`, `scripts/verify-page-scope.ts`, `scripts/verify-retention.ts`, `scripts/verify-asset-rules.ts` (모두 실 shipped lib 호출).
-- 자동(실 핸들러 e2e, 인가·검증·CSP): `npm run verify:api` = `scripts/verify-authz.mjs`(메뉴 권한 강제/승인/입력 검증 400/관리자 감사로그/CSP nonce/세션 TTL) + `scripts/verify-feedback.mjs`. 단위: `tests/authz-menu.test.ts`, `tests/validation-input.test.ts`, `tests/api-route-guard.test.ts`(모든 route.ts 스캔).
+- 자동(실 핸들러 e2e, 인가·검증·CSP·MFA): `npm run verify:api` = `scripts/verify-authz.mjs`(메뉴 권한 강제/승인/입력 검증 400/관리자 감사로그/CSP nonce/세션 TTL) + `scripts/verify-feedback.mjs` + `scripts/verify-mfa.mjs`(등록→대기토큰 차단→코드 교환→replay→백업코드 1회성→해제, 21항목). 단위: `tests/authz-menu.test.ts`, `tests/validation-input.test.ts`, `tests/api-route-guard.test.ts`(모든 route.ts 스캔).
 - 자동(실 핸들러 e2e): `scripts/e2e-security.mjs` — 기동 중인 standalone 서버에 대해 비밀번호 정책(약함→400/강함→OK), 토큰 위조 거부(서명 변조→401/redirect), Secure 쿠키를 실 API 경로로 검증(auth.ts가 next/headers 의존이라 단위 로드 불가 → 실 핸들러로 검증).
 - 수동: 본 체크리스트 항목별 코드 근거 재확인 후 릴리스 태깅.

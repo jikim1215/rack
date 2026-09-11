@@ -16,6 +16,8 @@ export async function getSession(): Promise<SessionPayload | null> {
   if (!token) return null;
   const payload = verifySessionToken(token);
   if (!payload) return null;
+  // 2단계 인증 대기 토큰은 세션이 아니다 — 비밀번호만 통과한 상태로 화면·API 에 들어가지 못하게 거부.
+  if (payload.pur === "mfa") return null;
   try {
     const row = getDb()
       .prepare("SELECT is_active, token_version, role, team_id, must_change_password FROM users WHERE id = ?")
