@@ -3,9 +3,11 @@
 //
 // 정책: malformed 값은 import_issue(raw 보존)로 기록하고 운영 컬럼에는 parsed-valid만 채운다
 // (잘못된 값은 운영 컬럼에 null/'' — 데이터 오염 금지). import는 차단이 아닌 가시화: 행은 적재하되
-// 이슈를 남긴다. import_issue.issue_type enum = ip_format | missing_id | missing_os | dup_suspect.
+// 이슈를 남긴다. import_issue.issue_type enum = ip_format | missing_id | missing_os | dup_suspect | date_format.
 
-export type IssueType = "ip_format" | "missing_id" | "missing_os" | "dup_suspect";
+import { normalizeDate } from "./input.ts";
+
+export type IssueType = "ip_format" | "missing_id" | "missing_os" | "dup_suspect" | "date_format";
 
 export interface RowIssue {
   issue_type: IssueType;
@@ -154,6 +156,16 @@ export function validateAssetRow(raw: Record<string, unknown>): ValidatedRow {
     return Number.isInteger(n) && n >= 1 && n <= 3 ? n : null;
   };
 
+  // 날짜는 normalizeDate 로 'YYYY-MM-DD' 정규화(엑셀 일련번호·점/슬래시 구분·시각 꼬리 허용). 해석 불가 값은 운영 컴럼에 넣지 않고('')
+  // 원본을 date_format 이슈로 보존한다 — 오염된 날짜는 대시보드 EoS/보증 문자열 비교를 깨고 수정 검증(400)을 불러 편집을 막는다 (비평 반영).
+  const date = (key: "purchase_date" | "warranty_date" | "eos_date", label: string): string => {
+    const rawV = s(raw[key]);
+    const n = normalizeDate(rawV);
+    if (n !== null) return n;
+    issues.push({ issue_type: "date_format", raw_value: rawV, parsed_value: "", note: `${label}을(를) 날짜로 해석할 수 없어 비워 둘었습니다.` });
+    return "";
+  };
+
   // 랙 유닛: 양의 정수만, 아니면 null/기본
   const startN = Number(s(raw.rack_unit_start));
   const rack_unit_start = Number.isInteger(startN) && startN >= 1 ? startN : null;
@@ -179,9 +191,9 @@ export function validateAssetRow(raw: Record<string, unknown>): ValidatedRow {
     cia_c: cia(raw.cia_c),
     cia_i: cia(raw.cia_i),
     cia_a: cia(raw.cia_a),
-    purchase_date: s(raw.purchase_date),
-    warranty_date: s(raw.warranty_date),
-    eos_date: s(raw.eos_date),
+    purchase_date: date("purchase_date", "구매일"),
+    warranty_date: date("warranty_date", "보증만료일"),
+    eos_date: date("eos_date", "EoS"),
     rack_unit_start,
     rack_unit_size,
     description: s(raw.description),

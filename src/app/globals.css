@@ -167,6 +167,34 @@ body {
 .btn-ink:active { transform: translateY(1px); }
 .btn-ink:disabled { opacity: 0.5; }
 
+/* ── 아웃라인 버튼 (.btn) + 강조 (.btn-primary) ── */
+/* 정리큐/미배정큐 등이 이미 참조하던 클래스인데 정의가 없어 버튼이 민무늬로 렌더되던 결함 수정(P3).
+   components 레이어: 호출부의 Tailwind 유틸리티(px-2 등)가 이길 수 있게 한다. */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-panel);
+    color: var(--color-ink-2);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .btn:hover { background: var(--color-surface); border-color: var(--color-line-strong); color: var(--color-ink); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: #fff;
+  }
+  .btn-primary:hover { background: var(--color-rail); border-color: var(--color-rail); color: #fff; }
+}
+
 /* ── 폼 입력 ────────────────────────────────────────────────── */
 /* @layer components: 무계층 CSS는 Tailwind 유틸리티(pl-9 등)보다 우선순위가 높아
    검색창 아이콘용 왼쪽 패딩(pl-*)이 무시되고 돋보기와 글자가 겹치는 버그가 있었다.

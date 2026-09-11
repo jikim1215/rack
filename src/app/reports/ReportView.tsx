@@ -13,8 +13,8 @@ const gradeLabels: Record<string, string> = { H: "상(H)", M: "중(M)", L: "하(
 
 export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, totals, asOf }: {
   byTypeStatus: { asset_type: string; status: string; c: number }[];
-  byTeam: any[];
-  byLocation: any[];
+  byTeam: { team_name: string; assets: number; racked: number; with_ip: number; subs: number }[];
+  byLocation: { location_name: string; racks: number; total_units: number; used_units: number }[];
   byCia: { grade: string; c: number }[];
   byYear: { y: string; c: number }[];
   totals: { assets: number; subs: number; racks: number; frames: number };

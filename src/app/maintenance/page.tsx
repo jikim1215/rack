@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
-import { scopeWhere, actorFromSession } from "@/lib/authz";
-import { getSession } from "@/lib/auth";
+import { requireMenuPage } from "@/lib/page-authz";
+import { scopeWhere } from "@/lib/authz";
 import MaintenanceView from "./MaintenanceView";
+import type { MaintenanceLogRow, MaintenanceTargetRow, AssetRow, VendorRow } from "@/lib/db-types";
 
 export default async function MaintenancePage() {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("maintenance"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
 
   const scope = scopeWhere(actor, "a.team_id");
   const logs = db.prepare(`
@@ -16,7 +17,7 @@ export default async function MaintenancePage() {
     LEFT JOIN vendors v ON ml.vendor_id = v.id
     WHERE (ml.asset_id IS NULL OR ${scope.sql})
     ORDER BY ml.created_at DESC, ml.id DESC
-  `).all(...scope.params) as any[];
+  `).all(...scope.params) as (MaintenanceLogRow & { asset_name: string | null; vendor_name: string | null })[];
 
   const targets = db.prepare(`
     SELECT mt.*, COALESCE(a.asset_name, mt.asset_name) AS asset_name
@@ -24,7 +25,7 @@ export default async function MaintenancePage() {
     LEFT JOIN assets a ON mt.asset_id = a.id
     WHERE (mt.asset_id IS NULL OR ${scope.sql})
     ORDER BY mt.updated_at DESC, mt.id DESC
-  `).all(...scope.params) as any[];
+  `).all(...scope.params) as (MaintenanceTargetRow & { asset_name: string | null })[];
 
   const assetsScope = scopeWhere(actor, "team_id");
   const assets = db.prepare(`
@@ -32,8 +33,8 @@ export default async function MaintenancePage() {
     FROM assets
     WHERE ${assetsScope.sql}
     ORDER BY asset_name
-  `).all(...assetsScope.params) as any[];
-  const vendors = db.prepare(`SELECT id, vendor_name FROM vendors ORDER BY vendor_name`).all() as any[];
+  `).all(...assetsScope.params) as Pick<AssetRow, "id" | "asset_name" | "asset_tag" | "manufacturer" | "model" | "team_id">[];
+  const vendors = db.prepare(`SELECT id, vendor_name FROM vendors ORDER BY vendor_name`).all() as Pick<VendorRow, "id" | "vendor_name">[];
 
   return (
     <div>

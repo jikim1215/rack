@@ -1,5 +1,12 @@
 import Database from "better-sqlite3";
 import path from "path";
+// 상대 경로: node --experimental-strip-types 테스트가 이 파일을 직접 임포트하므로 tsconfig 별칭(@/) 사용 불가
+import { MENUS } from "./menus.ts";
+import { normalizeDate } from "./validation/input.ts";
+
+// PRAGMA table_info / sqlite_master 행 타입 (마이그레이션 코드 전용)
+type PragmaColumn = { name: string; hidden?: number };
+type DdlRow = { sql: string };
 
 // DB 파일 경로: ASSET_DB_PATH(절대/상대) 우선, 없으면 cwd/data.db.
 // (Next standalone server.js는 기동 시 자기 디렉터리로 chdir하므로, seed가 쓴 파일과
@@ -137,10 +144,10 @@ function initSchema(db: Database.Database) {
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
-    -- 감사 로그 (공통)
+    -- 감사 로그 (공통) — 데이터 변경 + 관리자 행위(계정/팀/권한)
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      entity_type TEXT NOT NULL DEFAULT 'asset' CHECK(entity_type IN ('asset','rack','location','frame','contract','movement','maintenance','inventory_audit','sub_asset')),
+      entity_type TEXT NOT NULL DEFAULT 'asset' CHECK(entity_type IN ('asset','rack','location','frame','contract','movement','maintenance','inventory_audit','sub_asset','user','team','permission','feedback')),
       entity_id INTEGER,
       entity_name TEXT DEFAULT '',
       action TEXT NOT NULL CHECK(action IN ('create','update','delete')),
@@ -385,7 +392,7 @@ function initSchema(db: Database.Database) {
       batch_id TEXT NOT NULL,
       source_row INTEGER,
       asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
-      issue_type TEXT NOT NULL CHECK(issue_type IN ('ip_format','missing_id','missing_os','dup_suspect')),
+      issue_type TEXT NOT NULL CHECK(issue_type IN ('ip_format','missing_id','missing_os','dup_suspect','date_format')),
       raw_value TEXT DEFAULT '',
       parsed_value TEXT DEFAULT '',
       note TEXT DEFAULT '',
@@ -396,6 +403,37 @@ function initSchema(db: Database.Database) {
       created_by TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now','localtime'))
     );
+
+    -- 개선의견/불편사항 접수 (src/lib/feedback.ts). 자산 데이터가 아니므로 팀 스코프 없음 — 전원 열람, 총괄이 처리.
+    --   user_id: 작성자(계정 삭제 시 NULL, created_by/created_by_name 스냅샷으로 표기 유지)
+    --   page_path: 접수 당시 화면 경로(어디서 불편했는지) — 사이드바 '의견 보내기'가 자동 첨부
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL DEFAULT 'inconvenience' CHECK(category IN ('bug','inconvenience','improvement','question','other')),
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      page_path TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','in_review','planned','done','rejected')),
+      priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low','normal','high')),
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_by TEXT DEFAULT '',
+      created_by_name TEXT DEFAULT '',
+      team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+      admin_reply TEXT DEFAULT '',
+      replied_by TEXT DEFAULT '',
+      replied_at TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+    -- 공감 투표 (사용자당 1표) — 같은 불편을 여러 명이 겪는지 취합해 우선순위 근거로 쓴다
+    CREATE TABLE IF NOT EXISTS feedback_votes (
+      feedback_id INTEGER NOT NULL REFERENCES feedback(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (feedback_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_feedback_user ON feedback(user_id);
 
     -- 접근(인증) 로그
     CREATE TABLE IF NOT EXISTS access_logs (
@@ -508,8 +546,8 @@ function initSchema(db: Database.Database) {
   `);
 
   // 기존 DB 마이그레이션
-  const cols = db.prepare("PRAGMA table_info(assets)").all() as any[];
-  const colNames = new Set(cols.map((c: any) => c.name));
+  const cols = db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[];
+  const colNames = new Set(cols.map((c) => c.name));
   for (const [name, def] of [
     ["os", "TEXT DEFAULT ''"], ["access_ip", "TEXT DEFAULT ''"],
     ["user_name", "TEXT DEFAULT ''"], ["admin_name", "TEXT DEFAULT ''"],
@@ -523,8 +561,8 @@ function initSchema(db: Database.Database) {
   }
 
   // custom_fields 마이그레이션
-  const cfCols = db.prepare("PRAGMA table_info(custom_fields)").all() as any[];
-  const cfColNames = new Set(cfCols.map((c: any) => c.name));
+  const cfCols = db.prepare("PRAGMA table_info(custom_fields)").all() as PragmaColumn[];
+  const cfColNames = new Set(cfCols.map((c) => c.name));
   for (const [name, def] of [
     ["field_group", "TEXT DEFAULT '기본'"],
     ["is_required", "INTEGER DEFAULT 0"],
@@ -538,13 +576,13 @@ function initSchema(db: Database.Database) {
 
   // locations 정렬 순서 (기존 DB) — 랙 실장도 등 위치 기반 정렬의 기준 (기본 999 = 미지정 후순위)
   {
-    const locCols = new Set((db.prepare("PRAGMA table_info(locations)").all() as any[]).map((c: any) => c.name));
+    const locCols = new Set((db.prepare("PRAGMA table_info(locations)").all() as PragmaColumn[]).map((c) => c.name));
     if (!locCols.has("sort_order")) db.exec(`ALTER TABLE locations ADD COLUMN sort_order INTEGER DEFAULT 999`);
   }
 
   // inventory_audits 마감 스냅샷 컬럼 (기존 DB)
   {
-    const iaCols = new Set((db.prepare("PRAGMA table_info(inventory_audits)").all() as any[]).map((c: any) => c.name));
+    const iaCols = new Set((db.prepare("PRAGMA table_info(inventory_audits)").all() as PragmaColumn[]).map((c) => c.name));
     if (!iaCols.has("closed_total")) db.exec(`ALTER TABLE inventory_audits ADD COLUMN closed_total INTEGER`);
     if (!iaCols.has("closed_checked")) db.exec(`ALTER TABLE inventory_audits ADD COLUMN closed_checked INTEGER`);
     // 마감 스냅샷 확장 (외부 검토 R8-6 합의): 불일치 수 + 장비/부속 구분 수
@@ -555,7 +593,7 @@ function initSchema(db: Database.Database) {
 
   // import_issue 처리 상태 컬럼 (기존 DB) — 외부 검토 R7-1/R7-2 합의
   {
-    const iiCols = new Set((db.prepare("PRAGMA table_info(import_issue)").all() as any[]).map((c: any) => c.name));
+    const iiCols = new Set((db.prepare("PRAGMA table_info(import_issue)").all() as PragmaColumn[]).map((c) => c.name));
     if (!iiCols.has("status")) db.exec(`ALTER TABLE import_issue ADD COLUMN status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved','ignored'))`);
     if (!iiCols.has("resolved_by")) db.exec(`ALTER TABLE import_issue ADD COLUMN resolved_by TEXT DEFAULT ''`);
     if (!iiCols.has("resolved_at")) db.exec(`ALTER TABLE import_issue ADD COLUMN resolved_at TEXT DEFAULT ''`);
@@ -563,8 +601,8 @@ function initSchema(db: Database.Database) {
   }
 
   // frame_pairs 마이그레이션: 선번장(FDF/110블록) 양단 링크·코어번호·장비포트 연결 (ADR: FDF A안)
-  const fpCols = db.prepare("PRAGMA table_info(frame_pairs)").all() as any[];
-  const fpColNames = new Set(fpCols.map((c: any) => c.name));
+  const fpCols = db.prepare("PRAGMA table_info(frame_pairs)").all() as PragmaColumn[];
+  const fpColNames = new Set(fpCols.map((c) => c.name));
   for (const [name, def] of [
     ["core_number", "INTEGER"],
     ["linked_pair_id", "INTEGER REFERENCES frame_pairs(id) ON DELETE SET NULL"],
@@ -584,7 +622,7 @@ function initSchema(db: Database.Database) {
   //  - dist_frames/ip_subnets/contracts: 소유 전용(team_id) — 팀별 독립 운영. NULL = 총괄 전용.
   // 기존 행은 전부 NULL(공유)로 시작한다: 랙/위치는 파생으로 자동 노출, 나머지는 총괄이 소유를 배정한다.
   for (const table of ["locations", "racks", "dist_frames", "ip_subnets", "contracts"]) {
-    const cs = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as any[]).map((c: any) => c.name));
+    const cs = new Set((db.prepare(`PRAGMA table_info(${table})`).all() as PragmaColumn[]).map((c) => c.name));
     if (!cs.has("team_id")) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN team_id INTEGER REFERENCES teams(id)`);
     }
@@ -607,45 +645,67 @@ function initSchema(db: Database.Database) {
     db.prepare("UPDATE custom_fields SET is_active = 0 WHERE field_key IN ('firmware_ver','purpose')").run();
     db.pragma("user_version = 1");
   }
+  // v2: 레거시 날짜 정규화 (엑셀 임포트가 임의 문자열을 저장하던 시기의 값 — 일련번호/점 구분/시각 꼬리).
+  //     해석 가능한 값만 'YYYY-MM-DD' 로 바꾸고, 불가 값은 그대로 두고 건수를 로그로 알린다(데이터 파괴 금지). 수정 API 는 건드리지 않은 값을 통과시킨다.
+  if (uv < 2) {
+    let fixed = 0; const bad: string[] = [];
+    const norm = (table: string, cols: string[]) => {
+      const rows = db.prepare(`SELECT id, ${cols.join(", ")} FROM ${table}`).all() as (Record<string, string> & { id: number })[];
+      for (const r of rows) {
+        for (const c of cols) {
+          const v = r[c];
+          if (!v || /^\d{4}-\d{2}-\d{2}$/.test(v)) continue;
+          const n = normalizeDate(v);
+          if (n === null) { bad.push(`${table}#${r.id}.${c}='${v}'`); continue; }
+          db.prepare(`UPDATE ${table} SET ${c} = ? WHERE id = ?`).run(n, r.id);
+          fixed++;
+        }
+      }
+    };
+    db.transaction(() => {
+      norm("assets", ["purchase_date", "warranty_date", "eos_date"]);
+      norm("contracts", ["start_date", "end_date"]);
+    })();
+    if (fixed || bad.length) {
+      console.warn(`[MIGRATION v2] 날짜 정규화 ${fixed}건${bad.length ? `, 해석 불가 ${bad.length}건(수기 정정 필요): ${bad.slice(0, 20).join(", ")}${bad.length > 20 ? " …" : ""}` : ""}`);
+    }
+    db.pragma("user_version = 2");
+  }
 
-  // 자산실사(inspection) 메뉴 권한 시드 — 기존 DB에 행이 없으면 추가 (admin 전체 / team 체크 가능 / viewer 열람만)
-  db.exec(`
-    INSERT OR IGNORE INTO menu_permissions (menu_key, role, can_access, can_write, can_approve) VALUES
-      ('inspection','admin',1,1,1),
-      ('inspection','team',1,1,0),
-      ('inspection','viewer',1,0,0);
-  `);
+  // 메뉴 권한 기본 시드 — 레지스트리(src/lib/menus.ts)가 단일 정본. 기존 행은 건드리지 않고(IGNORE) 없는 키만 채운다.
+  // 레지스트리 밖 키(예: 내려간 portmap/topology)는 유령 행이므로 정리해 권한 화면과 실제 메뉴를 일치시킨다.
+  {
+    const ins = db.prepare("INSERT OR IGNORE INTO menu_permissions (menu_key, role, can_access, can_write, can_approve) VALUES (?,?,?,?,?)");
+    db.transaction(() => {
+      for (const m of MENUS) {
+        for (const role of ["admin", "team", "viewer"] as const) {
+          // 총괄 전용 메뉴(로그/감사)는 역할로 고정 — 비관리자 행을 만들지 않는다(권한 화면·API 가 무시/거부하는 행)
+          if (m.adminOnly && role !== "admin") continue;
+          const [a, w, ap] = m.defaults[role];
+          ins.run(m.key, role, a, w, ap);
+        }
+      }
+      const adminOnlyKeys = MENUS.filter((m) => m.adminOnly).map((m) => m.key);
+      if (adminOnlyKeys.length) {
+        db.prepare(`DELETE FROM menu_permissions WHERE role != 'admin' AND menu_key IN (${adminOnlyKeys.map(() => "?").join(",")})`).run(...adminOnlyKeys);
+      }
+      const keys = MENUS.map((m) => m.key);
+      const ghost = db.prepare(`DELETE FROM menu_permissions WHERE menu_key NOT IN (${keys.map(() => "?").join(",")})`).run(...keys);
+      if (ghost.changes > 0) console.warn(`[MIGRATION] 레지스트리 밖 메뉴 권한 행 ${ghost.changes}건 정리`);
+    })();
+  }
 
-  // 부속자산(subassets) 메뉴 권한 시드 (admin 전체 / team 쓰기 / viewer 열람)
-  db.exec(`
-    INSERT OR IGNORE INTO menu_permissions (menu_key, role, can_access, can_write, can_approve) VALUES
-      ('subassets','admin',1,1,1),
-      ('subassets','team',1,1,0),
-      ('subassets','viewer',1,0,0);
-  `);
-
-  // 통계 리포트(reports) 메뉴 권한 시드 (읽기 전용 — 제출용 집계, 쓰기/승인 개념 없음)
-  db.exec(`
-    INSERT OR IGNORE INTO menu_permissions (menu_key, role, can_access, can_write, can_approve) VALUES
-      ('reports','admin',1,0,0),
-      ('reports','team',1,0,0),
-      ('reports','viewer',1,0,0);
-  `);
-
-  // 유령 메뉴 권한 정리 — 사이드바에서 내려간 portmap/topology 행 제거(권한관리 화면과 실제 메뉴 일치)
-  db.exec(`DELETE FROM menu_permissions WHERE menu_key IN ('portmap','topology');`);
-
-  // audit_logs entity_type CHECK 확장: inventory_audit / sub_asset 편입 (기존 DB 재빌드)
+  // audit_logs entity_type CHECK 확장: inventory_audit / sub_asset → user / team / permission / feedback(관리자 행위 추적, P4) 편입 (기존 DB 재빌드)
   // append-only 트리거는 테이블과 함께 드롭되며, initSchema 말미에서 매 부팅 재생성된다.
   {
-    const alDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='audit_logs'").get() as any;
-    if (alDdl?.sql && !alDdl.sql.includes("'sub_asset'")) {
+    const alDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='audit_logs'").get() as { sql: string } | undefined;
+    if (alDdl?.sql && !alDdl.sql.includes("'permission'")) {
       db.pragma("foreign_keys = OFF");
       db.transaction(() => {
         db.exec(`
           CREATE TABLE audit_logs_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entity_type TEXT NOT NULL DEFAULT 'asset' CHECK(entity_type IN ('asset','rack','location','frame','contract','movement','maintenance','inventory_audit','sub_asset')),
+            entity_type TEXT NOT NULL DEFAULT 'asset' CHECK(entity_type IN ('asset','rack','location','frame','contract','movement','maintenance','inventory_audit','sub_asset','user','team','permission','feedback')),
             entity_id INTEGER,
             entity_name TEXT DEFAULT '',
             action TEXT NOT NULL CHECK(action IN ('create','update','delete')),
@@ -655,11 +715,15 @@ function initSchema(db: Database.Database) {
             new_values TEXT DEFAULT '{}',
             created_at TEXT DEFAULT (datetime('now','localtime'))
           );
-          INSERT INTO audit_logs_new SELECT * FROM audit_logs;
+          INSERT INTO audit_logs_new (id, entity_type, entity_id, entity_name, action, changed_by, changed_fields, old_values, new_values, created_at)
+            SELECT id, entity_type, entity_id, entity_name, action, changed_by, changed_fields, old_values, new_values, created_at FROM audit_logs;
           DROP TABLE audit_logs;
           ALTER TABLE audit_logs_new RENAME TO audit_logs;
+          -- 인덱스 4종 전부 재생성 (재빌드 직후 다음 부팅까지 무인덱스 상태가 되던 결함 수정, 비평 반영)
           CREATE INDEX IF NOT EXISTS idx_audit_logs ON audit_logs(entity_type, entity_id);
           CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
+          CREATE INDEX IF NOT EXISTS idx_audit_logs_created_id ON audit_logs(created_at, id);
+          CREATE INDEX IF NOT EXISTS idx_audit_logs_type_created ON audit_logs(entity_type, created_at, id);
         `);
       })();
       db.pragma("foreign_keys = ON");
@@ -667,9 +731,47 @@ function initSchema(db: Database.Database) {
     }
   }
 
+  // import_issue issue_type CHECK 확장: date_format(임포트 날짜 해석 불가 — 원본 보존) 편입 (기존 DB 재빌드)
+  {
+    const iiDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='import_issue'").get() as DdlRow | undefined;
+    if (iiDdl?.sql && !iiDdl.sql.includes("'date_format'")) {
+      db.pragma("foreign_keys = OFF");
+      // v_cleanup_queue 뷰가 import_issue 를 참조하므로 RENAME 시 뷰 검사를 건너뛰는 legacy 모드(다른 재빌드와 동일). 뷰는 initSchema 말미에서 재생성된다.
+      db.pragma("legacy_alter_table = ON");
+      db.transaction(() => {
+        db.exec(`
+          CREATE TABLE import_issue_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id TEXT NOT NULL,
+            source_row INTEGER,
+            asset_id INTEGER REFERENCES assets(id) ON DELETE SET NULL,
+            issue_type TEXT NOT NULL CHECK(issue_type IN ('ip_format','missing_id','missing_os','dup_suspect','date_format')),
+            raw_value TEXT DEFAULT '',
+            parsed_value TEXT DEFAULT '',
+            note TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved','ignored')),
+            resolved_by TEXT DEFAULT '',
+            resolved_at TEXT DEFAULT '',
+            created_by TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+          );
+          INSERT INTO import_issue_new (id, batch_id, source_row, asset_id, issue_type, raw_value, parsed_value, note, status, resolved_by, resolved_at, created_by, created_at)
+            SELECT id, batch_id, source_row, asset_id, issue_type, raw_value, parsed_value, note,
+                   COALESCE(status,'open'), COALESCE(resolved_by,''), COALESCE(resolved_at,''), COALESCE(created_by,''), created_at FROM import_issue;
+          DROP TABLE import_issue;
+          ALTER TABLE import_issue_new RENAME TO import_issue;
+          CREATE INDEX IF NOT EXISTS idx_import_issue_batch ON import_issue(batch_id);
+        `);
+      })();
+      db.pragma("legacy_alter_table = OFF");
+      db.pragma("foreign_keys = ON");
+      assertNoFkViolations(db, "import_issue CHECK 확장");
+    }
+  }
+
   // inventory_audit_checks: 부속자산(sub_asset_id) 대상 확장 (기존 DB 재빌드, 기록 보존)
   {
-    const icDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='inventory_audit_checks'").get() as any;
+    const icDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='inventory_audit_checks'").get() as DdlRow | undefined;
     if (icDdl?.sql && !icDdl.sql.includes("sub_asset_id")) {
       db.pragma("foreign_keys = OFF");
       db.transaction(() => {
@@ -701,7 +803,7 @@ function initSchema(db: Database.Database) {
     }
   }
   // assets: 'vm' 유형 + 망구분/CIA 도입 (CHECK 제약 변경 → 테이블 재생성)
-  const assetsDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as any;
+  const assetsDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as DdlRow | undefined;
   if (assetsDdl?.sql && !assetsDdl.sql.includes("'vm'")) {
     db.pragma("foreign_keys = OFF");
     db.pragma("legacy_alter_table = ON");
@@ -760,8 +862,8 @@ function initSchema(db: Database.Database) {
 
   // 4. users: team_id 추가 + role CHECK ('admin','user','viewer') → ('admin','team','viewer')
   {
-    const uCols = db.prepare("PRAGMA table_info(users)").all() as any[];
-    const uColNames = new Set(uCols.map((c: any) => c.name));
+    const uCols = db.prepare("PRAGMA table_info(users)").all() as PragmaColumn[];
+    const uColNames = new Set(uCols.map((c) => c.name));
     if (!uColNames.has("team_id")) {
       db.exec(`ALTER TABLE users ADD COLUMN team_id INTEGER REFERENCES teams(id)`);
     }
@@ -777,7 +879,7 @@ function initSchema(db: Database.Database) {
     if (!uColNames.has("must_change_password")) {
       db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0`);
     }
-    const usersDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as any;
+    const usersDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get() as DdlRow | undefined;
     if (usersDdl?.sql && usersDdl.sql.includes("'user'")) {
       db.pragma("foreign_keys = OFF");
       db.pragma("legacy_alter_table = ON");
@@ -811,12 +913,12 @@ function initSchema(db: Database.Database) {
   // 5. assets: team_id 추가 + status CHECK → ('active','maintenance','standby','retired')
   //    department는 삭제하지 않음(ADR-009: team_id가 소유권의 권위, department는 읽기전용 레거시 음영 컬럼)
   {
-    const aCols = db.prepare("PRAGMA table_info(assets)").all() as any[];
-    const aColNames = new Set(aCols.map((c: any) => c.name));
+    const aCols = db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[];
+    const aColNames = new Set(aCols.map((c) => c.name));
     if (!aColNames.has("team_id")) {
       db.exec(`ALTER TABLE assets ADD COLUMN team_id INTEGER REFERENCES teams(id)`);
     }
-    const aDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as any;
+    const aDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as DdlRow | undefined;
     if (aDdl?.sql && !aDdl.sql.includes("'standby'")) {
       db.pragma("foreign_keys = OFF");
       db.pragma("legacy_alter_table = ON");
@@ -872,7 +974,7 @@ function initSchema(db: Database.Database) {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_assets_team ON assets(team_id)`);
     // rack_side(반폭 장비 L/R) — 재빌드 이후 시점에 추가해야 재빌드가 컬럼을 탈락시키지 않는다 (R2 token_version 사고 재발 방지)
     {
-      const aCols2 = new Set((db.prepare("PRAGMA table_info(assets)").all() as any[]).map((c: any) => c.name));
+      const aCols2 = new Set((db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[]).map((c) => c.name));
       if (!aCols2.has("rack_side")) {
         db.exec(`ALTER TABLE assets ADD COLUMN rack_side TEXT CHECK(rack_side IN ('L','R'))`);
       }
@@ -881,7 +983,7 @@ function initSchema(db: Database.Database) {
 
   // 5-3. asset_movements: 반입/반출 확인서용 물리정보 컬럼 보강
   {
-    const mvCols = new Set((db.prepare("PRAGMA table_info(asset_movements)").all() as any[]).map((c: any) => c.name));
+    const mvCols = new Set((db.prepare("PRAGMA table_info(asset_movements)").all() as PragmaColumn[]).map((c) => c.name));
     const addCols: [string, string][] = [
       ["model", "TEXT DEFAULT ''"],
       ["size_u", "TEXT DEFAULT ''"],
@@ -944,7 +1046,7 @@ function initSchema(db: Database.Database) {
 
   // 5-1. maintenance_logs: CASCADE → SET NULL + asset_name 스냅샷 (이력 보존, R3 비평 반영)
   {
-    const mlDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='maintenance_logs'").get() as any;
+    const mlDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='maintenance_logs'").get() as DdlRow | undefined;
     if (mlDdl?.sql && mlDdl.sql.includes("ON DELETE CASCADE")) {
       db.pragma("foreign_keys = OFF");
       db.pragma("legacy_alter_table = ON");
@@ -981,7 +1083,7 @@ function initSchema(db: Database.Database) {
       assertNoFkViolations(db, "maintenance_logs rebuild");
     }
     // 기존 SET NULL DB에 asset_name 컬럼만 없는 경우
-    const mlCols = new Set((db.prepare("PRAGMA table_info(maintenance_logs)").all() as any[]).map((c: any) => c.name));
+    const mlCols = new Set((db.prepare("PRAGMA table_info(maintenance_logs)").all() as PragmaColumn[]).map((c) => c.name));
     if (!mlCols.has("asset_name")) {
       db.exec(`ALTER TABLE maintenance_logs ADD COLUMN asset_name TEXT DEFAULT ''`);
       db.exec(`UPDATE maintenance_logs SET asset_name = COALESCE((SELECT asset_name FROM assets WHERE assets.id = maintenance_logs.asset_id), '')`);
@@ -990,7 +1092,7 @@ function initSchema(db: Database.Database) {
 
   // 6. asset_ips: ip_type CHECK에 'extra' 추가
   {
-    const ipDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='asset_ips'").get() as any;
+    const ipDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='asset_ips'").get() as DdlRow | undefined;
     if (ipDdl?.sql && !ipDdl.sql.includes("'extra'")) {
       db.pragma("foreign_keys = OFF");
       db.pragma("legacy_alter_table = ON");
@@ -1024,7 +1126,7 @@ function initSchema(db: Database.Database) {
 
   // 7. menu_permissions: role CHECK ('admin','user','viewer') → ('admin','team','viewer')
   {
-    const mpDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='menu_permissions'").get() as any;
+    const mpDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='menu_permissions'").get() as DdlRow | undefined;
     if (mpDdl?.sql && mpDdl.sql.includes("'user'")) {
       db.pragma("foreign_keys = OFF");
       db.pragma("legacy_alter_table = ON");
@@ -1058,13 +1160,13 @@ function initSchema(db: Database.Database) {
   // 직접 입력할 수 있도록 두 CHECK를 제거한다. 기존 DB만 1회 재빌드(데이터·생성컬럼 보존). 신규 DB는
   // 기반 DDL이 이미 CHECK 없음 → 재빌드 안 함. status/rack_side CHECK는 유지(운영 enum).
   {
-    const aDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as any;
+    const aDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as DdlRow | undefined;
     const ddlSql: string = aDdl?.sql || "";
     if (/CHECK\s*\(\s*asset_type\s+IN/i.test(ddlSql) || /CHECK\s*\(\s*network_zone\s+IN/i.test(ddlSql)) {
       // 비생성 컬럼만 복사 (cia_total/cia_grade 등 GENERATED 컬럼 제외)
-      const copyCols = (db.prepare("PRAGMA table_xinfo(assets)").all() as any[])
-        .filter((c: any) => Number(c.hidden) === 0)
-        .map((c: any) => c.name);
+      const copyCols = (db.prepare("PRAGMA table_xinfo(assets)").all() as PragmaColumn[])
+        .filter((c) => Number(c.hidden) === 0)
+        .map((c) => c.name);
       const colList = copyCols.join(",");
       // 현재 DDL에서 두 CHECK 절만 제거 + 테이블명을 assets_new 로 치환 (나머지 컬럼/FK/생성컬럼 원형 보존)
       const newDdl = ddlSql

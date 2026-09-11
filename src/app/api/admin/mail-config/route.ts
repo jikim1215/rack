@@ -1,25 +1,28 @@
 import { getDb } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
-import { getActor, authzError } from '@/lib/api-authz';
+import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertAdmin } from '@/lib/authz';
 import { validateMailConfig, emailChannelActive } from '@/lib/mail-config';
 
+interface MailRelayConfigRow {
+  host: string;
+  port: number;
+  security: string;
+  from_address: string;
+  from_name: string;
+  base_url: string;
+  enabled: number;
+  updated_at: string;
+}
+
 // GET — 현재 메일 릴레이 설정 (admin). 미설정이면 기본값.
-export async function GET() {
+export const GET = withApi(async () => {
   const actor = await getActor();
-  try {
-    assertAdmin(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertAdmin(actor);
 
   const row = getDb()
     .prepare('SELECT host, port, security, from_address, from_name, base_url, enabled, updated_at FROM mail_relay_config WHERE id = 1')
-    .get() as
-    | { host: string; port: number; security: string; from_address: string; from_name: string; base_url: string; enabled: number; updated_at: string }
-    | undefined;
+    .get() as MailRelayConfigRow | undefined;
 
   return NextResponse.json({
     host: row?.host ?? '',
@@ -33,26 +36,14 @@ export async function GET() {
     // 운영 override로 이메일 채널이 강제 OFF면 화면에 경고하기 위한 힌트.
     channel_forced_off: !emailChannelActive(),
   });
-}
+});
 
 // PUT — 메일 릴레이 설정 저장 (admin). 단일행 upsert.
-export async function PUT(req: NextRequest) {
+export const PUT = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try {
-    assertAdmin(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertAdmin(actor);
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: '잘못된 요청입니다.' }, { status: 400 });
-  }
-
+  const body = await readJson(req);
   const parsed = validateMailConfig(body);
   if ('error' in parsed) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
@@ -77,4 +68,4 @@ export async function PUT(req: NextRequest) {
   });
 
   return NextResponse.json({ ok: true });
-}
+});

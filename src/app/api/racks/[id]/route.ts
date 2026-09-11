@@ -1,54 +1,59 @@
 import { getDb } from "@/lib/db";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanWrite, assertCanDelete, scopeWhere } from "@/lib/authz";
+import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { assertMenuWrite, assertCanWrite, assertCanDelete, scopeWhere } from "@/lib/authz";
 import { validateRackResize } from "@/lib/rack-validation";
 import { logAudit } from "@/lib/audit";
+import { asBody, str, int, idOrNull, pathId, ValidationError } from "@/lib/validation/input";
 import { NextRequest, NextResponse } from "next/server";
+import type { RackRow, CountRow } from "@/lib/db-types";
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+type Ctx = { params: Promise<{ id: string }> };
+
+export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
-  const { id } = await params;
-  const body = await req.json();
+  assertMenuWrite(actor, "racks");
+  const id = pathId((await params).id);
+  const b = asBody(await readJson(req));
   const db = getDb();
 
   // 존재 확인
-  const existing = db.prepare("SELECT * FROM racks WHERE id = ?").get(Number(id)) as any;
+  const existing = db.prepare("SELECT * FROM racks WHERE id = ?").get(id) as RackRow | undefined;
   if (!existing) return NextResponse.json({ error: "랙을 찾을 수 없습니다." }, { status: 404 });
 
   // 소유 팀 기준 쓰기 권한: 팀은 자기 소유 랙만 수정. 공유(NULL) 랙은 총괄만.
-  try { assertCanWrite(actor, existing.team_id ?? null); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  assertCanWrite(actor, existing.team_id ?? null);
 
   // 소유 팀 변경은 총괄만 허용. 팀 계정은 기존 소유 유지.
   let ownerTeamId: number | null = existing.team_id ?? null;
-  if (actor?.role === "admin" && "team_id" in body) {
-    ownerTeamId = body.team_id === "" || body.team_id == null ? null : Number(body.team_id);
+  if (actor.role === "admin" && "team_id" in b) {
+    ownerTeamId = idOrNull(b, "team_id", "소유 팀");
     if (ownerTeamId != null && !db.prepare("SELECT id FROM teams WHERE id = ?").get(ownerTeamId)) {
-      return NextResponse.json({ error: "존재하지 않는 팀입니다." }, { status: 400 });
+      throw new ValidationError("존재하지 않는 팀입니다.");
     }
   }
 
   // 입력 검증
-  const rackName = (body.rack_name || body.name || "").trim().replace(/\s+/g, " ");
-  if (!rackName) return NextResponse.json({ error: "랙 이름은 필수입니다." }, { status: 400 });
-
-  const totalUnits = Number(body.total_units) || 42;
-  if (totalUnits < 1) return NextResponse.json({ error: "총 유닛 수는 1 이상이어야 합니다." }, { status: 400 });
+  const rackName = str(b, "rack_name", { required: true, max: 100, label: "랙 이름" }).replace(/\s+/g, " ");
+  const totalUnits = int(b, "total_units", { min: 1, max: 60, default: 42, label: "총 유닛 수" }) as number;
 
   // total_units 축소 시 기존 자산 범위 검증
   if (totalUnits < existing.total_units) {
-    const err = validateRackResize(db, Number(id), totalUnits);
+    const err = validateRackResize(db, id, totalUnits);
     if (err) return NextResponse.json({ error: err }, { status: 400 });
   }
 
   // 위치 존재 확인
-  if (body.location_id) {
-    const loc = db.prepare("SELECT id FROM locations WHERE id = ?").get(Number(body.location_id));
-    if (!loc) return NextResponse.json({ error: "존재하지 않는 위치입니다." }, { status: 400 });
+  const locationId = idOrNull(b, "location_id", "위치") ?? existing.location_id;
+  if ("location_id" in b) {
+    const loc = db.prepare("SELECT id FROM locations WHERE id = ?").get(locationId);
+    if (!loc) throw new ValidationError("존재하지 않는 위치입니다.");
   }
+
+  const description = "description" in b ? str(b, "description", { max: 500 }) : existing.description;
 
   const dupRack = db.prepare(
     "SELECT id FROM racks WHERE location_id = ? AND UPPER(rack_name) = UPPER(?) AND id != ?"
-  ).get(body.location_id || existing.location_id, rackName, Number(id));
+  ).get(locationId, rackName, id);
   if (dupRack) {
     return NextResponse.json({ error: `동일 위치에 '${rackName}' 랙이 이미 존재합니다.` }, { status: 409 });
   }
@@ -56,11 +61,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   db.prepare(
     "UPDATE racks SET location_id = @location_id, rack_name = @rack_name, total_units = @total_units, description = @description, team_id = @team_id WHERE id = @id"
   ).run({
-    id: Number(id),
-    location_id: body.location_id || existing.location_id,
+    id,
+    location_id: locationId,
     rack_name: rackName,
     total_units: totalUnits,
-    description: body.description ?? existing.description,
+    description,
     team_id: ownerTeamId,
   });
 
@@ -70,39 +75,43 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       COALESCE((SELECT COUNT(*) FROM assets WHERE rack_id = r.id AND ${scope.sql}), 0) as asset_count,
       COALESCE((SELECT SUM(rack_unit_size) FROM assets WHERE rack_id = r.id AND ${scope.sql}), 0) as used_units
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id LEFT JOIN teams t ON r.team_id = t.id WHERE r.id = ?
-  `).get(...scope.params, ...scope.params, Number(id));
+  `).get(...scope.params, ...scope.params, id) as RackRow & {
+    location_name: string | null;
+    owner_team_name: string | null;
+    asset_count: number;
+    used_units: number;
+  };
 
   logAudit(db, {
-    entityType: "rack", entityId: Number(id), entityName: rackName,
-    action: "update", changedBy: actor?.username || "system",
+    entityType: "rack", entityId: id, entityName: rackName,
+    action: "update", changedBy: actor.username,
     oldData: { rack_name: existing.rack_name, total_units: existing.total_units, location_id: existing.location_id, team_id: existing.team_id ?? null },
-    newData: { rack_name: rackName, total_units: totalUnits, location_id: body.location_id || existing.location_id, team_id: ownerTeamId },
+    newData: { rack_name: rackName, total_units: totalUnits, location_id: locationId, team_id: ownerTeamId },
   });
 
   return NextResponse.json(rack);
-}
+});
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
-  const { id } = await params;
+  assertMenuWrite(actor, "racks");
+  const id = pathId((await params).id);
   const db = getDb();
 
-  const existing = db.prepare("SELECT * FROM racks WHERE id = ?").get(Number(id)) as any;
+  const existing = db.prepare("SELECT * FROM racks WHERE id = ?").get(id) as RackRow | undefined;
   if (!existing) return NextResponse.json({ error: "랙을 찾을 수 없습니다." }, { status: 404 });
   // 소유 팀 기준 삭제 권한: 팀은 자기 소유 랙만. 공유(NULL) 랙은 총괄만.
-  try { assertCanDelete(actor, existing.team_id ?? null); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  assertCanDelete(actor, existing.team_id ?? null);
   const scope = scopeWhere(actor, "team_id");
-  const affectedCount = (db.prepare(`SELECT COUNT(*) as c FROM assets WHERE rack_id = ? AND ${scope.sql}`).get(Number(id), ...scope.params) as any).c;
+  const affectedCount = (db.prepare(`SELECT COUNT(*) as c FROM assets WHERE rack_id = ? AND ${scope.sql}`).get(id, ...scope.params) as CountRow).c;
 
-  db.prepare("DELETE FROM racks WHERE id = ?").run(Number(id));
+  db.prepare("DELETE FROM racks WHERE id = ?").run(id);
 
-  if (existing) {
-    logAudit(db, {
-      entityType: "rack", entityId: Number(id), entityName: existing.rack_name || "",
-      action: "delete", changedBy: actor?.username || "system",
-      oldData: { rack_name: existing.rack_name, total_units: existing.total_units, affectedAssets: affectedCount },
-    });
-  }
+  logAudit(db, {
+    entityType: "rack", entityId: id, entityName: existing.rack_name || "",
+    action: "delete", changedBy: actor.username,
+    oldData: { rack_name: existing.rack_name, total_units: existing.total_units, affectedAssets: affectedCount },
+  });
 
   return NextResponse.json({ ok: true, releasedAssets: affectedCount });
-}
+});

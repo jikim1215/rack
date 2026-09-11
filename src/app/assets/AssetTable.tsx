@@ -100,7 +100,7 @@ const emptyAsset = {
 
 interface Props {
   assets: Asset[];
-  racks: any[];
+  racks: { id: number; rack_name: string; total_units: number; team_id: number | null; location_name: string | null }[];
   customFields: CustomField[];
   customValuesMap: Record<number, Record<number, string>>;
   teams: { id: number; team_name: string }[];

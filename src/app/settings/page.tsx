@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { SettingsView } from './SettingsView';
+import type { User, Team } from './tabs/types';
 
 export default async function SettingsPage() {
   const session = await getSession();
@@ -15,5 +16,5 @@ export default async function SettingsPage() {
         (SELECT COUNT(*) FROM assets a WHERE a.team_id = t.id) AS asset_count
         FROM teams t ORDER BY t.team_name`).all()
     : [];
-  return <SettingsView currentUser={session} users={users as any[]} teams={teams as any[]} />;
+  return <SettingsView currentUser={session} users={users as User[]} teams={teams as Team[]} />;
 }

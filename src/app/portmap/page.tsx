@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
+import { requireMenuPage } from "@/lib/page-authz";
 import { PortMapView } from "./PortMapView";
-import { scopeWhere, actorFromSession } from "@/lib/authz";
-import { getSession } from "@/lib/auth";
+import { scopeWhere } from "@/lib/authz";
+import type { AssetRow, PortRow } from "@/lib/db-types";
 
 export default async function PortMapPage() {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("assets"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
   const assetScope = scopeWhere(actor, "a.team_id");
 
   const networkAssets = db.prepare(`
@@ -18,7 +19,7 @@ export default async function PortMapPage() {
     WHERE a.asset_type IN ('network', 'server', 'security') AND ${assetScope.sql}
     ORDER BY a.asset_type, a.asset_name
 
-  `).all(...assetScope.params) as any[];
+  `).all(...assetScope.params) as (Pick<AssetRow, "id" | "asset_name" | "manufacturer" | "model" | "ip_address" | "asset_type"> & { rack_name: string | null; location_name: string | null })[];
 
   const peerScope = scopeWhere(actor, "ca.team_id");
   const ports = db.prepare(`
@@ -31,7 +32,7 @@ export default async function PortMapPage() {
     LEFT JOIN assets ca ON cp.asset_id = ca.id
     WHERE ${assetScope.sql}
     ORDER BY p.asset_id, p.port_number
-  `).all(...peerScope.params, ...peerScope.params, ...assetScope.params) as any[];
+  `).all(...peerScope.params, ...peerScope.params, ...assetScope.params) as (PortRow & { asset_name: string; connected_port_name: string | null; connected_asset_name: string | null })[];
 
   return (
     <div>

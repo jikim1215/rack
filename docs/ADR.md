@@ -86,3 +86,15 @@
 **이유**: 실측(B-10 사례: 동일 U에 반폭 스위치 2대 좌우 병렬 장착)에서 전폭 단일 모델이 실물을 표현 못해 강제 오배치 기록이 발생. L/R 2분할이 현장 랙 실장도 표기 관행과 일치하며 스키마 변경이 최소.
 **대안**: 슬롯 분수 모델(1/2U 등 수치 폭) — 표현력은 높으나 검증·UI 복잡도 급증, 현장 수요는 좌/우 2분할로 충분.
 **트레이드오프**: 3분할 이상(1/3폭 등) 미표현. 발생 시 재평가(2차).
+
+### ADR-015: 메뉴 권한(menu_permissions)은 서버가 강제하고 레지스트리(menus.ts)가 단일 정본
+**결정**: (1) `src/lib/menus.ts` 가 메뉴 키·라벨·href·역할별 기본 권한·귀속 API 접두사의 유일한 정본. 사이드바·설정→메뉴 권한 화면·DB 시드(INSERT OR IGNORE)·권한 API 고정키·가드레일 테스트가 전부 이 파일을 읽는다. (2) 모든 API 라우트는 `withApi` 로 감싸고 첫 줄에서 `assertMenuAccess/Write/Approve(actor, key)` 를, 모든 메뉴 페이지는 `requireMenuPage(key)` 를 호출한다. admin 은 항상 통과(잠금 방지), team/viewer 는 DB 행 → 레지스트리 기본값 → 미지 키 deny 순으로 판정하며 접근 없음은 쓰기/승인도 없음을 함의한다. 메뉴 축은 역할·팀 row-level 스코프(ADR-007)와 **AND** 로 결합된다. (3) `tests/api-route-guard.test.ts` 가 모든 route.ts 를 스캔해 래핑·인가 호출·키-경로 일치를 강제한다.
+**이유**: 과거엔 메뉴 권한이 사이드바 숨김에만 쓰이고 서버는 검사하지 않아 설정 화면의 접근/쓰기 토글이 장식이었다(URL 직접 입력·API 직접 호출로 우회). 메뉴 정의가 5곳에 흩어져 portmap/topology 유령 권한 행 같은 드리프트도 발생했다.
+**대안**: 미들웨어 중앙 검사 — Edge 런타임에 DB 가 없어 불가 / 요청 헤더로 메뉴 키를 넘기는 암묵 결합 — 명시성 부족. 라우트별 명시 호출 + 가드레일 테스트가 가장 읽기 쉽고 누락을 기계적으로 잡는다.
+**트레이드오프**: 요청당 menu_permissions 조회 1회(admin 제외). 새 API 는 반드시 레지스트리 apiPrefixes 에 귀속시켜야 하며(테스트가 강제) 세분 리소스가 메뉴와 1:1 이 아닌 경우(예: IPAM 화면의 대표 IP 편집은 자산 API 를 타므로 '자산관리' 쓰기 권한이 기준) 문서로 안내한다.
+
+### ADR-016: CSP 는 요청별 nonce 로 script-src 'unsafe-inline' 제거
+**결정**: Content-Security-Policy 를 next.config.ts 고정 헤더에서 `src/middleware.ts` 로 옮겨 요청마다 nonce 를 생성, `script-src 'self' 'nonce-…' 'strict-dynamic'` 로 잠근다(dev 는 'unsafe-eval' 추가). Next 가 요청 헤더의 CSP nonce 를 하이드레이션 스크립트에 부착하도록 x-nonce/CSP 를 요청 헤더에도 싣는다. nonce 는 정적 프리렌더와 양립하지 않으므로 /login 을 force-dynamic 으로 고정. style-src 는 인라인 style 속성(그래프 막대 폭 등) 때문에 'unsafe-inline' 유지.
+**이유**: 폐쇄망이라도 XSS 시 인라인 스크립트 실행을 막는 것이 CSP 의 본래 목적이며, 'unsafe-inline' 이 있으면 script-src 가 사실상 무력했다.
+**트레이드오프**: 모든 페이지가 동적 렌더(이미 force-dynamic 이 대부분). 인라인 `<script>` 를 직접 쓰는 컴포넌트는 반드시 nonce 를 받아야 한다(현재 없음).
+

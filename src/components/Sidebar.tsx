@@ -6,30 +6,21 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, Server, HardDrive, Globe, Boxes,
   GitBranch, ArrowLeftRight, Wrench, FileText, MapPin, Settings,
-  LogOut, User, ScrollText, ClipboardCheck, BarChart3, GripVertical, HelpCircle,
+  LogOut, User, ScrollText, ClipboardCheck, BarChart3, GripVertical, HelpCircle, MessageSquarePlus,
 } from "lucide-react";
+import { FEEDBACK_CHANGED_EVENT, openFeedbackModal } from "./FeedbackModal";
+import { MENUS, menuKeyForHref } from "@/lib/menus";
 
-// 기본 메뉴 순서 — 로그/감사는 설정 바로 위(하단). 사용자는 드래그로 순서를 바꿀 수 있고
-// 변경 순서는 브라우저(localStorage)에 저장된다(개인 UI 취향 → 서버 스키마 불필요).
-const nav = [
-  { href: "/", label: "대시보드", icon: LayoutDashboard },
-  { href: "/assets", label: "자산관리", icon: Server },
-  { href: "/subassets", label: "부속자산", icon: Boxes },
-  { href: "/racks", label: "랙 실장도", icon: HardDrive },
-  // 포트 데이터 도입 시 복원 — 실데이터 없는 빈 화면은 완성도의 거짓 신호라 메뉴에서 잠시 내림 (R3 비평)
-  // { href: "/portmap", label: "포트맵", icon: Cable },
-  // { href: "/topology", label: "토폴로지", icon: Network },
-  { href: "/ipam", label: "IP관리", icon: Globe },
-  { href: "/distribution", label: "배선관리", icon: GitBranch },
-  { href: "/movements", label: "반입/반출", icon: ArrowLeftRight },
-  { href: "/maintenance", label: "유지보수", icon: Wrench },
-  { href: "/inspection", label: "자산실사", icon: ClipboardCheck },
-  { href: "/contracts", label: "계약관리", icon: FileText },
-  { href: "/reports", label: "통계 리포트", icon: BarChart3 },
-  { href: "/locations", label: "위치관리", icon: MapPin },
-  { href: "/logs", label: "로그/감사", icon: ScrollText, adminOnly: true },
-  { href: "/settings", label: "설정", icon: Settings },
-];
+// 메뉴 정본은 src/lib/menus.ts (순서·라벨·권한 기본값). 여기서는 key → 아이콘만 매핑한다.
+// 포트맵/토폴로지는 레지스트리에 없으므로 메뉴에 나오지 않는다(실데이터 도입 시 레지스트리에 추가, R3 비평).
+// 사용자는 드래그로 순서를 바꿀 수 있고 변경 순서는 브라우저(localStorage)에 저장된다(개인 UI 취향 → 서버 스키마 불필요).
+const ICONS: Record<string, typeof LayoutDashboard> = {
+  dashboard: LayoutDashboard, assets: Server, subassets: Boxes, racks: HardDrive, ipam: Globe,
+  distribution: GitBranch, movements: ArrowLeftRight, maintenance: Wrench, inspection: ClipboardCheck,
+  contracts: FileText, reports: BarChart3, locations: MapPin, feedback: MessageSquarePlus,
+  logs: ScrollText, settings: Settings,
+};
+const nav = MENUS.map((m) => ({ key: m.key, href: m.href, label: m.label, icon: ICONS[m.key] ?? LayoutDashboard, adminOnly: !!m.adminOnly, defaults: m.defaults }));
 
 const ORDER_KEY = "asset_sidebar_order";
 
@@ -73,6 +64,21 @@ export function Sidebar() {
       .catch(() => {});
   }, []);
 
+  // 총괄에게만: 미처리(접수) 개선의견 건수 배지. 접수 이벤트·경로 이동 시 갱신.
+  const [openFeedback, setOpenFeedback] = useState(0);
+  const isAdmin = user?.role === "admin";
+  useEffect(() => {
+    if (!isAdmin) return;
+    const load = () =>
+      fetch("/api/feedback?summary=1")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setOpenFeedback(Number(d.byStatus?.open || 0)))
+        .catch(() => {});
+    load();
+    window.addEventListener(FEEDBACK_CHANGED_EVENT, load);
+    return () => window.removeEventListener(FEEDBACK_CHANGED_EVENT, load);
+  }, [isAdmin, pathname]);
+
   // 저장된 순서 로드 (마운트 후 — SSR/hydration 불일치 회피)
   useEffect(() => {
     try {
@@ -106,12 +112,13 @@ export function Sidebar() {
 
   const visible = applyOrder(
     nav.filter((item) => {
-      if ((item as { adminOnly?: boolean }).adminOnly && user?.role !== "admin") return false;
-      const href = item.href;
-      if (!user?.permissions) return true;
-      const key = href === "/" ? "dashboard" : href.slice(1);
-      const perm = user.permissions[key];
-      return !perm || perm.can_access;
+      if (item.adminOnly && user?.role !== "admin") return false;
+      if (!user || user.role === "admin") return true;
+      // 서버 판정과 동일한 폴백: DB 행 → 레지스트리 기본값 (행이 없다고 무조건 보이면 클릭 후 access-denied 로 튙긴다, 비평 반영)
+      const perm = user.permissions?.[menuKeyForHref(item.href)];
+      if (perm) return !!perm.can_access;
+      const d = item.defaults[user.role as "team" | "viewer"];
+      return !d || d[0] === 1;
     }),
     order,
   );
@@ -184,6 +191,11 @@ export function Sidebar() {
                 />
                 <Icon size={18} className={active ? "text-krds-primary" : "text-krds-gray-50"} />
                 <span className="flex-1 truncate">{label}</span>
+                {href === "/feedback" && openFeedback > 0 && (
+                  <span className="num text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-warn/15 text-warn" title={`미처리 의견 ${openFeedback}건`}>
+                    {openFeedback}
+                  </span>
+                )}
                 {/* 드래그 핸들 표식 — hover 시 노출 */}
                 <GripVertical size={14} className="text-krds-gray-30 opacity-0 group-hover:opacity-70 transition-opacity shrink-0" />
               </Link>
@@ -226,9 +238,16 @@ export function Sidebar() {
           <p className="eyebrow !text-krds-gray-60">v2.0.0</p>
         )}
         <button
+          onClick={openFeedbackModal}
+          className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-medium text-krds-primary-strong hover:bg-krds-primary-bg rounded-md py-1.5 transition-colors"
+          title="현재 화면에서 겪은 불편·개선 의견을 보냅니다"
+        >
+          <MessageSquarePlus size={14} /> 불편사항 · 개선의견 보내기
+        </button>
+        <button
           data-onboard="help"
           onClick={startOnboarding}
-          className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs text-krds-gray-50 hover:text-krds-primary-strong transition-colors"
+          className="mt-1.5 w-full flex items-center justify-center gap-1.5 text-xs text-krds-gray-50 hover:text-krds-primary-strong transition-colors"
           title="온보딩 다시 보기"
         >
           <HelpCircle size={14} /> 도움말 · 사용 안내 다시 보기

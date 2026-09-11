@@ -1,15 +1,16 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
-import { getSession } from "@/lib/auth";
-import { actorFromSession, scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
+import { requireMenuPage } from "@/lib/page-authz";
+import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
 import { ReportView } from "./ReportView";
+import type { CountRow } from "@/lib/db-types";
 
 // ── 통계 리포트 (외부 검토 가격심의 갭 5 대응) ──
 // 심의·감사·상부 보고용 집계 화면. 대시보드(운영 계기판)와 달리 인쇄를 전제로 한 표 중심 산출물.
 // 조회 전용 — 모든 수치는 조회 시점 스냅샷이며 기준 시각을 명기한다.
 export default async function ReportsPage() {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("reports"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
   const scope = scopeWhere(actor, "team_id");
   const scopeA = scopeWhere(actor, "a.team_id");
 
@@ -29,7 +30,7 @@ export default async function ReportsPage() {
     FROM assets a LEFT JOIN teams t ON a.team_id = t.id
     WHERE ${scopeA.sql}
     GROUP BY a.team_id ORDER BY assets DESC
-  `).all(...scopeA.params) as any[];
+  `).all(...scopeA.params) as { team_name: string; assets: number; racked: number; with_ip: number; subs: number }[];
 
   // 3. 위치·랙 사용률 — 팀은 자기에게 보이는 위치/랙만(하이브리드). 총괄/전체열람은 전체.
   const locScope = locationScopeWhere(actor, "l.team_id", "l.id");
@@ -41,7 +42,7 @@ export default async function ReportsPage() {
     FROM locations l LEFT JOIN racks r ON r.location_id = l.id AND ${rackScopeJoin.sql}
     WHERE ${locScope.sql}
     GROUP BY l.id ORDER BY l.sort_order, l.location_name
-  `).all(...rackScopeJoin.params, ...scopeA.params, ...rackScopeJoin.params, ...locScope.params) as any[];
+  `).all(...rackScopeJoin.params, ...scopeA.params, ...rackScopeJoin.params, ...locScope.params) as { location_name: string; racks: number; total_units: number; used_units: number }[];
 
   // 4. CIA 등급 분포 (미평가 포함)
   const byCia = db.prepare(`
@@ -59,10 +60,10 @@ export default async function ReportsPage() {
   const rackScopeC = rackScopeWhere(actor, "team_id", "id");
   const frameScope = scopeWhere(actor, "team_id");
   const totals = {
-    assets: (db.prepare(`SELECT COUNT(*) c FROM assets WHERE ${scope.sql}`).get(...scope.params) as any).c,
-    subs: (db.prepare(`SELECT COUNT(*) c FROM sub_assets s WHERE s.status != 'disposed' AND ${subScope.sql}`).get(...subScope.params) as any).c,
-    racks: (db.prepare(`SELECT COUNT(*) c FROM racks WHERE ${rackScopeC.sql}`).get(...rackScopeC.params) as any).c,
-    frames: (db.prepare(`SELECT COUNT(*) c FROM dist_frames WHERE ${frameScope.sql}`).get(...frameScope.params) as any).c,
+    assets: (db.prepare(`SELECT COUNT(*) c FROM assets WHERE ${scope.sql}`).get(...scope.params) as CountRow).c,
+    subs: (db.prepare(`SELECT COUNT(*) c FROM sub_assets s WHERE s.status != 'disposed' AND ${subScope.sql}`).get(...subScope.params) as CountRow).c,
+    racks: (db.prepare(`SELECT COUNT(*) c FROM racks WHERE ${rackScopeC.sql}`).get(...rackScopeC.params) as CountRow).c,
+    frames: (db.prepare(`SELECT COUNT(*) c FROM dist_frames WHERE ${frameScope.sql}`).get(...frameScope.params) as CountRow).c,
   };
 
   const asOf = new Date().toLocaleString("ko-KR", { hour12: false });

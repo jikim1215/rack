@@ -25,7 +25,7 @@ const typeAbbr: Record<string, string> = {
   server: "S", network: "N", security: "F", telecom: "T", other: "E",
 };
 
-interface Asset {
+export interface Asset {
   id: number;
   asset_name: string;
 
@@ -48,7 +48,22 @@ function spanOf(a: Asset): RackSpan {
 // 반폭 라벨 (툴팁·표시용)
 const sideLabels: Record<string, string> = { L: "좌 반폭", R: "우 반폭" };
 
-export function RackView({ locations, racks, assets, unplacedAssets = [], distFrames = [], canWrite = false, teams = [], isAdmin = false }: { locations: any[]; racks: any[]; assets: Asset[]; unplacedAssets?: Asset[]; distFrames?: { id: number; rack_id: number | null; rack_unit_start: number | null; rack_unit_size: number | null }[]; canWrite?: boolean; teams?: { id: number; team_name: string }[]; isAdmin?: boolean }) {
+interface Location {
+  id: number;
+  location_name: string;
+  rack_count?: number;
+}
+
+interface Rack {
+  id: number;
+  rack_name: string;
+  total_units: number;
+  location_id: number;
+  location_name: string | null;
+  owner_team_name: string | null;
+}
+
+export function RackView({ locations, racks, assets, unplacedAssets = [], distFrames = [], canWrite = false, teams = [], isAdmin = false }: { locations: Location[]; racks: Rack[]; assets: Asset[]; unplacedAssets?: Asset[]; distFrames?: { id: number; rack_id: number | null; rack_unit_start: number | null; rack_unit_size: number | null }[]; canWrite?: boolean; teams?: { id: number; team_name: string }[]; isAdmin?: boolean }) {
   const router = useRouter();
   const { addToast } = useToast();
   const [selectedLocation, setSelectedLocation] = useState<number | "">("");

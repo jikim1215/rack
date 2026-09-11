@@ -5,6 +5,7 @@ import { Sidebar } from "./Sidebar";
 import { Onboarding } from "./Onboarding";
 import { ToastProvider } from "./Toast";
 import { SessionExpiryBanner } from "./SessionExpiryBanner";
+import { FeedbackModal } from "./FeedbackModal";
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -25,6 +26,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <Onboarding />
+      <FeedbackModal />
     </ToastProvider>
   );
 }

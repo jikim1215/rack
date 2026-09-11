@@ -7,7 +7,7 @@
 - [x] 세션 쿠키 `httpOnly` — JS에서 토큰 접근 불가. `src/lib/auth.ts` sessionCookieOptions.httpOnly=true.
 - [x] 세션 쿠키 `secure` — HTTPS 배포 시 `COOKIE_SECURE=true`로 활성(setup.sh). `sessionCookieOptions.secure=process.env.COOKIE_SECURE==='true'`.
 - [x] 세션 쿠키 `sameSite=strict` — CSRF 방어. sessionCookieOptions.sameSite='strict'.
-- [x] 세션 토큰 HMAC-SHA512 서명 + 만료(24h). `createSessionToken`/`verifySessionToken`.
+- [x] 세션 토큰 HMAC-SHA512 서명 + 만료(기본 8h, SESSION_TTL_HOURS). `createSessionToken`/`verifySessionToken`.
 - [x] 토큰 서명 **상수시간 비교**(timingSafeEqual) — 타이밍 공격 방어. `verifySessionToken`.
 - [x] AUTH_SECRET 미설정/기본값이면 운영(NODE_ENV=production)에서 **기동 거부**(fail-fast). `getSecret`.
 - [x] 비밀번호 scrypt(N=16384,r=8,p=1) + 32바이트 솔트, 검증은 timingSafeEqual. `hashPassword`/`verifyPassword`.
@@ -33,9 +33,11 @@
 - [x] RSC 페이지도 스코프 적용 또는 admin 전용 게이트(admin=전역 스코프). `verify-page-scope.ts` 13 SCOPED + 2 ADMIN.
 - [x] 피어 조인(포트맵 등) 교차팀 식별 누수 차단. `verify-portmap-peer.ts`.
 - [x] `assets.team_id` 단일 소유권 권위; `assets.department`는 읽기전용 레거시 그림자(앱은 절대 쓰지 않음). ADR-009.
+- [x] **메뉴 권한(menu_permissions) 서버 강제** — 모든 API 는 `withApi` + `assertMenuAccess/Write/Approve`, 모든 메뉴 페이지는 `requireMenuPage` 를 거친다. 설정→메뉴 권한의 접근/쓰기/승인 토글이 URL 직접 입력·API 직접 호출에도 적용(접근 없음→/access-denied, API 403). `authz.ts` menuPermission / `tests/api-route-guard.test.ts` 가 누락을 강제. ADR-015.
+- [x] 감사로그에 **관리자 행위** 기록 — 계정 생성/수정/삭제/비번초기화(user), 팀(team), 메뉴 권한 변경(permission, 역할별 전·후 맵), 개선의견 처리(feedback). `audit.ts` 가 password_hash/token_version 을 redact.
 
 ## 6. 정보 노출 / 로깅 (AC-20)
-- [x] 에러 응답에 스택/내부 경로 미노출 — 사용자向 한국어 메시지만 반환. (라우트들의 catch/검증 분기.)
+- [x] 에러 응답에 스택/내부 경로 미노출 — `withApi`/`apiErrorResponse` 가 인가(401/403)·검증(400)·JSON 파싱(400)·SQLite 제약(400/409)을 한국어 JSON 으로 변환하고, 그 외는 메시지 없는 500 + 서버 로그. 쓰기 입력은 `validation/input.ts`(enum/길이/정수/날짜/경로 id) 로 사전 검증(P2).
 - [x] 비밀번호/시크릿은 로그·감사로그에 평문 미기록. access_logs/audit_logs는 식별자·사유만.
 - [x] 감사로그 append-only(UPDATE ABORT, DELETE는 365일 초과만). `db.ts` 트리거 (AC-1).
 - [x] 감사/접속 기록 1년 보존 후 프루닝. `retention.ts` (AC-19).
@@ -48,10 +50,12 @@
 
 ## 8. 취약·구버전 컴포넌트 (OWASP A06)
 - [x] `xlsx`(SheetJS) **0.18.5 → 0.20.3** 업그레이드 — CVE-2023-30533(프로토타입 오염, fix≥0.19.3)·CVE-2024-22363(ReDoS, fix≥0.20.2) 해소. npm 레지스트리 최신이 0.18.5에 머물러, 공식 CDN 패치판 tarball을 `vendor/xlsx-0.20.3.tgz`로 동봉하고 `package.json`에 `file:vendor/xlsx-0.20.3.tgz`로 고정(오프라인 `npm ci` 호환). import/export/template/ledger 라우트 무회귀 검증(정본 587행 dry-run 동일·라이브 라우트 200/유효 xlsx).
-- [x] 보안 응답 헤더 — CSP(`default-src 'self'`)·X-Frame-Options:DENY·X-Content-Type-Options:nosniff·Referrer-Policy·Permissions-Policy + `poweredByHeader:false`. `next.config.ts` headers().
+- [x] 보안 응답 헤더 — X-Frame-Options:DENY·X-Content-Type-Options:nosniff·Referrer-Policy·Permissions-Policy + `poweredByHeader:false`. `next.config.ts` headers().
+- [x] **CSP nonce** — `src/middleware.ts` 가 요청마다 nonce 를 만들어 `script-src 'self' 'nonce-…' 'strict-dynamic'`(‘unsafe-inline’ 없음), `default-src 'self'` 로 외부 출처 차단. /login 은 force-dynamic. ADR-016. 검증: `npm run verify:authz`(nonce 부착·요청별 변화 확인).
 - [ ] (운영 권고) 의존성 정기 점검 — 폐쇄망이라 자동 SCA 불가 시, 릴리스 전 `npm ls`/CVE 수동 대조.
 
 ## 점검 방법
 - 자동(단위): `scripts/verify-authz-matrix.ts`, `scripts/verify-page-scope.ts`, `scripts/verify-retention.ts`, `scripts/verify-asset-rules.ts` (모두 실 shipped lib 호출).
+- 자동(실 핸들러 e2e, 인가·검증·CSP): `npm run verify:api` = `scripts/verify-authz.mjs`(메뉴 권한 강제/승인/입력 검증 400/관리자 감사로그/CSP nonce/세션 TTL) + `scripts/verify-feedback.mjs`. 단위: `tests/authz-menu.test.ts`, `tests/validation-input.test.ts`, `tests/api-route-guard.test.ts`(모든 route.ts 스캔).
 - 자동(실 핸들러 e2e): `scripts/e2e-security.mjs` — 기동 중인 standalone 서버에 대해 비밀번호 정책(약함→400/강함→OK), 토큰 위조 거부(서명 변조→401/redirect), Secure 쿠키를 실 API 경로로 검증(auth.ts가 next/headers 의존이라 단위 로드 불가 → 실 핸들러로 검증).
 - 수동: 본 체크리스트 항목별 코드 근거 재확인 후 릴리스 태깅.

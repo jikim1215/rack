@@ -1,8 +1,8 @@
 import { getDb } from "@/lib/db";
-import { NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanRead, scopeWhere } from "@/lib/authz";
+import { getActor, withApi } from "@/lib/api-authz";
+import { assertMenuAccess, assertCanDownload, scopeWhere } from "@/lib/authz";
 import * as XLSX from "xlsx";
+import type { AssetRow, CustomFieldRow } from "@/lib/db-types";
 
 /**
  * 제출용 "정보시스템 관리대장" export
@@ -20,21 +20,16 @@ function isPrivate(ip: string): boolean {
     /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip);
 }
 
-export async function GET() {
+export const GET = withApi(async () => {
   const actor = await getActor();
-  try {
-    assertCanRead(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertMenuAccess(actor, "assets");
+  assertCanDownload(actor);
   const db = getDb();
   // 팀 계정은 자기 팀 자산의 대장 행만 노출
   const scope = scopeWhere(actor, "a.team_id");
 
   // 커스텀필드 id (관리번호=자산코드)
-  const cf = db.prepare("SELECT id, field_key FROM custom_fields WHERE field_key IN ('asset_code')").all() as any[];
+  const cf = db.prepare("SELECT id, field_key FROM custom_fields WHERE field_key IN ('asset_code')").all() as Pick<CustomFieldRow, "id" | "field_key">[];
   const codeFid = cf.find((f) => f.field_key === "asset_code")?.id ?? -1;
 
   const assets = db.prepare(`
@@ -43,7 +38,7 @@ export async function GET() {
     FROM assets a
     WHERE ${scope.sql}
     ORDER BY a.network_zone, a.asset_type, a.id
-  `).all(codeFid, ...scope.params) as any[];
+  `).all(codeFid, ...scope.params) as (AssetRow & { asset_code: string | null })[];
 
   const headers = [
     "본부명", "부서명", "사용여부", "관리자", "관리책임자",
@@ -100,4 +95,4 @@ export async function GET() {
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`,
     },
   });
-}
+});

@@ -1,67 +1,64 @@
 import { getDb } from '@/lib/db';
 import { hashPassword, validatePasswordPolicy } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
-import { getActor, authzError } from '@/lib/api-authz';
+import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertAdmin } from '@/lib/authz';
 import { parseRules } from '@/lib/ip-access';
 import { validateEmail, normalizeEmail } from '@/lib/user-admin';
+import { logAudit } from '@/lib/audit';
+import { asBody, str, oneOf, idOrNull, ValidationError } from '@/lib/validation/input';
+import type { UserRow } from '@/lib/db-types';
 
-export async function GET() {
+export const GET = withApi(async () => {
   const actor = await getActor();
-  try {
-    assertAdmin(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertAdmin(actor);
 
   const db = getDb();
-  const users = db.prepare('SELECT id, username, display_name, role, team_id, is_active, allowed_ips, created_at FROM users ORDER BY id').all();
+  const users = db
+    .prepare('SELECT id, username, display_name, role, team_id, is_active, allowed_ips, created_at FROM users ORDER BY id')
+    .all() as Pick<UserRow, 'id' | 'username' | 'display_name' | 'role' | 'team_id' | 'is_active' | 'allowed_ips' | 'created_at'>[];
   return NextResponse.json(users);
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try {
-    assertAdmin(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertAdmin(actor);
 
-  const { username, password, display_name, role, team_id, allowed_ips } = await req.json();
-  if (!username || !password) {
-    return NextResponse.json({ error: '이메일과 비밀번호는 필수입니다.' }, { status: 400 });
-  }
-  const nameError = validateEmail(username);
-  if (nameError) {
-    return NextResponse.json({ error: nameError }, { status: 400 });
-  }
-  const trimmedUsername = normalizeEmail(String(username));
+  const b = asBody(await readJson(req));
+  const password = str(b, 'password', { required: true, max: 200, label: '비밀번호' });
+  const usernameRaw = str(b, 'username', { required: true, max: 200, label: '이메일' });
+  const nameError = validateEmail(usernameRaw);
+  if (nameError) throw new ValidationError(nameError);
+  const trimmedUsername = normalizeEmail(usernameRaw);
 
   const policyError = validatePasswordPolicy(password);
-  if (policyError) {
-    return NextResponse.json({ error: policyError }, { status: 400 });
-  }
+  if (policyError) throw new ValidationError(policyError);
 
   const db = getDb();
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(trimmedUsername);
-  if (existing) {
-    return NextResponse.json({ error: '이미 존재하는 이메일입니다.' }, { status: 400 });
-  }
+  if (existing) throw new ValidationError('이미 존재하는 이메일입니다.');
 
-  const allowedRoles = ['admin', 'team', 'viewer'];
-  const safeRole = allowedRoles.includes(role) ? role : 'team';
+  const safeRole = oneOf(b, 'role', ['admin', 'team', 'viewer'] as const, { default: 'team', label: '역할' });
+  const displayName = str(b, 'display_name', { max: 100, label: '이름' });
   // 팀(team_id)은 team 역할에만 의미가 있다. 다른 역할은 항상 null.
-  const teamId = safeRole === 'team' && team_id != null && team_id !== '' ? Number(team_id) : null;
-  if (teamId != null && !db.prepare('SELECT id FROM teams WHERE id = ?').get(teamId)) {
-    return NextResponse.json({ error: '존재하지 않는 팀입니다.' }, { status: 400 });
+  const rawTeamId = safeRole === 'team' ? idOrNull(b, 'team_id', '팀') : null;
+  if (rawTeamId != null && !db.prepare('SELECT id FROM teams WHERE id = ?').get(rawTeamId)) {
+    throw new ValidationError('존재하지 않는 팀입니다.');
   }
   // 허용 IP: 유효 규칙만 정규화해 콤마구분 저장 (빈값=IP 제한 없음).
-  const allowedIps = parseRules(allowed_ips).join(',');
+  const allowedIps = parseRules(str(b, 'allowed_ips', { max: 2000 })).join(',');
   const stmt = db.prepare('INSERT INTO users (username, password_hash, display_name, role, team_id, allowed_ips) VALUES (?, ?, ?, ?, ?, ?)');
-  const result = stmt.run(trimmedUsername, hashPassword(password), display_name || '', safeRole, teamId, allowedIps);
-  return NextResponse.json({ id: result.lastInsertRowid }, { status: 201 });
-}
+  const result = stmt.run(trimmedUsername, hashPassword(password), displayName, safeRole, rawTeamId, allowedIps);
+  const id = Number(result.lastInsertRowid);
+
+  logAudit(db, {
+    entityType: 'user',
+    entityId: id,
+    entityName: trimmedUsername,
+    action: 'create',
+    changedBy: actor.username,
+    newData: { username: trimmedUsername, display_name: displayName, role: safeRole, team_id: rawTeamId, is_active: 1 },
+  });
+
+  return NextResponse.json({ id }, { status: 201 });
+});

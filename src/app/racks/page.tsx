@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
-import { RackView } from "./RackView";
+import { requireMenuPage } from "@/lib/page-authz";
+import { RackView, type Asset as RackAsset } from "./RackView";
 import Link from "next/link";
-import { scopeWhere, actorFromSession, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
-import { getSession } from "@/lib/auth";
+import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
+import type { LocationRow, RackRow, AssetRow, DistFrameRow, TeamRow } from "@/lib/db-types";
 
 export default async function RacksPage() {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("racks"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
   const assetScope = scopeWhere(actor, "team_id");
   // 랙: 소유(team_id) OR 내 팀 자산이 있는 랙(하이브리드). 위치: 소유 OR 내게 보이는 랙/대역/배선 존재.
   const rackScope = rackScopeWhere(actor, "r.team_id", "r.id");
@@ -16,7 +17,7 @@ export default async function RacksPage() {
     SELECT l.*, 
       (SELECT COUNT(*) FROM racks r2 WHERE r2.location_id = l.id AND ${rackScopeWhere(actor, "r2.team_id", "r2.id").sql}) as rack_count
     FROM locations l WHERE ${locScope.sql} ORDER BY l.sort_order, l.location_name
-  `).all(...rackScopeWhere(actor, "r2.team_id", "r2.id").params, ...locScope.params) as any[];
+  `).all(...rackScopeWhere(actor, "r2.team_id", "r2.id").params, ...locScope.params) as (LocationRow & { rack_count: number })[];
 
   const racks = db.prepare(`
     SELECT r.*, l.location_name, t.team_name AS owner_team_name
@@ -25,7 +26,7 @@ export default async function RacksPage() {
     LEFT JOIN teams t ON r.team_id = t.id
     WHERE ${rackScope.sql}
     ORDER BY l.sort_order, l.location_name, r.rack_name
-  `).all(...rackScope.params) as any[];
+  `).all(...rackScope.params) as (RackRow & { location_name: string | null; owner_team_name: string | null })[];
 
   // 실장 자산 — 폐기(retired) 제외: 폐기 장비는 실장도에서 슬롯을 점유하지 않는다.
   const assets = db.prepare(`
@@ -33,7 +34,7 @@ export default async function RacksPage() {
     FROM assets
     WHERE rack_id IS NOT NULL AND rack_unit_start IS NOT NULL AND rack_unit_size IS NOT NULL AND rack_unit_size >= 1 AND status != 'retired' AND ${assetScope.sql}
     ORDER BY rack_unit_start
-  `).all(...assetScope.params) as any[];
+  `).all(...assetScope.params) as unknown as RackAsset[]; // RackView 계약(실장 자산은 rack_id/rack_unit_start non-null; 미배치는 View 가 null 을 런타임 처리)
 
   // 미배치 자산 (드래그앤드롭 배치 대상) — 폐기 제외, 팀 스코프 적용
   const unplacedAssets = db.prepare(`
@@ -41,16 +42,16 @@ export default async function RacksPage() {
     FROM assets
     WHERE (rack_id IS NULL OR rack_unit_start IS NULL) AND status != 'retired' AND ${assetScope.sql}
     ORDER BY asset_name
-  `).all(...assetScope.params) as any[];
+  `).all(...assetScope.params) as unknown as RackAsset[]; // RackView 계약(실장 자산은 rack_id/rack_unit_start non-null; 미배치는 View 가 null 을 런타임 처리)
 
   // 선번장 바로가기용: 랙에 실장된 배선반(FDF 등) 위치 — 소유 전용(팀은 자기 배선반만)
   const frameScope = scopeWhere(actor, "team_id");
   const distFrames = db.prepare(`
     SELECT id, rack_id, rack_unit_start, rack_unit_size FROM dist_frames WHERE rack_id IS NOT NULL AND ${frameScope.sql}
-  `).all(...frameScope.params) as any[];
+  `).all(...frameScope.params) as Pick<DistFrameRow, "id" | "rack_id" | "rack_unit_start" | "rack_unit_size">[];
 
   // 총괄 전용: 랙 소유 팀 배정 드롭다운용 팀 목록
-  const teams = actor?.role === "admin" ? (db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as any[]) : [];
+  const teams = actor?.role === "admin" ? (db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as Pick<TeamRow, "id" | "team_name">[]) : [];
 
   return (
     <div>

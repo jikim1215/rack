@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
+import { requireMenuPage } from "@/lib/page-authz";
 import { DistributionView } from "./DistributionView";
-import { getSession } from "@/lib/auth";
-import { actorFromSession, scopeWhere } from "@/lib/authz";
+import { scopeWhere } from "@/lib/authz";
+import type { DistFrameRow, FramePairRow } from "@/lib/db-types";
 
 export default async function DistributionPage({ searchParams }: { searchParams: Promise<{ frame?: string }> }) {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("distribution"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
   // 소유 전용(team_id): 팀은 자기 팀 배선반만. 총괄/전체열람은 전체.
   const scope = scopeWhere(actor, "df.team_id");
 
@@ -17,7 +18,7 @@ export default async function DistributionPage({ searchParams }: { searchParams:
     LEFT JOIN teams t ON df.team_id = t.id
     WHERE ${scope.sql}
     ORDER BY l.building, l.floor, df.frame_name
-  `).all(...scope.params) as any[];
+  `).all(...scope.params) as (DistFrameRow & { location_name: string | null; building: string | null; floor: string | null; room: string | null; owner_team_name: string | null })[];
 
   const pairs = db.prepare(`
     SELECT fp.*,
@@ -33,9 +34,12 @@ export default async function DistributionPage({ searchParams }: { searchParams:
     LEFT JOIN assets a ON p.asset_id = a.id
     WHERE ${scope.sql}
     ORDER BY fp.frame_id, fp.pair_number
-  `).all(...scope.params) as any[];
+  `).all(...scope.params) as (FramePairRow & {
+    linked_pair_number: number | null; linked_frame_id: number | null; linked_frame_name: string | null;
+    connected_port_number: number | null; connected_port_name: string | null; connected_asset_name: string | null;
+  })[];
 
-  const buildings = [...new Set(frames.map((f: any) => f.building).filter(Boolean))] as string[];
+  const buildings = [...new Set(frames.map((f) => f.building).filter(Boolean))] as string[];
   const initialFrameId = Number((await searchParams).frame) || null;
 
   return (

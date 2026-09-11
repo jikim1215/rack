@@ -94,7 +94,7 @@ bash scripts/deploy/restore.sh /var/backups/asset-inventory/<최신백업>.tar.g
 | 변수 | 기본 | 설명 |
 |---|---|---|
 | `AUTH_SECRET` | (없음) | **운영 필수** — 미설정/기본값이면 production 기동 거부 |
-| `SESSION_TTL_HOURS` | 24 | 세션 수명. 짧게(예: 4) 두면 만료 배너+연장 버튼과 조합해 유휴 타임아웃으로 동작 |
+| `SESSION_TTL_HOURS` | 8 | 세션 수명(기본 8h = 근무 1일). 짧게(예: 4) 두면 만료 배너+연장 버튼과 조합해 유휴 타임아웃으로 동작 |
 | `COOKIE_SECURE` | false | TLS 적용 시 true (deploy-tls.md) |
 | `RETENTION_DAYS` | 365 | 로그 보존일수 — asset-retention.timer가 초과분 프루닝. **기관 보존정책 확정 후 조정** |
 | `TRUST_PROXY` | false | 리버스 프록시 뒤 배포 시 true (로그인 rate-limit IP 식별) |

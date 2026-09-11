@@ -75,6 +75,7 @@
 - **미배정 큐** — 소유팀(부서) 공란 자산을 총괄이 재배정
 - **로그/감사** — 변경 감사로그·접속 로그 조회(각 1년 보존)
 - **임포트 이슈** — 엑셀 업로드 검증 결과(형식오류/중복의심/식별자없음/OS미입력) 정리 큐
+- **개선의견** — 직원이 어느 화면에서든 불편·오류·개선 의견을 접수(화면 경로 자동 첨부), 공감 투표로 수요 취합, 총괄이 상태(접수→검토중→반영예정→반영완료/보류)·우선순위·답변 관리
 
 ### 2차 로드맵 (구현됨 · 현재 메뉴 비노출)
 **포트맵**(`/portmap`) · **네트워크 토폴로지**(`/topology`) 화면과 API는 구현돼 있으나,
@@ -101,13 +102,15 @@
 ## 보안
 
 - 이메일 기반 로그인 ID, SHA-512 클라이언트 해싱 → scrypt 서버 이중 해싱
-- HMAC-SHA512 서명 세션 토큰, `SameSite=strict` 쿠키, 세션 만료 배너
+- HMAC-SHA512 서명 세션 토큰(기본 8h, `SESSION_TTL_HOURS`), `SameSite=strict` 쿠키, 세션 만료 배너
 - 로그인 5회 실패 → 15분 잠금, 비밀번호 정책(최소 8자·2종 조합)
 - 3역할 접근제어: **총괄(admin) / 팀(team) / 전체열람(viewer)**
 - 부서 기반 **row-level 멀티팀 스코프** — 모든 쓰기 API에서 (역할, 소유팀) 서버 인가 검증
-- 메뉴별 접근/쓰기/승인 권한, 계정별 허용 IP
+- 메뉴별 접근/쓰기/승인 권한 — **서버가 강제**(모든 API `withApi`+`assertMenu*`, 모든 페이지 `requireMenuPage`; 메뉴 정본 `src/lib/menus.ts`; 가드레일 테스트가 누락 차단), 계정별 허용 IP
+- 쓰기 API 입력 검증(enum/길이/정수/날짜 → 400 한국어 메시지), SQLite 제약 예외 400/409 변환, 예상 밖 오류는 메시지 없는 500
+- CSP 요청별 nonce(`script-src` 에 `unsafe-inline` 없음) + `default-src 'self'`
 - 파일 업로드 매직바이트 검증, 모든 쓰기 API 인증 필수
-- 변경 감사로그 / 접속 로그 각 1년 보존 및 자동 프루닝
+- 변경 감사로그(데이터 + 계정·팀·메뉴권한 등 관리자 행위) / 접속 로그 각 1년 보존 및 자동 프루닝
 - 비밀번호 초기화 = 사용자 이메일로 설정 + 강제변경(전달할 비밀 없음)
 
 ## 폐쇄망 배포
@@ -132,12 +135,13 @@ sudo bash install.sh
 
 ## 데이터 모델
 
-27개 테이블 (SQLite, `src/lib/db.ts`):
+29개 테이블 (SQLite, `src/lib/db.ts`):
 
 - **자산**: `assets`, `asset_ips`, `sub_assets`, `custom_fields`, `custom_values`, `ports`
 - **물리/배치**: `locations`, `racks`, `dist_frames`, `frame_pairs`, `ip_subnets`
 - **운영**: `asset_movements`, `maintenance_logs`, `maintenance_targets`, `contracts`, `contract_assets`, `vendors`, `inventory_audits`, `inventory_audit_checks`
 - **계정/권한/감사**: `users`, `teams`, `menu_permissions`, `audit_logs`, `access_logs`, `login_attempts`, `import_issue`
+- **개선의견**: `feedback`, `feedback_votes`
 - **설정**: `mail_relay_config`
 
 자산 상태 생명주기: `active`(운용) / `maintenance`(유지보수) / `standby`(예비) / `retired`(폐기).
@@ -158,7 +162,7 @@ npm run dev            # http://localhost:3000
 | 팀(team) | `user@example.go.kr` | `user123` |
 | 전체열람(viewer) | `viewer@example.go.kr` | `viewer123` |
 
-기타 스크립트: `npm test`(단위 테스트), `npm run check`(타입 체크), `npm run smoke`(스모크).
+기타 스크립트: `npm test`(단위 테스트), `npm run check`(타입 체크), `npm run smoke`(스모크), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견 E2E).
 
 ## 프로젝트 구조
 
@@ -181,12 +185,13 @@ src/
 │   ├── locations/            # 위치관리
 │   ├── unassigned/           # 미배정 큐
 │   ├── import-issues/        # 임포트 이슈
+│   ├── feedback/             # 개선의견·불편사항 취합
 │   ├── logs/                 # 로그/감사
 │   ├── settings/             # 설정
 │   ├── login/                # 로그인
 │   ├── change-password/      # 비밀번호 변경
-│   └── api/                  # 60개 REST API 라우트
-├── components/               # 공통 컴포넌트 (Sidebar, LayoutShell, Toast, AuditLogModal, Onboarding, SessionExpiryBanner, UsageGuide …)
+│   └── api/                  # 63개 REST API 라우트
+├── components/               # 공통 컴포넌트 (Sidebar, LayoutShell, Toast, AuditLogModal, Onboarding, SessionExpiryBanner, UsageGuide, FeedbackModal/Form …)
 ├── lib/
 │   ├── db.ts                 # SQLite 스키마 + 연결 + 마이그레이션
 │   ├── auth-core.ts / auth.ts# 인증·세션·비밀번호 정책

@@ -1,17 +1,12 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
+import { getActor, withApi } from "@/lib/api-authz";
 import { assertAdmin } from "@/lib/authz";
+import type { AuditLogRow, CountRow } from "@/lib/db-types";
 
-export async function GET(req: NextRequest) {
+export const GET = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try {
-    assertAdmin(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertAdmin(actor);
 
   const db = getDb();
   const entityType = req.nextUrl.searchParams.get("entity_type");
@@ -20,10 +15,11 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Number(req.nextUrl.searchParams.get("limit")) || 50, 200);
   const offset = Math.max(Number(req.nextUrl.searchParams.get("offset")) || 0, 0);
 
-  const VALID_ENTITY_TYPES = ["asset", "rack", "location", "frame", "contract", "movement", "maintenance", "inventory_audit", "sub_asset"];
+  // db-types AuditEntityType 과 동일 (관리자 행위 user/team/permission/feedback 포함, P4)
+  const VALID_ENTITY_TYPES = ["asset", "rack", "location", "frame", "contract", "movement", "maintenance", "inventory_audit", "sub_asset", "user", "team", "permission", "feedback"];
 
   const conditions: string[] = [];
-  const params: any[] = [];
+  const params: unknown[] = [];
 
   if (entityType) {
     if (!VALID_ENTITY_TYPES.includes(entityType)) {
@@ -39,10 +35,10 @@ export async function GET(req: NextRequest) {
 
   const where = conditions.length > 0 ? " WHERE " + conditions.join(" AND ") : "";
   // 필터 조합은 idx_audit_logs(entity_type, entity_id), 시간 정렬은 idx_audit_logs_created 사용
-  const total = (db.prepare(`SELECT COUNT(*) AS c FROM audit_logs${where}`).get(...params) as { c: number }).c;
+  const total = (db.prepare(`SELECT COUNT(*) AS c FROM audit_logs${where}`).get(...params) as CountRow).c;
   const logs = db.prepare(
     `SELECT * FROM audit_logs${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
-  ).all(...params, limit, offset) as any[];
+  ).all(...params, limit, offset) as AuditLogRow[];
 
   const parsed = logs.map((log) => ({
     ...log,
@@ -52,8 +48,8 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({ rows: parsed, total });
-}
+});
 
-function safeJsonParse(str: string, fallback: any): any {
+function safeJsonParse(str: string, fallback: unknown): unknown {
   try { return JSON.parse(str); } catch { return fallback; }
 }

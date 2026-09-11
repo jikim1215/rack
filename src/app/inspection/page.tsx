@@ -1,10 +1,28 @@
 export const dynamic = "force-dynamic";
 import { readFileSync } from "node:fs";
+import { requireMenuPage } from "@/lib/page-authz";
 import { join } from "node:path";
 import { getDb } from "@/lib/db";
-import { scopeWhere, actorFromSession } from "@/lib/authz";
-import { getSession } from "@/lib/auth";
+import { scopeWhere } from "@/lib/authz";
 import InspectionView from "./InspectionView";
+import type { InventoryAuditRow } from "@/lib/db-types";
+
+// GET /api/inventory-audits/[id]/checks 와 동일 모양(장비+부속 UNION) — InspectionView 의 CheckRow 와 일치.
+interface AuditCheckRow {
+  kind: "asset" | "sub";
+  target_id: number;
+  asset_type: string | null;
+  name: string;
+  type_or_category: string;
+  location: string | null;
+  serial_number: string;
+  code: string;
+  check_id: number | null;
+  result: string | null;
+  note: string | null;
+  checked_by: string | null;
+  checked_at: string | null;
+}
 
 // 시리얼 불일치 실사 목록 (외부 검토 R3-3 합의): AX 대장 대사 산출물을 화면에서 참조 가능하게.
 // 파일이 없으면(배포본 등) 조용히 숨긴다 — 스크립트 산출물이라 존재가 보장되지 않는다.
@@ -19,7 +37,7 @@ function loadSerialMismatches(): { asset_tag: string; ledger_name: string; ledge
 
 export default async function InspectionPage() {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("inspection"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
   const scope = scopeWhere(actor, "a.team_id");
   const subScope = scopeWhere(actor, "s.team_id");
 
@@ -37,7 +55,7 @@ export default async function InspectionPage() {
         WHERE c.audit_id = ia.id AND s.status != 'disposed' AND ${subScope.sql}) AS checked_assets
     FROM inventory_audits ia
     ORDER BY ia.id DESC
-  `).all(...scope.params, ...subScope.params, ...scope.params, ...subScope.params) as any[];
+  `).all(...scope.params, ...subScope.params, ...scope.params, ...subScope.params) as (InventoryAuditRow & { total_assets: number; checked_assets: number })[];
 
   // 최신 회차를 초기 선택 — 대상별 확인 현황(장비 + 부속 UNION)을 SSR 로 전달, 이후 갱신은 fetch
   // (GET /api/inventory-audits/[id]/checks 와 동일 모양)
@@ -67,7 +85,7 @@ export default async function InspectionPage() {
         LEFT JOIN inventory_audit_checks c ON c.sub_asset_id = s.id AND c.audit_id = ?
         WHERE s.status != 'disposed' AND ${subScope.sql}
         ORDER BY name
-      `).all(selected.id, ...scope.params, selected.id, ...subScope.params) as any[]
+      `).all(selected.id, ...scope.params, selected.id, ...subScope.params) as AuditCheckRow[]
     : [];
 
   return (

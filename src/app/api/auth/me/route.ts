@@ -1,17 +1,20 @@
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
+import { withApi } from "@/lib/api-authz";
 import { clientMeta } from "@/lib/access-log";
+import type { MenuPermissionRow } from "@/lib/db-types";
 
-export async function GET(req: NextRequest) {
+export const GET = withApi(async (req: NextRequest) => {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const db = getDb();
-  const perms = db.prepare('SELECT menu_key, can_access, can_write, can_approve FROM menu_permissions WHERE role = ?').all(session.role);
-  const permissions: Record<string, any> = {};
-  for (const p of perms as any[]) {
+  const perms = db.prepare('SELECT menu_key, can_access, can_write, can_approve FROM menu_permissions WHERE role = ?').all(session.role) as
+    Pick<MenuPermissionRow, "menu_key" | "can_access" | "can_write" | "can_approve">[];
+  const permissions: Record<string, { can_access: number; can_write: number; can_approve: number }> = {};
+  for (const p of perms) {
     permissions[p.menu_key] = { can_access: p.can_access, can_write: p.can_write, can_approve: p.can_approve };
   }
   // 현재 접속 IP (TRUST_PROXY=true 시 실제 클라이언트 IP, 아니면 "direct").
@@ -27,4 +30,4 @@ export async function GET(req: NextRequest) {
     // 세션 만료 시각 (P0 합의: 만료 임박 배너용)
     exp: session.exp,
   });
-}
+});

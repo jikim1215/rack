@@ -72,10 +72,10 @@ interface Frame {
   frame_type: string;
   total_pairs: number;
   description: string;
-  location_name: string;
-  building: string;
-  floor: string;
-  room: string;
+  location_name: string | null;
+  building: string | null;
+  floor: string | null;
+  room: string | null;
   team_id?: number | null;
   owner_team_name?: string | null;
 }

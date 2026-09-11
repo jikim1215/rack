@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sessionCookieOptions, getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { withApi } from "@/lib/api-authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   // 로그아웃 접속기록(AC-19): 현재 세션 주체 기록 후 쿠키 만료
   const session = await getSession();
   if (session) {
@@ -22,4 +23,4 @@ export async function POST(req: NextRequest) {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(sessionCookieOptions().name, "", { path: "/", maxAge: 0 });
   return res;
-}
+});

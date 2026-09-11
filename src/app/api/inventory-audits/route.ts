@@ -1,20 +1,16 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanRead, assertAdmin, scopeWhere } from "@/lib/authz";
+import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { assertMenuAccess, assertAdmin, scopeWhere } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { asBody, str } from "@/lib/validation/input";
+import type { InventoryAuditRow } from "@/lib/db-types";
 
 // 자산실사 회차 목록 + 진행률. 진행률은 요청자의 팀 스코프 기준으로 계산한다
 // (team 계정은 자기 팀 자산 대비 확인 수만 본다).
-export async function GET() {
+export const GET = withApi(async () => {
   const actor = await getActor();
-  try {
-    assertCanRead(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertMenuAccess(actor, "inspection");
   const db = getDb();
   const scope = scopeWhere(actor, "a.team_id");
   const subScope = scopeWhere(actor, "s.team_id");
@@ -31,26 +27,17 @@ export async function GET() {
         WHERE c.audit_id = ia.id AND s.status != 'disposed' AND ${subScope.sql}) AS checked_assets
     FROM inventory_audits ia
     ORDER BY ia.id DESC
-  `).all(...scope.params, ...subScope.params, ...scope.params, ...subScope.params);
+  `).all(...scope.params, ...subScope.params, ...scope.params, ...subScope.params) as (InventoryAuditRow & { total_assets: number; checked_assets: number })[];
   return NextResponse.json(audits);
-}
+});
 
 // 회차 생성 — 총괄(admin) 전용.
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try {
-    assertAdmin(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
-  const body = await req.json();
-  const auditName = String(body.audit_name || "").trim();
-  if (!auditName) {
-    return NextResponse.json({ error: "회차 이름을 입력하세요." }, { status: 400 });
-  }
-  const description = String(body.description || "");
+  assertAdmin(actor);
+  const b = asBody(await readJson(req));
+  const auditName = str(b, "audit_name", { required: true, max: 200, label: "회차 이름" });
+  const description = str(b, "description", { max: 2000, label: "설명" });
 
   const db = getDb();
   const result = db.prepare(`
@@ -67,6 +54,6 @@ export async function POST(req: NextRequest) {
     newData: { audit_name: auditName, description },
   });
 
-  const audit = db.prepare("SELECT * FROM inventory_audits WHERE id = ?").get(result.lastInsertRowid);
+  const audit = db.prepare("SELECT * FROM inventory_audits WHERE id = ?").get(result.lastInsertRowid) as InventoryAuditRow;
   return NextResponse.json(audit, { status: 201 });
-}
+});

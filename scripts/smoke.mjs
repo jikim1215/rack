@@ -74,8 +74,10 @@ async function main() {
   // 6-1) 부속자산: 페이지 + 목록 규모 (재물 대장 유래 데이터 소실 감지)
   const subHtml = await (await fetch(`${BASE}/subassets`, { headers: H })).text();
   assert(subHtml.includes("부속자산"), "부속자산 페이지", "");
+  // 부속자산 하한도 자산과 같이 배포처 규모에 맞게 조정 (데모 시드는 부속자산이 없으므로 SMOKE_MIN_SUBASSETS=0)
+  const MIN_SUB = Number(process.env.SMOKE_MIN_SUBASSETS ?? 100);
   const subs = await (await fetch(`${BASE}/api/sub-assets`, { headers: H })).json();
-  assert(Array.isArray(subs) && subs.length >= 100, "부속자산 목록 하한(>=100)", `len=${subs?.length}`);
+  assert(Array.isArray(subs) && subs.length >= MIN_SUB, `부속자산 목록 하한(>=${MIN_SUB})`, `len=${subs?.length}`);
 
   // 7) 권한 불변식: 비로그인 API는 401
   const anon = await fetch(`${BASE}/api/assets`);

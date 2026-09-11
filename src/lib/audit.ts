@@ -1,20 +1,36 @@
 import Database from "better-sqlite3";
+import type { AuditEntityType, AuditAction } from "./db-types";
 
-type EntityType = "asset" | "rack" | "location" | "frame" | "contract" | "movement" | "maintenance" | "sub_asset" | "inventory_audit";
+export type { AuditEntityType as EntityType };
+
+type Values = Record<string, unknown>;
+// 행 인터페이스(AssetRow 등)도 그대로 넘길 수 있게 느슨하게 받는다.
+type AnyRecord = object;
+
+// 감사로그에 남기면 안 되는 민감 컴럼 — 계정 변경 로그(entity 'user')에서 해시/토큰이 old/new 값으로 샐는 것을 막는다.
+const REDACTED_KEYS = new Set(["password_hash", "password", "token_version"]);
+function redact(v: AnyRecord | undefined): Values | undefined {
+  if (!v) return undefined;
+  const out: Values = {};
+  for (const [k, val] of Object.entries(v as Values)) out[k] = REDACTED_KEYS.has(k) ? "[redacted]" : val;
+  return out;
+}
 
 export function logAudit(db: Database.Database, params: {
-  entityType: EntityType;
+  entityType: AuditEntityType;
   entityId: number | null;
   entityName: string;
-  action: "create" | "update" | "delete";
+  action: AuditAction;
   changedBy: string;
-  oldData?: Record<string, any>;
-  newData?: Record<string, any>;
+  oldData?: AnyRecord;
+  newData?: AnyRecord;
 }) {
-  const { entityType, entityId, entityName, action, changedBy, oldData, newData } = params;
+  const { entityType, entityId, entityName, action, changedBy } = params;
+  const oldData = redact(params.oldData);
+  const newData = redact(params.newData);
   let changedFields: string[] = [];
-  let oldValues: Record<string, any> = {};
-  let newValues: Record<string, any> = {};
+  let oldValues: Values = {};
+  let newValues: Values = {};
 
   if (action === "create" && newData) {
     changedFields = Object.keys(newData);
@@ -45,8 +61,8 @@ export function logAssetChange(db: Database.Database, params: {
   assetName: string;
   action: "create" | "update" | "delete";
   changedBy: string;
-  oldData?: Record<string, any>;
-  newData?: Record<string, any>;
+  oldData?: AnyRecord;
+  newData?: AnyRecord;
 }) {
   logAudit(db, {
     entityType: "asset",

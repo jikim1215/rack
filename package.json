@@ -10,7 +10,11 @@
     "db:seed": "node scripts/db-seed.mjs",
     "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
     "check": "tsc --noEmit",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "verify:feedback": "node scripts/verify-feedback.mjs",
+    "verify:authz": "node scripts/verify-authz.mjs",
+    "verify:api": "npm run verify:feedback && npm run verify:authz",
+    "verify:build": "node scripts/verify-build.mjs"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

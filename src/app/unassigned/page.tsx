@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { UnassignedQueue } from "./UnassignedQueue";
+import type { AssetRow, TeamRow } from "@/lib/db-types";
 
 // 미배정 큐 (AC-11) — 총괄(admin) 전용. team_id 미배정(NULL) 자산을 팀에 재배정한다.
 export default async function UnassignedPage() {
@@ -19,7 +20,7 @@ export default async function UnassignedPage() {
     LEFT JOIN locations l ON r.location_id = l.id
     WHERE a.team_id IS NULL
     ORDER BY a.created_at DESC
-  `).all() as any[];
-  const teams = db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as any[];
+  `).all() as (Pick<AssetRow, "id" | "asset_name" | "asset_type" | "ip_address" | "status" | "department" | "admin_name" | "os"> & { rack_name: string | null; location_name: string | null })[];
+  const teams = db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as Pick<TeamRow, "id" | "team_name">[];
   return <UnassignedQueue assets={assets} teams={teams} />;
 }

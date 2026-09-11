@@ -15,8 +15,8 @@ interface Connection {
   id: number;
   asset_id: number;
   port_name: string;
-  connected_to_port_id: number;
-  connected_asset_id: number;
+  connected_to_port_id: number | null;
+  connected_asset_id: number | null;
 }
 
 interface Props {

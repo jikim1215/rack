@@ -1,34 +1,29 @@
 import { getDb } from '@/lib/db';
 import { hashPlaintextPassword } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
-import { getActor, authzError } from '@/lib/api-authz';
+import { getActor, withApi } from '@/lib/api-authz';
 import { assertAdmin } from '@/lib/authz';
 import { loadMailRelayConfig, isEmailEnabled, sendEmail, absoluteUrl } from '@/lib/mailer';
+import { logAudit } from '@/lib/audit';
+import { pathId } from '@/lib/validation/input';
+import type { UserRow } from '@/lib/db-types';
+
+type Ctx = { params: Promise<{ id: string }> };
 
 // 관리자 비밀번호 초기화 (공존시스템 규약과 동일):
 //   초기 비밀번호 = 사용자 이메일(로그인 ID) 그 자체 + must_change_password=1.
 //   사용자는 자기 이메일을 알고 있으므로 전달할 비밀이 없다 → 메일에 비밀번호를 담지 않는다.
 //   메일 릴레이가 설정되어 있으면 "초기화됨 + 로그인 후 변경 필요"를 통지(best-effort).
 //   대상 계정의 기존 세션은 무효화(token_version+1)하고 로그인 잠금(login_attempts)도 해제한다.
-export async function POST(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withApi(async (_req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
-  try {
-    assertAdmin(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertAdmin(actor);
 
-  const { id } = await params;
-  const targetId = Number(id);
+  const targetId = pathId((await params).id);
   const db = getDb();
 
   const user = db.prepare('SELECT id, username, display_name FROM users WHERE id = ?').get(targetId) as
-    | { id: number; username: string; display_name: string }
+    | Pick<UserRow, 'id' | 'username' | 'display_name'>
     | undefined;
   if (!user) {
     return NextResponse.json({ error: '사용자를 찾을 수 없습니다.' }, { status: 404 });
@@ -39,6 +34,16 @@ export async function POST(
     'UPDATE users SET password_hash = ?, must_change_password = 1, token_version = COALESCE(token_version, 0) + 1 WHERE id = ?'
   ).run(hashPlaintextPassword(user.username), targetId);
   db.prepare('DELETE FROM login_attempts WHERE key = ?').run(`u:${user.username}`);
+
+  logAudit(db, {
+    entityType: 'user',
+    entityId: targetId,
+    entityName: user.username,
+    action: 'update',
+    changedBy: actor.username,
+    oldData: { password_reset: 0, must_change_password: 0 },
+    newData: { password_reset: 1, must_change_password: 1 },
+  });
 
   // 초기화 통지 메일 (best-effort — 미설정/실패해도 초기화 자체는 성공).
   let emailed = false;
@@ -66,4 +71,4 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true, username: user.username, emailed });
-}
+});

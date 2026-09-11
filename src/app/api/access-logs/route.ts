@@ -1,12 +1,13 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
+import { getActor, withApi } from "@/lib/api-authz";
 import { assertAdmin } from "@/lib/authz";
+import type { AccessLogRow, CountRow } from "@/lib/db-types";
 
 // 접속기록 조회 (AC-19) — 총괄(admin) 전용. 최근순, 옵션 필터(action/username).
-export async function GET(req: NextRequest) {
+export const GET = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try { assertAdmin(actor); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  assertAdmin(actor);
   const db = getDb();
   const action = req.nextUrl.searchParams.get("action") || "";
   const username = (req.nextUrl.searchParams.get("username") || "").trim();
@@ -24,10 +25,10 @@ export async function GET(req: NextRequest) {
     params.push(`%${username}%`);
   }
   const whereSql = where.length ? "WHERE " + where.join(" AND ") : "";
-  const total = (db.prepare(`SELECT COUNT(*) AS c FROM access_logs ${whereSql}`).get(...params) as { c: number }).c;
+  const total = (db.prepare(`SELECT COUNT(*) AS c FROM access_logs ${whereSql}`).get(...params) as CountRow).c;
   const sql = `SELECT id, user_id, username, ip, user_agent, action, result_code, failure_reason, created_at
     FROM access_logs ${whereSql}
     ORDER BY id DESC LIMIT ? OFFSET ?`;
-  const rows = db.prepare(sql).all(...params, limit, offset);
+  const rows = db.prepare(sql).all(...params, limit, offset) as AccessLogRow[];
   return NextResponse.json({ rows, total });
-}
+});

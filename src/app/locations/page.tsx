@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
-import { scopeWhere, actorFromSession, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
-import { getSession } from "@/lib/auth";
+import { requireMenuPage } from "@/lib/page-authz";
+import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
 import { LocationManager } from "./LocationManager";
+import type { LocationRow, RackRow, TeamRow } from "@/lib/db-types";
 
 export default async function LocationsPage() {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("locations"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
   const scopeA = scopeWhere(actor, "a.team_id");
   const scopeBare = scopeWhere(actor, "team_id");
   // 위치: 소유 OR 내게 보이는 랙/대역/배선 존재(하이브리드). 랙: 소유 OR 내 팀 자산 존재.
@@ -22,7 +23,7 @@ export default async function LocationsPage() {
     LEFT JOIN teams t ON l.team_id = t.id
     WHERE ${locScope.sql}
     ORDER BY l.sort_order, l.location_name
-  `).all(...rackCountScope.params, ...scopeA.params, ...locScope.params) as any[];
+  `).all(...rackCountScope.params, ...scopeA.params, ...locScope.params) as (LocationRow & { owner_team_name: string | null; rack_count: number; asset_count: number })[];
 
   const racks = db.prepare(`
     SELECT r.*, l.location_name, t.team_name AS owner_team_name,
@@ -33,9 +34,9 @@ export default async function LocationsPage() {
     LEFT JOIN teams t ON r.team_id = t.id
     WHERE ${rackScope.sql}
     ORDER BY l.sort_order, l.location_name, r.rack_name
-  `).all(...scopeBare.params, ...scopeBare.params, ...rackScope.params) as any[];
+  `).all(...scopeBare.params, ...scopeBare.params, ...rackScope.params) as (RackRow & { location_name: string | null; owner_team_name: string | null; asset_count: number; used_units: number })[];
 
-  const teams = actor?.role === "admin" ? (db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as any[]) : [];
+  const teams = actor?.role === "admin" ? (db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as Pick<TeamRow, "id" | "team_name">[]) : [];
   return (
     <div>
       <div className="flex items-center justify-between mb-6">

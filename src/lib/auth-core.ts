@@ -11,9 +11,10 @@
 import { scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from "crypto";
 
 export const SESSION_COOKIE = "asset_session";
-// 세션 수명: 기관 정책에 맞게 SESSION_TTL_HOURS 로 조정(기본 24h). 짧게 두고 만료 임박 배너의
-// "세션 연장"(활동자만 연장)과 조합하면 사실상의 유휴 타임아웃으로 동작한다.
-const SESSION_TTL = (Number(process.env.SESSION_TTL_HOURS) > 0 ? Number(process.env.SESSION_TTL_HOURS) : 24) * 60 * 60 * 1000;
+// 세션 수명: 기관 정책에 맞게 SESSION_TTL_HOURS 로 조정(기본 8h = 근무 1일, P4 보안 리뷰 반영 — 공용 PC에서 퇴근 후 세션이 다음날까지 살아있지 않게).
+// 만료 임박 배너의 "세션 연장"(활동자만 연장)과 조합하면 사실상의 유휴 타임아웃으로 동작한다.
+export const SESSION_TTL_DEFAULT_HOURS = 8;
+const SESSION_TTL = (Number(process.env.SESSION_TTL_HOURS) > 0 ? Number(process.env.SESSION_TTL_HOURS) : SESSION_TTL_DEFAULT_HOURS) * 60 * 60 * 1000;
 
 const DEFAULT_SECRETS = new Set([
   "rack-asset-mgr-2024-secret-key",

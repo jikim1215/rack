@@ -1,33 +1,35 @@
 import { getDb } from "@/lib/db";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanDownload, assertCanWrite } from "@/lib/authz";
+import { getActor, withApi } from "@/lib/api-authz";
+import { assertMenuAccess, assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { pathId, ValidationError } from "@/lib/validation/input";
+import type { DistFrameRow, FramePairRow, PairStatus } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
 // ── 선번장 엑셀 왕복 (FDF A안 ④) ──
 // GET: 프레임 단위 선번장 다운로드. POST: 같은 양식 업로드로 일괄 갱신 + 대향 링크 반영.
 
+type Ctx = { params: Promise<{ id: string }> };
+
 const STATUS_KO: Record<string, string> = { used: "사용중", unused: "미사용", reserved: "예약", faulty: "장애" };
 const KO_STATUS: Record<string, string> = { "사용중": "used", "미사용": "unused", "예약": "reserved", "장애": "faulty", "사용": "used" };
+const VALID_STATUSES = ["used", "unused", "reserved", "faulty"] as const;
 
 const HEADERS = ["포트", "코어번호", "상태", "라벨", "케이블ID", "출발(상위)", "도착(내선/아웃렛)", "사용자", "대향 배선반", "대향 포트", "연결 장비", "연결 포트", "비고"];
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withApi(async (_req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
-  try { assertCanDownload(actor); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
-  const { id } = await params;
+  assertMenuAccess(actor, "distribution");
+  const id = pathId((await params).id);
   const db = getDb();
 
   const frame = db.prepare(`
     SELECT df.*, l.location_name, l.building, l.floor FROM dist_frames df
     LEFT JOIN locations l ON df.location_id = l.id WHERE df.id = ?
-  `).get(Number(id)) as any;
+  `).get(id) as (DistFrameRow & { location_name: string | null; building: string | null; floor: string | null }) | undefined;
   if (!frame) return NextResponse.json({ error: "배선반이 없습니다." }, { status: 404 });
-  if (actor && actor.role === "team" && frame.team_id !== actor.teamId) {
+  if (actor.role === "team" && frame.team_id !== actor.teamId) {
     return NextResponse.json({ error: "배선반이 없습니다." }, { status: 404 });
   }
 
@@ -41,7 +43,11 @@ export async function GET(
     LEFT JOIN ports p ON fp.connected_port_id = p.id
     LEFT JOIN assets a ON p.asset_id = a.id
     WHERE fp.frame_id = ? ORDER BY fp.pair_number
-  `).all(Number(id)) as any[];
+  `).all(id) as (FramePairRow & {
+    linked_pair_number: number | null; linked_frame_name: string | null;
+    connected_port_number: number | null; connected_port_name: string | null;
+    connected_asset_name: string | null;
+  })[];
 
   const rows = pairs.map((p) => [
     p.pair_number,
@@ -75,30 +81,28 @@ export async function GET(
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(`선번장-${frame.frame_name}.xlsx`)}`,
     },
   });
-}
+});
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withApi(async (req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
-  const { id } = await params;
+  assertMenuWrite(actor, "distribution");
+  const id = pathId((await params).id);
   const db = getDb();
 
-  const frame = db.prepare("SELECT df.*, df.frame_type AS ftype FROM dist_frames df WHERE df.id = ?").get(Number(id)) as any;
+  const frame = db.prepare("SELECT df.*, df.frame_type AS ftype FROM dist_frames df WHERE df.id = ?").get(id) as (DistFrameRow & { ftype: string }) | undefined;
   if (!frame) return NextResponse.json({ error: "배선반이 없습니다." }, { status: 404 });
-  try { assertCanWrite(actor, frame.team_id ?? null); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  assertCanWrite(actor, frame.team_id ?? null);
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
+  if (!file) throw new ValidationError("파일이 없습니다.");
 
   const wb = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: "buffer" });
-  const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as any[][];
+  const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as unknown[][];
 
   // 헤더 행 탐색 ("포트"로 시작하는 행)
   const hIdx = aoa.findIndex((r) => String(r[0]).trim() === "포트");
-  if (hIdx < 0) return NextResponse.json({ error: "양식이 올바르지 않습니다 ('포트' 헤더 없음). 먼저 선번장을 다운로드해 같은 양식으로 작성하세요." }, { status: 400 });
+  if (hIdx < 0) throw new ValidationError("양식이 올바르지 않습니다 ('포트' 헤더 없음). 먼저 선번장을 다운로드해 같은 양식으로 작성하세요.");
   const header = aoa[hIdx].map((h) => String(h).trim());
   const col = (name: string) => header.indexOf(name);
   const dataRows = aoa.slice(hIdx + 1).filter((r) => String(r[col("포트")]).trim() !== "");
@@ -106,8 +110,9 @@ export async function POST(
   const issues: string[] = [];
   let updated = 0, linked = 0, unlinked = 0;
 
+  interface FrameLite { id: number; frame_name: string; frame_type: string }
   const framesByName = new Map(
-    (db.prepare("SELECT id, frame_name, frame_type FROM dist_frames").all() as any[]).map((f) => [f.frame_name, f])
+    (db.prepare("SELECT id, frame_name, frame_type FROM dist_frames").all() as FrameLite[]).map((f) => [f.frame_name, f])
   );
   const upsert = db.prepare(`
     INSERT INTO frame_pairs (frame_id, pair_number, status, label, source, destination, cable_id, user_info, description, core_number)
@@ -120,7 +125,7 @@ export async function POST(
   const getPair = db.prepare("SELECT id, linked_pair_id FROM frame_pairs WHERE frame_id = ? AND pair_number = ?");
   const setLink = db.prepare("UPDATE frame_pairs SET linked_pair_id = ? WHERE id = ?");
 
-  const v = (r: any[], name: string) => (col(name) >= 0 ? String(r[col(name)] ?? "").trim() : "");
+  const v = (r: unknown[], name: string) => (col(name) >= 0 ? String(r[col(name)] ?? "").trim() : "");
 
   db.transaction(() => {
     for (const r of dataRows) {
@@ -130,10 +135,10 @@ export async function POST(
         continue;
       }
       const statusRaw = v(r, "상태");
-      const status = KO_STATUS[statusRaw] || (["used", "unused", "reserved", "faulty"].includes(statusRaw) ? statusRaw : "unused");
+      const status: PairStatus = (KO_STATUS[statusRaw] as PairStatus) || ((VALID_STATUSES as readonly string[]).includes(statusRaw) ? (statusRaw as PairStatus) : "unused");
       const core = v(r, "코어번호");
       upsert.run({
-        frame_id: Number(id), pair_number: pairNumber, status,
+        frame_id: id, pair_number: pairNumber, status,
         label: v(r, "라벨"), source: v(r, "출발(상위)"), destination: v(r, "도착(내선/아웃렛)"),
         cable_id: v(r, "케이블ID"), user_info: v(r, "사용자"), description: v(r, "비고"),
         core_number: core && /^\d+$/.test(core) ? Number(core) : null,
@@ -141,7 +146,7 @@ export async function POST(
       updated++;
 
       // 대향 링크 반영 (빈 값이면 링크 해제)
-      const me = getPair.get(Number(id), pairNumber) as any;
+      const me = getPair.get(id, pairNumber) as Pick<FramePairRow, "id" | "linked_pair_id">;
       const oppName = v(r, "대향 배선반");
       const oppPort = Number(v(r, "대향 포트"));
       if (!oppName) {
@@ -155,9 +160,9 @@ export async function POST(
       const oppFrame = framesByName.get(oppName);
       if (!oppFrame) { issues.push(`#${pairNumber}: 대향 배선반 '${oppName}' 없음`); continue; }
       if (oppFrame.frame_type !== frame.frame_type) { issues.push(`#${pairNumber}: 유형 불일치 (${frame.frame_type} ↔ ${oppFrame.frame_type})`); continue; }
-      if (oppFrame.id === Number(id)) { issues.push(`#${pairNumber}: 같은 배선반과 연결 불가`); continue; }
+      if (oppFrame.id === id) { issues.push(`#${pairNumber}: 같은 배선반과 연결 불가`); continue; }
       if (!oppPort) { issues.push(`#${pairNumber}: 대향 포트 번호 누락`); continue; }
-      const opp = getPair.get(oppFrame.id, oppPort) as any;
+      const opp = getPair.get(oppFrame.id, oppPort) as Pick<FramePairRow, "id" | "linked_pair_id"> | undefined;
       if (!opp) { issues.push(`#${pairNumber}: ${oppName} #${oppPort} 페어 없음`); continue; }
       if (me.linked_pair_id === opp.id) continue; // 이미 연결됨
       if (me.linked_pair_id != null) { setLink.run(null, me.linked_pair_id); setLink.run(null, me.id); }
@@ -172,11 +177,11 @@ export async function POST(
   })();
 
   logAudit(db, {
-    entityType: "frame", entityId: Number(id), entityName: frame.frame_name, action: "update",
-    changedBy: actor?.username || "system",
+    entityType: "frame", entityId: id, entityName: frame.frame_name, action: "update",
+    changedBy: actor.username,
     oldData: { ledger_import: "" },
     newData: { ledger_import: `${updated}행 갱신, 링크 ${linked}건, 해제 ${unlinked}건, 이슈 ${issues.length}건` },
   });
 
   return NextResponse.json({ updated, linked, unlinked, issues });
-}
+});

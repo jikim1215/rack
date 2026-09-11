@@ -52,6 +52,11 @@ const entityTypeLabels: Record<string, string> = {
   maintenance: "유지보수",
   inventory_audit: "자산실사",
   sub_asset: "부속자산",
+  // 관리자 행위 (P4): 계정·팀·메뉴권한 변경, 개선의견 처리
+  user: "계정",
+  team: "팀",
+  permission: "메뉴 권한",
+  feedback: "개선의견",
 };
 
 const PAGE_SIZE = 50;

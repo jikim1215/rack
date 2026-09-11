@@ -1,8 +1,14 @@
 import { getDb } from "@/lib/db";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanRead, assertCanWrite } from "@/lib/authz";
+import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { assertMenuAccess, assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { oneOf, int, idOrNull, str, pathId } from "@/lib/validation/input";
+import type { DistFrameRow, FramePairRow } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
+
+type Ctx = { params: Promise<{ id: string }> };
+
+const PAIR_STATUSES = ["used", "unused", "reserved", "faulty"] as const;
 
 // 페어 조회: 대향(링크) 페어·프레임, 연결 장비 포트까지 조인해 선번장 한 줄을 완성한다.
 const PAIRS_SQL = `
@@ -20,51 +26,56 @@ const PAIRS_SQL = `
   ORDER BY fp.pair_number
 `;
 
+type PairRowJoined = FramePairRow & {
+  linked_pair_number: number | null;
+  linked_frame_id: number | null;
+  linked_frame_name: string | null;
+  connected_port_number: number | null;
+  connected_port_name: string | null;
+  connected_asset_id: number | null;
+  connected_asset_name: string | null;
+};
+
 // 감사 diff 대상 필드 (upsert가 갱신하는 컬럼과 동일)
 const DIFF_FIELDS = [
   "status", "label", "source", "destination", "cable_id",
   "user_info", "description", "core_number", "connected_port_id",
 ] as const;
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withApi(async (_req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
-  try { assertCanRead(actor); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
-  const { id } = await params;
+  assertMenuAccess(actor, "distribution");
+  const id = pathId((await params).id);
   const db = getDb();
-  const frame = db.prepare("SELECT team_id FROM dist_frames WHERE id = ?").get(Number(id)) as any;
+  const frame = db.prepare("SELECT team_id FROM dist_frames WHERE id = ?").get(id) as Pick<DistFrameRow, "team_id"> | undefined;
   if (!frame) return NextResponse.json({ error: "Not found" }, { status: 404 });
   // 소유 전용: 팀은 자기 팀 배선반만.
-  if (actor && actor.role === "team" && frame.team_id !== actor.teamId) {
+  if (actor.role === "team" && frame.team_id !== actor.teamId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json(db.prepare(PAIRS_SQL).all(Number(id)));
-}
+  return NextResponse.json(db.prepare(PAIRS_SQL).all(id) as PairRowJoined[]);
+});
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
-  const { id } = await params;
+  assertMenuWrite(actor, "distribution");
+  const id = pathId((await params).id);
   const db0 = getDb();
-  const frameOwner = db0.prepare("SELECT team_id FROM dist_frames WHERE id = ?").get(Number(id)) as any;
+  const frameOwner = db0.prepare("SELECT team_id FROM dist_frames WHERE id = ?").get(id) as Pick<DistFrameRow, "team_id"> | undefined;
   if (!frameOwner) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  try { assertCanWrite(actor, frameOwner.team_id ?? null); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
-  const body = await req.json();
+  assertCanWrite(actor, frameOwner.team_id ?? null);
+  const body = (await readJson(req)) as unknown[] | { pairs?: unknown };
   // 하위호환: 배열 또는 { pairs: [...] } 둘 다 허용 (기존 UI는 배열을 보냈다)
-  const pairs: any[] = Array.isArray(body) ? body : Array.isArray(body?.pairs) ? body.pairs : [];
+  const rawPairs: Record<string, unknown>[] = Array.isArray(body) ? (body as Record<string, unknown>[]) : Array.isArray(body?.pairs) ? (body.pairs as Record<string, unknown>[]) : [];
   const db = getDb();
 
   // 기존 페어를 미리 읽어 변경된 필드만 감사 로그로 남긴다 (전량 upsert여도 로그는 실변경분만).
   const existingPairs = db.prepare(
     "SELECT * FROM frame_pairs WHERE frame_id = ?"
-  ).all(Number(id)) as any[];
-  const byNumber = new Map<number, any>(existingPairs.map((p) => [Number(p.pair_number), p]));
-  const oldValues: Record<string, any> = {};
-  const newValues: Record<string, any> = {};
+  ).all(id) as FramePairRow[];
+  const byNumber = new Map<number, FramePairRow>(existingPairs.map((p) => [Number(p.pair_number), p]));
+  const oldValues: Record<string, unknown> = {};
+  const newValues: Record<string, unknown> = {};
 
   // linked_pair_id는 여기서 받지 않는다 — 대칭 불변식은 /api/frames/pairs/link 전용.
   const updatePairs = db.transaction(() => {
@@ -82,23 +93,24 @@ export async function PUT(
         core_number = excluded.core_number,
         connected_port_id = excluded.connected_port_id
     `);
-    for (const pair of pairs) {
+    for (const pair of rawPairs) {
       if (!pair.pair_number) continue;
-      const row: Record<string, any> = {
-        frame_id: Number(id),
-        pair_number: Number(pair.pair_number),
-        status: pair.status || "unused",
-        label: pair.label || "",
-        source: pair.source || "",
-        destination: pair.destination || "",
-        cable_id: pair.cable_id || "",
-        user_info: pair.user_info || "",
-        description: pair.description || "",
-        core_number: pair.core_number == null || pair.core_number === "" ? null : Number(pair.core_number),
-        connected_port_id: pair.connected_port_id == null || pair.connected_port_id === "" ? null : Number(pair.connected_port_id),
+      const status = oneOf(pair, "status", PAIR_STATUSES, { default: "unused", label: "상태" });
+      const row = {
+        frame_id: id,
+        pair_number: int(pair, "pair_number", { min: 1, required: true, label: "페어 번호" }) as number,
+        status,
+        label: str(pair, "label", { max: 200 }),
+        source: str(pair, "source", { max: 200 }),
+        destination: str(pair, "destination", { max: 200 }),
+        cable_id: str(pair, "cable_id", { max: 200 }),
+        user_info: str(pair, "user_info", { max: 200 }),
+        description: str(pair, "description", { max: 2000 }),
+        core_number: int(pair, "core_number", { min: 1, label: "코어번호" }),
+        connected_port_id: idOrNull(pair, "connected_port_id", "연결 포트"),
       };
       // 변경 필드 수집 — logAudit과 동일한 비교 규칙(null/"" 동일 취급)
-      const prev = (byNumber.get(row.pair_number) || {}) as Record<string, any>;
+      const prev = (byNumber.get(row.pair_number) || {}) as Partial<FramePairRow>;
       for (const f of DIFF_FIELDS) {
         if (String(prev[f] ?? "") !== String(row[f] ?? "")) {
           oldValues[`pair_${row.pair_number}_${f}`] = prev[f] ?? "";
@@ -113,17 +125,17 @@ export async function PUT(
   // 변경된 페어가 있을 때만 한 건으로 기록 (변경 없으면 미기록)
   if (Object.keys(newValues).length > 0) {
     const frame = db.prepare("SELECT frame_name FROM dist_frames WHERE id = ?")
-      .get(Number(id)) as { frame_name?: string } | undefined;
+      .get(id) as Pick<DistFrameRow, "frame_name"> | undefined;
     logAudit(db, {
       entityType: "frame",
-      entityId: Number(id),
+      entityId: id,
       entityName: frame?.frame_name || `배선반 #${id}`,
       action: "update",
-      changedBy: actor?.username || "system",
+      changedBy: actor.username,
       oldData: oldValues,
       newData: newValues,
     });
   }
 
-  return NextResponse.json(db.prepare(PAIRS_SQL).all(Number(id)));
-}
+  return NextResponse.json(db.prepare(PAIRS_SQL).all(id) as PairRowJoined[]);
+});

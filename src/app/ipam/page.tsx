@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
-import { scopeWhere, actorFromSession, locationScopeWhere } from "@/lib/authz";
-import { getSession } from "@/lib/auth";
+import { requireMenuPage } from "@/lib/page-authz";
+import { scopeWhere, locationScopeWhere } from "@/lib/authz";
 import { IpamView } from "./IpamView";
 import { splitAccessIps } from "@/lib/access-ip";
+import type { SubnetRow, LocationRow, TeamRow } from "@/lib/db-types";
 
 export default async function IpamPage() {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("ipam"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
 
   // 서브넷(IP대역)은 소유 전용(team_id): 팀은 자기 팀 대역만. 총괄/전체열람은 전체.
   const subnetScope = scopeWhere(actor, "s.team_id");
@@ -17,7 +18,7 @@ export default async function IpamPage() {
      LEFT JOIN teams t ON s.team_id = t.id
      WHERE ${subnetScope.sql}
      ORDER BY s.network_address`
-  ).all(...subnetScope.params) as any[];
+  ).all(...subnetScope.params) as (SubnetRow & { location_name: string | null; owner_team_name: string | null })[];
 
   // IP 사용 현황 = 정보자산에 기입된 모든 IP를 연계: 다중IP(asset_ips) + 대표IP(assets.ip_address) + 접근IP(assets.access_ip).
   // asset_ips + 대표는 UNION으로, 접근IP는 다중값이라 아래에서 자산별로 분리 전개해 합친다.
@@ -36,7 +37,7 @@ export default async function IpamPage() {
          FROM assets a WHERE a.ip_address <> '' AND a.status <> 'retired'
      ) x
      WHERE ${scope.sql}`
-  ).all(...scope.params) as any[];
+  ).all(...scope.params) as { id: number; asset_id: number; ip_address: string; ip_type: string; interface_name: string; asset_name: string }[];
 
   // 접근 IP는 다중값(", " 조인)일 수 있으므로 자산별로 분리해 각 IP를 개별 '접근' 항목으로 전개한다
   // (단일 컬럼을 그대로 UNION하면 "a, b"가 한 칸에 뭉쳐 IPAM 격자에서 오탐/누락됨).
@@ -44,7 +45,7 @@ export default async function IpamPage() {
   const accessRows = db.prepare(
     `SELECT a.id AS asset_id, a.access_ip AS access_ip, a.asset_name AS asset_name
        FROM assets a WHERE a.access_ip <> '' AND a.status <> 'retired' AND ${accScope.sql}`
-  ).all(...accScope.params) as any[];
+  ).all(...accScope.params) as { asset_id: number; access_ip: string; asset_name: string }[];
   for (const r of accessRows) {
     splitAccessIps(r.access_ip).forEach((ip: string, idx: number) => {
       assetIps.push({
@@ -62,9 +63,9 @@ export default async function IpamPage() {
   const locScope = locationScopeWhere(actor, "l.team_id", "l.id");
   const locations = db.prepare(
     `SELECT l.* FROM locations l WHERE ${locScope.sql} ORDER BY l.sort_order, l.location_name`
-  ).all(...locScope.params) as any[];
+  ).all(...locScope.params) as LocationRow[];
 
-  const teams = actor?.role === "admin" ? (db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as any[]) : [];
+  const teams = actor?.role === "admin" ? (db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as Pick<TeamRow, "id" | "team_name">[]) : [];
 
   return (
     <div>

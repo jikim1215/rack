@@ -3,6 +3,7 @@
 // (외부 검토 R6-1 합의, 사전 집계는 2차 R1-3 합의)
 import type Database from "better-sqlite3";
 import { logAssetChange } from "./audit.ts";
+import type { AssetRow } from "./db-types.ts";
 
 export interface RollbackPreview {
   total: number;      // 배치 생성 자산 수
@@ -13,7 +14,7 @@ export interface RollbackPreview {
 
 /** 배치 삭제 예상량 분해. 대상 없으면 null. */
 export function rollbackPreview(db: Database.Database, batchId: string): RollbackPreview | null {
-  const targets = db.prepare("SELECT id, created_at, updated_at FROM assets WHERE import_batch_id = ?").all(batchId) as any[];
+  const targets = db.prepare("SELECT id, created_at, updated_at FROM assets WHERE import_batch_id = ?").all(batchId) as Pick<AssetRow, "id" | "created_at" | "updated_at">[];
   if (targets.length === 0) return null;
 
   const ids = targets.map((a) => a.id);
@@ -21,11 +22,11 @@ export function rollbackPreview(db: Database.Database, batchId: string): Rollbac
   const modified = targets.filter((a) => a.updated_at && a.updated_at !== a.created_at).length;
   const linked = new Set(
     [
-      ...(db.prepare(`SELECT asset_id AS id FROM contract_assets WHERE asset_id IN (${ph})`).all(...ids) as any[]),
-      ...(db.prepare(`SELECT asset_id AS id FROM asset_ips WHERE asset_id IN (${ph})`).all(...ids) as any[]),
-      ...(db.prepare(`SELECT asset_id AS id FROM inventory_audit_checks WHERE asset_id IN (${ph})`).all(...ids) as any[]),
-      ...(db.prepare(`SELECT parent_asset_id AS id FROM sub_assets WHERE parent_asset_id IN (${ph})`).all(...ids) as any[]),
-    ].map((r: any) => r.id),
+      ...(db.prepare(`SELECT asset_id AS id FROM contract_assets WHERE asset_id IN (${ph})`).all(...ids) as { id: number }[]),
+      ...(db.prepare(`SELECT asset_id AS id FROM asset_ips WHERE asset_id IN (${ph})`).all(...ids) as { id: number }[]),
+      ...(db.prepare(`SELECT asset_id AS id FROM inventory_audit_checks WHERE asset_id IN (${ph})`).all(...ids) as { id: number }[]),
+      ...(db.prepare(`SELECT parent_asset_id AS id FROM sub_assets WHERE parent_asset_id IN (${ph})`).all(...ids) as { id: number }[]),
+    ].map((r: { id: number }) => r.id),
   ).size;
   const open_issues = (db.prepare("SELECT COUNT(*) AS c FROM import_issue WHERE batch_id = ? AND status = 'open'").get(batchId) as { c: number }).c;
 
@@ -38,7 +39,7 @@ export function rollbackPreview(db: Database.Database, batchId: string): Rollbac
  * @returns 삭제 건수 (대상 없으면 0, 쓰기 없음)
  */
 export function rollbackBatch(db: Database.Database, batchId: string, actorName: string): number {
-  const targets = db.prepare("SELECT * FROM assets WHERE import_batch_id = ?").all(batchId) as any[];
+  const targets = db.prepare("SELECT * FROM assets WHERE import_batch_id = ?").all(batchId) as AssetRow[];
   if (targets.length === 0) return 0;
 
   db.transaction(() => {

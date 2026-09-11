@@ -45,9 +45,20 @@ function deviceGroupKey(a: { location_name?: string | null; asset_type?: string 
   return t ? (deviceTypeLabels[t] || t) : "기타";
 }
 
-export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; ports: Port[] }) {
+interface NetworkAsset {
+  id: number;
+  asset_name: string;
+  manufacturer: string;
+  model: string;
+  ip_address: string;
+  asset_type: string;
+  rack_name: string | null;
+  location_name: string | null;
+}
+
+export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAsset[]; ports: Port[] }) {
   // 포트가 있는 첫 장비를 기본 선택
-  const defaultAsset = networkAssets.find((a: any) => ports.some((p) => p.asset_id === a.id))?.id ?? networkAssets[0]?.id ?? null;
+  const defaultAsset = networkAssets.find((a) => ports.some((p) => p.asset_id === a.id))?.id ?? networkAssets[0]?.id ?? null;
   const [selectedAsset, setSelectedAsset] = useState<number | null>(defaultAsset);
   const [statusFilter, setStatusFilter] = useState("");
   const [hoveredPort, setHoveredPort] = useState<Port | null>(null);
@@ -57,11 +68,11 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
 
   const assetPorts = allPorts.filter((p) => p.asset_id === selectedAsset);
   const filtered = statusFilter ? assetPorts.filter((p) => p.status === statusFilter) : assetPorts;
-  const selectedDevice = networkAssets.find((a: any) => a.id === selectedAsset);
+  const selectedDevice = networkAssets.find((a) => a.id === selectedAsset);
 
   // 구분자 그룹(접이식): 장비가 너무 많아 한 번에 다 보여주지 않고 그룹 클릭 시 세부 펼침.
   const deviceGroups = (() => {
-    const m = new Map<string, any[]>();
+    const m = new Map<string, NetworkAsset[]>();
     for (const a of networkAssets) {
       const k = deviceGroupKey(a);
       const arr = m.get(k);
@@ -69,7 +80,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
     }
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], "ko"));
   })();
-  const initialDevice = networkAssets.find((a: any) => a.id === defaultAsset);
+  const initialDevice = networkAssets.find((a) => a.id === defaultAsset);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(initialDevice ? [deviceGroupKey(initialDevice)] : (deviceGroups[0] ? [deviceGroups[0][0]] : [])),
   );
@@ -106,7 +117,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
         }
         if (targetPortId) {
           const targetPort = updated.find((p) => p.id === targetPortId);
-          const targetAsset = networkAssets.find((a: any) => a.id === targetPort?.asset_id);
+          const targetAsset = networkAssets.find((a) => a.id === targetPort?.asset_id);
           // 대상의 기존 연결 해제
           if (targetPort?.connected_to_port_id) {
             const oldSrc = updated.find((p) => p.id === targetPort.connected_to_port_id);
@@ -118,7 +129,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
             srcPort.connected_asset_name = targetAsset?.asset_name || null;
             srcPort.connected_port_name = targetPort.port_name;
             targetPort.connected_to_port_id = portId;
-            targetPort.connected_asset_name = networkAssets.find((a: any) => a.id === srcPort.asset_id)?.asset_name || null;
+            targetPort.connected_asset_name = networkAssets.find((a) => a.id === srcPort.asset_id)?.asset_name || null;
             targetPort.connected_port_name = srcPort.port_name;
           }
         } else {
@@ -152,7 +163,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
                   </button>
                   {open && (
                     <div className="space-y-1 mt-1 pl-2">
-                      {groupAssets.map((a: any) => {
+                      {groupAssets.map((a) => {
                         const aPorts = ports.filter((p) => p.asset_id === a.id);
                         const usedCount = aPorts.filter((p) => p.status === "used").length;
                         return (
@@ -342,7 +353,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
               <div>
                 <h3 className="font-semibold">포트 연결 설정</h3>
                 <p className="text-xs text-ink-3 mt-1">
-                  {networkAssets.find((a: any) => a.id === connectingPort.asset_id)?.asset_name} — {connectingPort.port_name || `Port ${connectingPort.port_number}`}
+                  {networkAssets.find((a) => a.id === connectingPort.asset_id)?.asset_name} — {connectingPort.port_name || `Port ${connectingPort.port_number}`}
                 </p>
               </div>
               <button onClick={() => setConnectingPort(null)} className="text-ink-2 hover:text-ink"><X size={18} /></button>
@@ -373,8 +384,8 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: any[]; po
             />
             <div className="space-y-1 max-h-60 overflow-y-auto">
               {networkAssets
-                .filter((a: any) => a.id !== connectingPort.asset_id)
-                .map((asset: any) => {
+                .filter((a) => a.id !== connectingPort.asset_id)
+                .map((asset) => {
                   const aPorts = allPorts.filter((p) => p.asset_id === asset.id);
                   if (aPorts.length === 0) return null;
                   const matchSearch = !connectSearch ||

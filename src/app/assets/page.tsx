@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
+import { requireMenuPage } from "@/lib/page-authz";
 import { AssetTable } from "./AssetTable";
-import { getSession } from "@/lib/auth";
-import { actorFromSession, scopeWhere, rackScopeWhere } from "@/lib/authz";
+import { scopeWhere, rackScopeWhere } from "@/lib/authz";
+import type { AssetRow, RackRow, CustomFieldRow, CustomValueRow, TeamRow } from "@/lib/db-types";
 
 export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ rack_id?: string; missing?: string; q?: string }> }) {
   const db = getDb();
-  const actor = actorFromSession(await getSession());
+  const actor = await requireMenuPage("assets"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
   const scope = scopeWhere(actor, "a.team_id");
   const assets = db.prepare(`
     SELECT a.*, r.rack_name, l.location_name, t.team_name
@@ -16,7 +17,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
     LEFT JOIN teams t ON a.team_id = t.id
     WHERE ${scope.sql}
     ORDER BY a.created_at DESC
-  `).all(...scope.params) as any[];
+  `).all(...scope.params) as (AssetRow & { rack_name: string | null; location_name: string | null; team_name: string | null })[];
 
   // 배치 대상 랙: 팀은 자기 소유 랙 또는 공유(NULL) 랙 + 내 자산이 있는 랙(하이브리드). 총괄/전체열람은 전체.
   const rackScope = rackScopeWhere(actor, "r.team_id", "r.id");
@@ -25,11 +26,11 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
     FROM racks r LEFT JOIN locations l ON r.location_id = l.id
     WHERE ${rackScope.sql}
     ORDER BY r.rack_name
-  `).all(...rackScope.params) as any[];
+  `).all(...rackScope.params) as (Pick<RackRow, "id" | "rack_name" | "total_units" | "team_id"> & { location_name: string | null })[];
 
   const customFields = db.prepare(`
     SELECT * FROM custom_fields WHERE is_active = 1 ORDER BY sort_order, id
-  `).all() as any[];
+  `).all() as CustomFieldRow[];
 
   // 자산별 커스텀 값을 미리 로드
   const customValues = db.prepare(`
@@ -37,9 +38,9 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
     FROM custom_values cv
     JOIN custom_fields cf ON cv.field_id = cf.id
     WHERE cf.is_active = 1
-  `).all() as any[];
+  `).all() as Pick<CustomValueRow, "asset_id" | "field_id" | "value">[];
   // 관리부서(소유 팀) 목록 — 일괄수정 팀 재지정 드롭다운용
-  const teams = db.prepare(`SELECT id, team_name FROM teams ORDER BY team_name`).all() as any[];
+  const teams = db.prepare(`SELECT id, team_name FROM teams ORDER BY team_name`).all() as Pick<TeamRow, "id" | "team_name">[];
 
   // asset_id -> { field_id: value }
   const cvMap: Record<number, Record<number, string>> = {};

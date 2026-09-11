@@ -78,3 +78,6 @@ gltmp/
 
 # 오프라인 릴리스 번들 (빌드 산출물 — dist/에서 재생성, 수십 MB)
 /asset-inventory-offline*.tar.gz
+
+# E2E 검증 임시 산출물 (스크래치 DB·스크린샷·런처)
+.e2e-*

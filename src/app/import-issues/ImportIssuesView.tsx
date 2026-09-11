@@ -29,6 +29,7 @@ const typeLabels: Record<string, string> = {
   missing_id: "식별자 없음",
   missing_os: "OS 미입력",
   dup_suspect: "중복 의심",
+  date_format: "날짜 해석 불가",
 };
 
 const statusLabels: Record<string, string> = { open: "미조치", resolved: "조치완료", ignored: "무시" };

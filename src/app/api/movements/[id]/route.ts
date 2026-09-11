@@ -1,61 +1,47 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanWrite, assertCanDelete } from "@/lib/authz";
+import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { assertMenuWrite, assertMenuApprove, assertCanWrite, assertCanDelete } from "@/lib/authz";
 import { logAudit, logAssetChange } from "@/lib/audit";
+import { asBody, pathId, oneOf } from "@/lib/validation/input";
+import type { MovementRow, AssetRow } from "@/lib/db-types";
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+type Ctx = { params: Promise<{ id: string }> };
+
+export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
+  const id = pathId((await params).id);
   const actor = await getActor();
+  assertMenuWrite(actor, "movements");
   const db = getDb();
 
-  const movement = db.prepare('SELECT * FROM asset_movements WHERE id = ?').get(Number(id)) as any;
+  const movement = db.prepare('SELECT * FROM asset_movements WHERE id = ?').get(id) as MovementRow | undefined;
   if (!movement) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   // 소유 권위는 연결 자산의 team_id. 자산 미연결 행은 null → team 계정 쓰기 불가.
   const asset = movement.asset_id != null
-    ? db.prepare("SELECT team_id FROM assets WHERE id = ?").get(movement.asset_id) as { team_id: number | null } | undefined
+    ? db.prepare("SELECT team_id FROM assets WHERE id = ?").get(movement.asset_id) as Pick<AssetRow, "team_id"> | undefined
     : undefined;
   const ownerTeamId = movement.asset_id != null ? (asset ? asset.team_id : null) : null;
-  try {
-    assertCanWrite(actor, ownerTeamId);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertCanWrite(actor, ownerTeamId);
 
-  const body = await req.json();
+  const b = asBody(await readJson(req));
+  const status = b.status === undefined ? undefined : oneOf(b, "status", ["requested", "approved", "completed", "rejected"] as const, { label: "상태" });
 
-  // 승인/반려는 menu_permissions(menu_key='movements', can_approve=1) 보유 역할만.
-  // admin은 항상 허용(시드상 can_approve=1이지만 권한 행 누락에 대비해 방어적으로 통과).
-  if (body.status === "approved" || body.status === "rejected") {
-    const canApprove =
-      actor.role === "admin" ||
-      !!db.prepare(
-        "SELECT 1 FROM menu_permissions WHERE menu_key = 'movements' AND role = ? AND can_approve = 1"
-      ).get(actor.role);
-    if (!canApprove) {
-      return NextResponse.json(
-        { error: "승인/반려 권한이 없습니다" },
-        { status: 403 }
-      );
-    }
+  // 승인/반려는 menu_permissions(menu_key='movements', can_approve=1) 보유 역할만. admin은 자동 통과.
+  if (status === "approved" || status === "rejected") {
+    assertMenuApprove(actor, "movements");
   }
 
   const updates: string[] = [];
-  const values: Record<string, unknown> = { id: Number(id) };
+  const values: Record<string, unknown> = { id };
 
-  if (body.status) {
+  if (status) {
     updates.push("status = @status");
-    values.status = body.status;
+    values.status = status;
   }
-  if (body.status === "approved" || body.status === "rejected") {
+  if (status === "approved" || status === "rejected") {
     updates.push("approver = @approver");
     values.approver = actor.username;
   }
@@ -69,10 +55,10 @@ export async function PUT(
   ).run(values);
 
   // 반출 완료 → 자산 예비(standby) + 랙 슬롯 해제 (이전 배치는 oldData에 남겨 복원 가능하게)
-  if (body.status === 'completed' && movement?.movement_type === 'bring_out' && movement.asset_id) {
+  if (status === 'completed' && movement.movement_type === 'bring_out' && movement.asset_id) {
     const prev = db.prepare(
       'SELECT id, asset_name, status, rack_id, rack_unit_start FROM assets WHERE id = ?'
-    ).get(movement.asset_id) as any;
+    ).get(movement.asset_id) as Pick<AssetRow, "id" | "asset_name" | "status" | "rack_id" | "rack_unit_start"> | undefined;
     db.prepare('UPDATE assets SET status = ?, rack_id = NULL, rack_unit_start = NULL WHERE id = ?')
       .run('standby', movement.asset_id);
     if (prev) {
@@ -89,8 +75,8 @@ export async function PUT(
   }
 
   // 반납 완료 → 자산 active 복원
-  if (body.status === 'completed' && movement?.movement_type === 'return' && movement.asset_id) {
-    const prev = db.prepare('SELECT id, asset_name, status FROM assets WHERE id = ?').get(movement.asset_id) as any;
+  if (status === 'completed' && movement.movement_type === 'return' && movement.asset_id) {
+    const prev = db.prepare('SELECT id, asset_name, status FROM assets WHERE id = ?').get(movement.asset_id) as Pick<AssetRow, "id" | "asset_name" | "status"> | undefined;
     db.prepare('UPDATE assets SET status = ? WHERE id = ?').run('active', movement.asset_id);
     if (prev) {
       logAssetChange(db, {
@@ -105,8 +91,8 @@ export async function PUT(
   }
 
   // 반입 완료 + 기존 자산 연결 → 자산 재활성 (반출→standby 후 재반입 등 라이프사이클 복원)
-  if (body.status === 'completed' && movement?.movement_type === 'bring_in' && movement.asset_id) {
-    const prev = db.prepare('SELECT id, asset_name, status FROM assets WHERE id = ?').get(movement.asset_id) as any;
+  if (status === 'completed' && movement.movement_type === 'bring_in' && movement.asset_id) {
+    const prev = db.prepare('SELECT id, asset_name, status FROM assets WHERE id = ?').get(movement.asset_id) as Pick<AssetRow, "id" | "asset_name" | "status"> | undefined;
     if (prev && prev.status !== 'active') {
       db.prepare("UPDATE assets SET status = 'active' WHERE id = ?").run(movement.asset_id);
       logAssetChange(db, {
@@ -123,7 +109,7 @@ export async function PUT(
   // 반입 완료 + 자산 미연결(직접입력) → 자산 대장 자동 등록.
   //   신청자가 기재한 물리정보(품목/제조사/모델/크기/시리얼/부서)를 그대로 대장에 매핑 = 데이터 연계.
   //   전력(소비전력/이중화)·희망 랙위치는 assets에 전용 컬럼이 없어 description에 보존(무손실).
-  if (body.status === 'completed' && movement?.movement_type === 'bring_in' && !movement.asset_id) {
+  if (status === 'completed' && movement.movement_type === 'bring_in' && !movement.asset_id) {
     const newAssetName = movement.equipment_desc || movement.model || '반입 장비';
     // 크기 "2U"/"2" → 정수 rack_unit_size (미상/0 이하는 기본 1U)
     const sizeNum = parseInt(String(movement.size_u ?? '').replace(/[^0-9]/g, ''), 10);
@@ -153,7 +139,7 @@ export async function PUT(
       rack_unit_size: rackUnitSize,
       description,
     });
-    db.prepare('UPDATE asset_movements SET asset_id = ? WHERE id = ?').run(newAsset.lastInsertRowid, Number(id));
+    db.prepare('UPDATE asset_movements SET asset_id = ? WHERE id = ?').run(newAsset.lastInsertRowid, id);
     logAssetChange(db, {
       assetId: Number(newAsset.lastInsertRowid),
       assetName: newAssetName,
@@ -179,40 +165,32 @@ export async function PUT(
     FROM asset_movements m
     LEFT JOIN assets a ON m.asset_id = a.id
     WHERE m.id = ?
-  `).get(Number(id));
+  `).get(id) as (MovementRow & { asset_name: string | null }) | undefined;
 
   return NextResponse.json(updated);
-}
+});
 
-export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
+  const id = pathId((await params).id);
   const actor = await getActor();
+  assertMenuWrite(actor, "movements");
   const db = getDb();
 
-  const movement = db.prepare('SELECT * FROM asset_movements WHERE id = ?').get(Number(id)) as any;
+  const movement = db.prepare('SELECT * FROM asset_movements WHERE id = ?').get(id) as MovementRow | undefined;
   if (!movement) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
   const asset = movement.asset_id != null
-    ? db.prepare("SELECT team_id FROM assets WHERE id = ?").get(movement.asset_id) as { team_id: number | null } | undefined
+    ? db.prepare("SELECT team_id FROM assets WHERE id = ?").get(movement.asset_id) as Pick<AssetRow, "team_id"> | undefined
     : undefined;
   const ownerTeamId = movement.asset_id != null ? (asset ? asset.team_id : null) : null;
-  try {
-    assertCanDelete(actor, ownerTeamId);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertCanDelete(actor, ownerTeamId);
 
-  db.prepare("DELETE FROM asset_movements WHERE id = ?").run(Number(id));
+  db.prepare("DELETE FROM asset_movements WHERE id = ?").run(id);
   logAudit(db, {
     entityType: "movement",
-    entityId: Number(id),
+    entityId: id,
     entityName: movement.equipment_desc || `반출입 #${id}`,
     action: "delete",
     changedBy: actor.username,
@@ -225,4 +203,4 @@ export async function DELETE(
     },
   });
   return NextResponse.json({ success: true });
-}
+});

@@ -1,71 +1,61 @@
 import { getDb } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanRead, assertCanWrite, scopeWhere } from "@/lib/authz";
+import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { assertMenuAccess, assertMenuWrite, assertCanWrite, scopeWhere } from "@/lib/authz";
+import { asBody, str, oneOf, idOrNull, int } from "@/lib/validation/input";
+import type { MaintenanceLogRow, MaintenanceTargetRow, AssetRow } from "@/lib/db-types";
 
-function normalizeText(value: unknown) {
-  return String(value ?? "").trim();
-}
+type Body = ReturnType<typeof asBody>;
 
-function normalizeInteger(value: unknown, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.trunc(n) : fallback;
-}
-
-function normalizeTargetBody(body: any, actorName: string) {
+// 대상(target) 레코드 정규화. record_kind === "target" 인 POST/PUT 공용.
+function normalizeTargetBody(b: Body, actorName: string) {
   return {
-    asset_id: body.asset_id != null && body.asset_id !== "" ? Number(body.asset_id) : null,
-    system_name: normalizeText(body.system_name),
-    category: normalizeText(body.category),
-    asset_type_label: normalizeText(body.asset_type_label),
-    resource_name: normalizeText(body.resource_name),
-    quantity: Math.max(1, normalizeInteger(body.quantity, 1)),
-    manufacturer: normalizeText(body.manufacturer),
-    host_name: normalizeText(body.host_name),
-    purpose: normalizeText(body.purpose),
-    location_text: normalizeText(body.location_text),
-    rack_position: normalizeText(body.rack_position),
-    asset_code: normalizeText(body.asset_code),
-    owner_department: normalizeText(body.owner_department),
-    owner_user: normalizeText(body.owner_user),
-    acquisition_date: normalizeText(body.acquisition_date),
-    acquisition_amount: normalizeText(body.acquisition_amount),
-    maintenance_start: normalizeText(body.maintenance_start),
-    maintenance_end: normalizeText(body.maintenance_end),
-    maintenance_months: Math.max(0, normalizeInteger(body.maintenance_months, 0)),
-    business_impact: normalizeText(body.business_impact),
-    data_importance: normalizeText(body.data_importance),
-    user_traffic: normalizeText(body.user_traffic),
-    hardware_score: normalizeText(body.hardware_score),
-    maintenance_difficulty: normalizeText(body.maintenance_difficulty),
-    maintenance_scope: normalizeText(body.maintenance_scope),
-    score_total: normalizeText(body.score_total),
-    grade: normalizeText(body.grade),
-    rate: normalizeText(body.rate),
-    estimated_amount_calc: normalizeText(body.estimated_amount_calc),
-    estimated_amount_input: normalizeText(body.estimated_amount_input),
-    evidence_note: normalizeText(body.evidence_note),
-    notes: normalizeText(body.notes),
+    asset_id: idOrNull(b, "asset_id", "자산"),
+    system_name: str(b, "system_name"),
+    category: str(b, "category"),
+    asset_type_label: str(b, "asset_type_label"),
+    resource_name: str(b, "resource_name"),
+    quantity: int(b, "quantity", { min: 1, default: 1, label: "수량" }),
+    manufacturer: str(b, "manufacturer"),
+    host_name: str(b, "host_name"),
+    purpose: str(b, "purpose"),
+    location_text: str(b, "location_text"),
+    rack_position: str(b, "rack_position"),
+    asset_code: str(b, "asset_code"),
+    owner_department: str(b, "owner_department"),
+    owner_user: str(b, "owner_user"),
+    acquisition_date: str(b, "acquisition_date"),
+    acquisition_amount: str(b, "acquisition_amount"),
+    maintenance_start: str(b, "maintenance_start"),
+    maintenance_end: str(b, "maintenance_end"),
+    maintenance_months: int(b, "maintenance_months", { min: 0, default: 0, label: "유지보수 기간" }),
+    business_impact: str(b, "business_impact"),
+    data_importance: str(b, "data_importance"),
+    user_traffic: str(b, "user_traffic"),
+    hardware_score: str(b, "hardware_score"),
+    maintenance_difficulty: str(b, "maintenance_difficulty"),
+    maintenance_scope: str(b, "maintenance_scope"),
+    score_total: str(b, "score_total"),
+    grade: str(b, "grade"),
+    rate: str(b, "rate"),
+    estimated_amount_calc: str(b, "estimated_amount_calc"),
+    estimated_amount_input: str(b, "estimated_amount_input"),
+    evidence_note: str(b, "evidence_note"),
+    notes: str(b, "notes"),
     updated_by: actorName,
   };
 }
 
 function resolveOwnerTeamId(db: ReturnType<typeof getDb>, assetId: number | null) {
   if (assetId == null) return null;
-  const asset = db.prepare("SELECT team_id FROM assets WHERE id = ?").get(assetId) as { team_id: number | null } | undefined;
+  const asset = db.prepare("SELECT team_id FROM assets WHERE id = ?").get(assetId) as Pick<AssetRow, "team_id"> | undefined;
   return asset ? asset.team_id : null;
 }
 
-export async function GET() {
+export const GET = withApi(async () => {
   const actor = await getActor();
-  try {
-    assertCanRead(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertMenuAccess(actor, "maintenance");
 
   const db = getDb();
   const scope = scopeWhere(actor, "a.team_id");
@@ -76,7 +66,7 @@ export async function GET() {
     LEFT JOIN vendors v ON ml.vendor_id = v.id
     WHERE (ml.asset_id IS NULL OR ${scope.sql})
     ORDER BY ml.created_at DESC, ml.id DESC
-  `).all(...scope.params);
+  `).all(...scope.params) as (MaintenanceLogRow & { vendor_name: string | null })[];
 
   const targets = db.prepare(`
     SELECT mt.*, COALESCE(a.asset_name, mt.asset_name) AS asset_name
@@ -84,30 +74,25 @@ export async function GET() {
     LEFT JOIN assets a ON mt.asset_id = a.id
     WHERE (mt.asset_id IS NULL OR ${scope.sql})
     ORDER BY mt.updated_at DESC, mt.id DESC
-  `).all(...scope.params);
+  `).all(...scope.params) as MaintenanceTargetRow[];
 
   return NextResponse.json({ logs, targets });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  const body = await req.json();
+  assertMenuWrite(actor, "maintenance");
+  const b = asBody(await readJson(req));
   const db = getDb();
-  const actorName = actor?.username || "system";
+  const actorName = actor.username;
 
-  if (body.record_kind === "target") {
-    const payload = normalizeTargetBody(body, actorName);
+  if (b.record_kind === "target") {
+    const payload = normalizeTargetBody(b, actorName);
     const ownerTeamId = resolveOwnerTeamId(db, payload.asset_id);
-    try {
-      assertCanWrite(actor, ownerTeamId);
-    } catch (e) {
-      const r = authzError(e);
-      if (r) return r;
-      throw e;
-    }
+    assertCanWrite(actor, ownerTeamId);
 
     const assetName = payload.asset_id != null
-      ? ((db.prepare("SELECT asset_name FROM assets WHERE id = ?").get(payload.asset_id) as { asset_name?: string } | undefined)?.asset_name || "")
+      ? ((db.prepare("SELECT asset_name FROM assets WHERE id = ?").get(payload.asset_id) as Pick<AssetRow, "asset_name"> | undefined)?.asset_name || "")
       : "";
 
     const result = db.prepare(`
@@ -135,7 +120,7 @@ export async function POST(req: NextRequest) {
       FROM maintenance_targets mt
       LEFT JOIN assets a ON mt.asset_id = a.id
       WHERE mt.id = ?
-    `).get(result.lastInsertRowid);
+    `).get(result.lastInsertRowid) as MaintenanceTargetRow;
 
     logAudit(db, {
       entityType: "maintenance",
@@ -157,38 +142,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(created, { status: 201 });
   }
 
-  const ownerTeamId = resolveOwnerTeamId(db, body.asset_id != null ? Number(body.asset_id) : null);
-  try {
-    assertCanWrite(actor, ownerTeamId);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  const assetId = idOrNull(b, "asset_id", "자산");
+  const logType = oneOf(b, "log_type", ["failure", "maintenance", "inspection"] as const, { default: "failure", label: "유형" });
+  const severity = oneOf(b, "severity", ["critical", "major", "minor"] as const, { default: "minor", label: "심각도" });
+  const vendorId = idOrNull(b, "vendor_id", "협력업체");
+  const occurredAt = str(b, "occurred_at", { max: 30 });
+  const symptom = str(b, "symptom");
+  const actionTaken = str(b, "action_taken");
+  const cost = str(b, "cost");
+  const notes = str(b, "notes");
 
-  const assetName = body.asset_id != null
-    ? ((db.prepare("SELECT asset_name FROM assets WHERE id = ?").get(Number(body.asset_id)) as { asset_name?: string } | undefined)?.asset_name || "")
+  const ownerTeamId = resolveOwnerTeamId(db, assetId);
+  assertCanWrite(actor, ownerTeamId);
+
+  const assetName = assetId != null
+    ? ((db.prepare("SELECT asset_name FROM assets WHERE id = ?").get(assetId) as Pick<AssetRow, "asset_name"> | undefined)?.asset_name || "")
     : "";
 
   const result = db.prepare(`
     INSERT INTO maintenance_logs (asset_id, asset_name, log_type, occurred_at, severity, symptom, action_taken, vendor_id, cost, notes, status, reported_by)
     VALUES (@asset_id, @asset_name, @log_type, @occurred_at, @severity, @symptom, @action_taken, @vendor_id, @cost, @notes, 'open', @reported_by)
   `).run({
-    asset_id: body.asset_id,
+    asset_id: assetId,
     asset_name: assetName,
-    log_type: body.log_type || "failure",
-    occurred_at: body.occurred_at || "",
-    severity: body.severity || "minor",
-    symptom: body.symptom || "",
-    action_taken: body.action_taken || "",
-    vendor_id: body.vendor_id || null,
-    cost: body.cost || "",
-    notes: body.notes || "",
+    log_type: logType,
+    occurred_at: occurredAt,
+    severity,
+    symptom,
+    action_taken: actionTaken,
+    vendor_id: vendorId,
+    cost,
+    notes,
     reported_by: actorName,
   });
 
-  if (body.log_type === "failure" && body.asset_id) {
-    db.prepare("UPDATE assets SET status = ? WHERE id = ?").run("maintenance", body.asset_id);
+  if (logType === "failure" && assetId) {
+    db.prepare("UPDATE assets SET status = ? WHERE id = ?").run("maintenance", assetId);
   }
 
   const log = db.prepare(`
@@ -197,7 +186,7 @@ export async function POST(req: NextRequest) {
     LEFT JOIN assets a ON ml.asset_id = a.id
     LEFT JOIN vendors v ON ml.vendor_id = v.id
     WHERE ml.id = ?
-  `).get(result.lastInsertRowid);
+  `).get(result.lastInsertRowid) as MaintenanceLogRow & { vendor_name: string | null };
 
   logAudit(db, {
     entityType: "maintenance",
@@ -207,13 +196,13 @@ export async function POST(req: NextRequest) {
     changedBy: actorName,
     newData: {
       record_kind: "log",
-      asset_id: body.asset_id,
-      log_type: body.log_type || "failure",
-      severity: body.severity || "minor",
+      asset_id: assetId,
+      log_type: logType,
+      severity,
       status: "open",
-      occurred_at: body.occurred_at || "",
+      occurred_at: occurredAt,
     },
   });
 
   return NextResponse.json(log, { status: 201 });
-}
+});

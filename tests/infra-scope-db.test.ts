@@ -18,9 +18,9 @@ const { getDb } = await import("../src/lib/db.ts");
 
 const db = getDb();
 
-const teamA: Actor = { userId: 1, username: "a", role: "team", teamId: 0 };
-const teamB: Actor = { userId: 2, username: "b", role: "team", teamId: 0 };
-const admin: Actor = { userId: 3, username: "admin", role: "admin", teamId: null };
+const teamA: Actor = { userId: 1, username: "a", role: "team", teamId: 0, perms: {} };
+const teamB: Actor = { userId: 2, username: "b", role: "team", teamId: 0, perms: {} };
+const admin: Actor = { userId: 3, username: "admin", role: "admin", teamId: null, perms: {} };
 
 before(() => {
   // 팀 A(외부 IDC), 팀 B(공용센터 일부)

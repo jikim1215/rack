@@ -1,7 +1,8 @@
 import { getDb } from "@/lib/db";
 import * as XLSX from "xlsx";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanDownload } from "@/lib/authz";
+import { getActor, withApi } from "@/lib/api-authz";
+import { assertMenuAccess, assertCanDownload } from "@/lib/authz";
+import type { CustomFieldRow } from "@/lib/db-types";
 
 /**
  * 자산 양식 다운로드 — 커스텀 필드 동적 반영
@@ -9,22 +10,17 @@ import { assertCanDownload } from "@/lib/authz";
  * 예시 행은 asset_type 6종(server/network/security/telecom/vm/other)을 각각 1건씩 제공해
  * 작성자가 카테고리별 기입 형식을 그대로 참고할 수 있게 한다.
  */
-export async function GET() {
+export const GET = withApi(async () => {
   const actor = await getActor();
-  try {
-    assertCanDownload(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertMenuAccess(actor, "assets");
+  assertCanDownload(actor);
 
   const db = getDb();
 
   // 활성 커스텀 필드 조회
   const customFields = db.prepare(
     "SELECT id, field_key, field_label, field_type, field_group FROM custom_fields WHERE is_active = 1 ORDER BY field_group, sort_order, id"
-  ).all() as any[];
+  ).all() as CustomFieldRow[];
 
   // 고정 헤더 — 화면(자산관리) 매크로 컬럼 순서와 동일하게 선두 배치
   const fixedHeaders = [
@@ -34,7 +30,7 @@ export async function GET() {
     "시작U", "크기U", "설명",
   ];
 
-  const customHeaders = customFields.map((f: any) => `${f.field_label}`);
+  const customHeaders = customFields.map((f) => `${f.field_label}`);
   const allHeaders = [...fixedHeaders, ...customHeaders];
 
   // 필드 키 매핑 행 (2번째 행 — import 시 매핑용). fixedHeaders와 1:1 정렬.
@@ -43,7 +39,7 @@ export async function GET() {
     "serial_number", "asset_tag", "os", "access_ip", "user_name", "admin_name",
     "cia_c", "cia_i", "cia_a",
     "rack_unit_start", "rack_unit_size", "description",
-    ...customFields.map((f: any) => `cf:${f.id}`),
+    ...customFields.map((f) => `cf:${f.id}`),
   ];
 
   // 카테고리별 예시 행 (유형 6종 전부) — 열 순서는 fixedHeaders와 1:1.
@@ -56,7 +52,7 @@ export async function GET() {
     ["other",    "",         "기타장비-01",       "기타",       "범용모델",         "",           "자산관리팀",   "창고", "standby", "ETC-001", "",       "",                "",           "", "한기타", "1", "1", "1", "",   "1", "예비/기타 품목"],
   ];
 
-  const customExample = customFields.map((f: any) => {
+  const customExample = customFields.map((f) => {
     if (f.field_type === "date") return "2024-01-01";
     if (f.field_type === "number") return "0";
     if (f.field_type === "multi-text") return "값1|값2";
@@ -83,4 +79,4 @@ export async function GET() {
       "Content-Disposition": "attachment; filename=asset-template.xlsx",
     },
   });
-}
+});

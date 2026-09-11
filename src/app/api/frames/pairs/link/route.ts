@@ -1,7 +1,8 @@
 import { getDb } from "@/lib/db";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanWrite } from "@/lib/authz";
+import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { asBody, int, ValidationError } from "@/lib/validation/input";
 import { NextRequest, NextResponse } from "next/server";
 
 // ── 선번장 양단 링크 (FDF A안) ──
@@ -26,75 +27,73 @@ function getPair(db: ReturnType<typeof getDb>, id: number): PairRow | undefined 
   `).get(id) as PairRow | undefined;
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try { assertCanWrite(actor); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
-  const body = await req.json();
+  assertMenuWrite(actor, "distribution");
+  const b = asBody(await readJson(req));
   const db = getDb();
 
-  const aId = Number(body.pair_a_id);
-  const bId = Number(body.pair_b_id);
-  if (!aId || !bId) return NextResponse.json({ error: "pair_a_id, pair_b_id가 필요합니다." }, { status: 400 });
-  if (aId === bId) return NextResponse.json({ error: "자기 자신과 연결할 수 없습니다." }, { status: 400 });
+  const aId = int(b, "pair_a_id", { required: true, min: 1, label: "pair_a_id" }) as number;
+  const bId = int(b, "pair_b_id", { required: true, min: 1, label: "pair_b_id" }) as number;
+  if (aId === bId) throw new ValidationError("자기 자신과 연결할 수 없습니다.");
 
   const a = getPair(db, aId);
-  const b = getPair(db, bId);
-  if (!a || !b) return NextResponse.json({ error: "존재하지 않는 페어입니다." }, { status: 404 });
+  const b2 = getPair(db, bId);
+  if (!a || !b2) return NextResponse.json({ error: "존재하지 않는 페어입니다." }, { status: 404 });
 
   // 소유 전용: 팀은 자기 팀 배선반의 페어만 연결 가능(양쪽 모두).
-  try { assertCanWrite(actor, a.team_id ?? null); assertCanWrite(actor, b.team_id ?? null); }
-  catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  assertCanWrite(actor, a.team_id ?? null);
+  assertCanWrite(actor, b2.team_id ?? null);
 
   // 이미 서로 연결돼 있으면 멱등 성공
-  if (a.linked_pair_id === b.id && b.linked_pair_id === a.id) {
+  if (a.linked_pair_id === b2.id && b2.linked_pair_id === a.id) {
     return NextResponse.json({ ok: true, already: true });
   }
-  if (a.frame_id === b.frame_id) {
+  if (a.frame_id === b2.frame_id) {
     return NextResponse.json({ error: "같은 배선반 내 페어끼리는 연결할 수 없습니다." }, { status: 400 });
   }
-  if (a.frame_type !== b.frame_type) {
-    return NextResponse.json({ error: `배선반 유형이 다릅니다 (${a.frame_type} ↔ ${b.frame_type}). 광↔광, 110블록↔110블록처럼 같은 유형끼리만 연결됩니다.` }, { status: 400 });
+  if (a.frame_type !== b2.frame_type) {
+    return NextResponse.json({ error: `배선반 유형이 다릅니다 (${a.frame_type} ↔ ${b2.frame_type}). 광↔광, 110블록↔110블록처럼 같은 유형끼리만 연결됩니다.` }, { status: 400 });
   }
   if (a.linked_pair_id != null) {
     return NextResponse.json({ error: `${a.frame_name} #${a.pair_number}은(는) 이미 다른 페어와 연결되어 있습니다. 먼저 해제하세요.` }, { status: 409 });
   }
-  if (b.linked_pair_id != null) {
-    return NextResponse.json({ error: `${b.frame_name} #${b.pair_number}은(는) 이미 다른 페어와 연결되어 있습니다. 먼저 해제하세요.` }, { status: 409 });
+  if (b2.linked_pair_id != null) {
+    return NextResponse.json({ error: `${b2.frame_name} #${b2.pair_number}은(는) 이미 다른 페어와 연결되어 있습니다. 먼저 해제하세요.` }, { status: 409 });
   }
 
   db.transaction(() => {
-    db.prepare("UPDATE frame_pairs SET linked_pair_id = ? WHERE id = ?").run(b.id, a.id);
-    db.prepare("UPDATE frame_pairs SET linked_pair_id = ? WHERE id = ?").run(a.id, b.id);
+    db.prepare("UPDATE frame_pairs SET linked_pair_id = ? WHERE id = ?").run(b2.id, a.id);
+    db.prepare("UPDATE frame_pairs SET linked_pair_id = ? WHERE id = ?").run(a.id, b2.id);
   })();
 
-  const who = actor?.username || "system";
+  const who = actor.username;
   logAudit(db, {
     entityType: "frame", entityId: a.frame_id, entityName: a.frame_name, action: "update", changedBy: who,
     oldData: { [`pair_${a.pair_number}_link`]: "" },
-    newData: { [`pair_${a.pair_number}_link`]: `${b.frame_name} #${b.pair_number}` },
+    newData: { [`pair_${a.pair_number}_link`]: `${b2.frame_name} #${b2.pair_number}` },
   });
   logAudit(db, {
-    entityType: "frame", entityId: b.frame_id, entityName: b.frame_name, action: "update", changedBy: who,
-    oldData: { [`pair_${b.pair_number}_link`]: "" },
-    newData: { [`pair_${b.pair_number}_link`]: `${a.frame_name} #${a.pair_number}` },
+    entityType: "frame", entityId: b2.frame_id, entityName: b2.frame_name, action: "update", changedBy: who,
+    oldData: { [`pair_${b2.pair_number}_link`]: "" },
+    newData: { [`pair_${b2.pair_number}_link`]: `${a.frame_name} #${a.pair_number}` },
   });
 
   return NextResponse.json({ ok: true });
-}
+});
 
-export async function DELETE(req: NextRequest) {
+export const DELETE = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try { assertCanWrite(actor); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
-  const body = await req.json().catch(() => ({}));
+  assertMenuWrite(actor, "distribution");
+  const b = asBody(await readJson(req));
   const db = getDb();
 
-  const pairId = Number(body.pair_id);
-  if (!pairId) return NextResponse.json({ error: "pair_id가 필요합니다." }, { status: 400 });
+  const pairId = int(b, "pair_id", { required: true, min: 1, label: "pair_id" }) as number;
 
   const p = getPair(db, pairId);
   if (!p) return NextResponse.json({ error: "존재하지 않는 페어입니다." }, { status: 404 });
   // 소유 전용: 팀은 자기 팀 배선반의 페어만 해제 가능.
-  try { assertCanWrite(actor, p.team_id ?? null); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  assertCanWrite(actor, p.team_id ?? null);
   if (p.linked_pair_id == null) return NextResponse.json({ ok: true, already: true });
 
   const other = getPair(db, p.linked_pair_id);
@@ -104,7 +103,7 @@ export async function DELETE(req: NextRequest) {
     if (other) db.prepare("UPDATE frame_pairs SET linked_pair_id = NULL WHERE id = ?").run(other.id);
   })();
 
-  const who = actor?.username || "system";
+  const who = actor.username;
   logAudit(db, {
     entityType: "frame", entityId: p.frame_id, entityName: p.frame_name, action: "update", changedBy: who,
     oldData: { [`pair_${p.pair_number}_link`]: other ? `${other.frame_name} #${other.pair_number}` : "?" },
@@ -119,4 +118,4 @@ export async function DELETE(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
-}
+});

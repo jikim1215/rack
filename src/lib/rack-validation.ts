@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import type { AssetRow, RackRow } from "./db-types.ts";
 
 /**
  * 랙 슬롯 배치 유효성 검증
@@ -15,7 +16,7 @@ export function validateRackPlacement(
   if (!rackId) return null; // 미설치는 OK
 
   // 랙 존재 확인
-  const rack = db.prepare("SELECT id, total_units FROM racks WHERE id = ?").get(rackId) as any;
+  const rack = db.prepare("SELECT id, total_units FROM racks WHERE id = ?").get(rackId) as Pick<RackRow, "id" | "total_units"> | undefined;
   if (!rack) return `랙(ID: ${rackId})이 존재하지 않습니다.`;
 
   // rack_unit_start 필수
@@ -54,11 +55,11 @@ export function validateRackPlacement(
     ? [rackId, excludeAssetId, endUnit, unitStart, side, side]
     : [rackId, endUnit, unitStart, side, side];
 
-  const overlapping = db.prepare(overlapQuery).all(...params) as any[];
+  const overlapping = db.prepare(overlapQuery).all(...params) as Pick<AssetRow, "id" | "asset_name" | "rack_unit_start" | "rack_unit_size">[];
 
   if (overlapping.length > 0) {
     // 타팀 자산명 노출 방지(AC-8): 공유 랙의 물리 U-구간만 표기, 자산명은 비노출
-    const ranges = overlapping.map((a: any) => `${a.rack_unit_start}~${a.rack_unit_start + a.rack_unit_size - 1}U`).join(", ");
+    const ranges = overlapping.map((a) => `${a.rack_unit_start}~${(a.rack_unit_start ?? 0) + a.rack_unit_size - 1}U`).join(", ");
     return `슬롯 충돌: 이미 사용 중인 구간(${ranges})과 배치가 겹칩니다.`;
   }
 
@@ -77,7 +78,7 @@ export function validateRackResize(
 
   const maxUsed = db.prepare(
     "SELECT MAX(rack_unit_start + rack_unit_size - 1) as max_end FROM assets WHERE rack_id = ?"
-  ).get(rackId) as any;
+  ).get(rackId) as { max_end: number | null } | undefined;
 
   if (maxUsed?.max_end && maxUsed.max_end > newTotalUnits) {
     return `현재 ${maxUsed.max_end}U까지 장비가 배치되어 있어 ${newTotalUnits}U로 축소할 수 없습니다.`;

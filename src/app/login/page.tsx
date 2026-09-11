@@ -1,3 +1,5 @@
+// nonce 기반 CSP(middleware)는 요청마다 다른 nonce 를 하이드레이션 스크립트에 붙여야 하므로 정적 프리렌더 불가 — 동적 렌더 고정.
+export const dynamic = "force-dynamic";
 import { Suspense } from "react";
 import { LoginForm } from "./LoginForm";
 

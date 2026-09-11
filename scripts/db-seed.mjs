@@ -321,8 +321,7 @@ insertUser.run("viewer@example.go.kr", hashPw("viewer123"), "열람자", "viewer
 //    SEED_MINIMAL=1 이면 데모 자산/랙/계약 등을 넣지 않고 여기서 종료한다.
 //    실제 자산 데이터는 운영 중 엑셀 임포트로 투입한다.
 if (process.env.SEED_MINIMAL === "1") {
-  applyMenuPermissions(db);
-  console.log("✅ 최소 초기화 완료 (스키마+계정 3명+메뉴권한, 데모 데이터 없음)");
+  console.log("✅ 최소 초기화 완료 (스키마+계정 3명, 데모 데이터 없음 — 메뉴권한은 첫 기동 시 레지스트리 기본값으로 시드)");
   db.close();
   process.exit(0);
 }
@@ -718,60 +717,8 @@ insertSubnet.run("본원 사용자 대역", "10.10.10.0", "255.255.255.0", "10.1
 insertSubnet.run("증축 사용자 대역", "10.10.20.0", "255.255.255.0", "10.10.20.1", "200", loc2, "증축동 TPS 사용자 네트워크");
 insertSubnet.run("전화설비 대역", "10.10.5.0", "255.255.255.0", "10.10.5.1", "50", loc1, "IP-PBX 전화설비 네트워크");
 
-// ============================================================
-// 메뉴 권한 (menu_permissions) — 초기 권한 세트
-//   minimal/데모 양쪽에서 재사용하도록 함수화 (function 선언은 hoist됨)
-// ============================================================
-function applyMenuPermissions(db) {
-  const insertPerm = db.prepare(`INSERT INTO menu_permissions (menu_key, role, can_access, can_write, can_approve) VALUES (?,?,?,?,?)`);
-  const menus = ['dashboard','assets','subassets','racks','ipam','distribution','movements','maintenance','inspection','contracts','reports','locations','settings'];
-
-  // admin: 전부 접근+쓰기+승인
-  for (const m of menus) {
-    insertPerm.run(m, 'admin', 1, 1, 1);
-  }
-
-  // user(team): 합의된 기본 권한
-  const userPerms = {
-    dashboard:     [1, 0, 0],
-    assets:        [1, 1, 0],
-    subassets:     [1, 1, 0],
-    racks:         [1, 0, 0],
-    ipam:          [1, 0, 0],
-    distribution:  [1, 0, 0],
-    movements:     [1, 1, 0],  // 신청 가능, 승인 불가
-    maintenance:   [1, 1, 0],
-    inspection:    [1, 1, 0],
-    contracts:     [0, 0, 0],  // 접근 불가
-    reports:       [1, 0, 0],  // 읽기 전용(제출용 집계)
-    locations:     [1, 0, 0],
-    settings:      [1, 0, 0],
-  };
-  for (const [m, [a, w, ap]] of Object.entries(userPerms)) {
-    insertPerm.run(m, 'team', a, w, ap);
-  }
-
-  // viewer: 최소 권한 (초기 신규 사용자 기본)
-  const viewerPerms = {
-    dashboard:     [1, 0, 0],
-    assets:        [1, 0, 0],
-    subassets:     [1, 0, 0],
-    racks:         [1, 0, 0],
-    ipam:          [1, 0, 0],
-    distribution:  [0, 0, 0],
-    movements:     [1, 0, 0],
-    maintenance:   [1, 0, 0],
-    inspection:    [1, 0, 0],
-    contracts:     [0, 0, 0],
-    reports:       [1, 0, 0],
-    locations:     [0, 0, 0],
-    settings:      [1, 0, 0],
-  };
-  for (const [m, [a, w, ap]] of Object.entries(viewerPerms)) {
-    insertPerm.run(m, 'viewer', a, w, ap);
-  }
-}
-applyMenuPermissions(db);
+// 메뉴 권한(menu_permissions)은 여기서 넣지 않는다 — 앱 기동 시 src/lib/menus.ts 레지스트리 기본값이
+// INSERT OR IGNORE 로 시드된다(단일 정본, P2). 시드 직후 테이블은 비어 있고 첫 기동에서 채워진다.
 
 // ============================================================
 // 계약-자산 연동 (contract_assets)

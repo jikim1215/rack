@@ -12,10 +12,10 @@ import {
   type Actor,
 } from "../src/lib/authz.ts";
 
-const admin: Actor = { userId: 1, username: "admin", role: "admin", teamId: null };
-const viewer: Actor = { userId: 2, username: "viewer", role: "viewer", teamId: null };
-const teamA: Actor = { userId: 3, username: "a", role: "team", teamId: 10 };
-const teamNoTeam: Actor = { userId: 4, username: "n", role: "team", teamId: null };
+const admin: Actor = { userId: 1, username: "admin", role: "admin", teamId: null, perms: {} };
+const viewer: Actor = { userId: 2, username: "viewer", role: "viewer", teamId: null, perms: {} };
+const teamA: Actor = { userId: 3, username: "a", role: "team", teamId: 10, perms: {} };
+const teamNoTeam: Actor = { userId: 4, username: "n", role: "team", teamId: null, perms: {} };
 
 // ── rackScopeWhere (하이브리드: 소유 OR 내 팀 자산 존재) ──
 test("rackScopeWhere: admin/viewer는 전체(1=1)", () => {

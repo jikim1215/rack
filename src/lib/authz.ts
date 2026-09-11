@@ -7,21 +7,38 @@
 //  - admin(총괄): 전체 무제한 (읽기/쓰기/삭제/다운로드)
 //  - team(팀)  : 자기 팀 소유 자산만 (미배정 team_id IS NULL 제외), 자기 팀 범위 내 쓰기/삭제
 //  - viewer(전체열람): 전체 읽기/다운로드 가능하나 쓰기/삭제 불가 (ADR-010)
+//
+// 메뉴 권한(menu_permissions, ADR-015): 역할·팀 스코프와 별도로, 총괄이 설정 화면에서 역할별 메뉴의
+// 접근/쓰기/승인을 끄면 서버 API·페이지가 실제로 거부한다(과거엔 사이드바 숨김만 되고 서버는 통과했다).
+//  - admin: 항상 통과(잠금 방지). team/viewer: DB 행 → 없으면 레지스트리 기본값(menus.ts) → 미지 메뉴는 deny.
+//  - 쓰기는 접근을 함의한다(접근 없으면 쓰기도 없음). 승인도 같다.
 import type { SessionPayload, Role } from "@/lib/auth";
+import { menuByKey } from "./menus.ts"; // 상대 경로: node 테스트 직접 임포트
 
 export type { Role };
+
+export interface MenuPerm {
+  access: boolean;
+  write: boolean;
+  approve: boolean;
+}
 
 export interface Actor {
   userId: number;
   username: string;
   role: Role;
   teamId: number | null;
+  /** 역할의 menu_permissions 행 (menu_key → 권한). getActor()가 DB에서 채운다. 없는 키는 레지스트리 기본값. */
+  perms: Readonly<Record<string, MenuPerm>>;
 }
 
 const VALID_ROLES: ReadonlySet<string> = new Set<Role>(["admin", "team", "viewer"]);
 
 /** 세션에서 인가 주체를 도출한다. 미인증/미지원 역할이면 null (default-deny). */
-export function actorFromSession(session: SessionPayload | null | undefined): Actor | null {
+export function actorFromSession(
+  session: SessionPayload | null | undefined,
+  perms: Readonly<Record<string, MenuPerm>> = {},
+): Actor | null {
   if (!session) return null;
   if (!VALID_ROLES.has(session.role)) return null; // 알 수 없는 역할 → deny
   return {
@@ -29,7 +46,49 @@ export function actorFromSession(session: SessionPayload | null | undefined): Ac
     username: session.username,
     role: session.role as Role,
     teamId: session.teamId ?? null,
+    perms,
   };
+}
+
+/** 특정 메뉴에 대한 유효 권한. admin 전부 허용, DB 행 → 레지스트리 기본 → 미지 키 deny. */
+export function menuPermission(actor: Actor | null, menuKey: string): MenuPerm {
+  if (!actor) return { access: false, write: false, approve: false };
+  if (actor.role === "admin") return { access: true, write: true, approve: true };
+  const def = menuByKey(menuKey);
+  // 총괄 전용 메뉴(로그/감사)는 DB 행이 어떻게 저장되어 있든 비관리자 deny (비평 반영)
+  if (!def || def.adminOnly) return { access: false, write: false, approve: false };
+  const row = actor.perms[menuKey];
+  if (row) return { access: row.access, write: row.access && row.write, approve: row.access && row.approve };
+  const d = def.defaults[actor.role];
+  return { access: d[0] === 1, write: d[0] === 1 && d[1] === 1, approve: d[0] === 1 && d[2] === 1 };
+}
+
+function menuLabel(menuKey: string): string {
+  return menuByKey(menuKey)?.label ?? menuKey;
+}
+
+/** 메뉴 접근(읽기) 강제. 미인증 401, 접근 권한 없음 403. */
+export function assertMenuAccess(actor: Actor | null, menuKey: string): asserts actor is Actor {
+  if (!actor) deny(actor, "Forbidden");
+  if (!menuPermission(actor, menuKey).access) {
+    deny(actor, `'${menuLabel(menuKey)}' 메뉴 접근 권한이 없습니다. 총괄에게 권한을 요청하세요.`);
+  }
+}
+
+/** 메뉴 쓰기 강제(접근 포함). 역할 자체가 쓰기 불가(viewer)인 경우는 assertCanWrite 가 별도로 막는다. */
+export function assertMenuWrite(actor: Actor | null, menuKey: string): asserts actor is Actor {
+  assertMenuAccess(actor, menuKey);
+  if (!menuPermission(actor, menuKey).write) {
+    deny(actor, `'${menuLabel(menuKey)}' 메뉴 쓰기 권한이 없습니다.`);
+  }
+}
+
+/** 메뉴 승인 강제(접근 포함). */
+export function assertMenuApprove(actor: Actor | null, menuKey: string): asserts actor is Actor {
+  assertMenuAccess(actor, menuKey);
+  if (!menuPermission(actor, menuKey).approve) {
+    deny(actor, `'${menuLabel(menuKey)}' 승인 권한이 없습니다.`);
+  }
 }
 
 export class AuthzError extends Error {

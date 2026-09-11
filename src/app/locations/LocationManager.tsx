@@ -25,7 +25,7 @@ interface Rack {
 
   total_units: number;
   description: string;
-  location_name: string;
+  location_name: string | null;
   asset_count: number;
   used_units: number;
   team_id?: number | null;

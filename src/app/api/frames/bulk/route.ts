@@ -1,7 +1,9 @@
 import { getDb } from "@/lib/db";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanDownload, assertCanWrite } from "@/lib/authz";
+import { getActor, withApi } from "@/lib/api-authz";
+import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertCanDownload } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
+import { ValidationError } from "@/lib/validation/input";
+import type { DistFrameRow, FrameType, LocationRow } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
@@ -16,11 +18,13 @@ const KO_TYPE: Record<string, string> = {
   "광패널": "optical",
   "기타": "other",
 };
-const VALID_TYPES = ["110block", "patch_panel", "optical", "other"];
+const VALID_TYPES = ["110block", "patch_panel", "optical", "other"] as const;
 
-export async function GET() {
+export const GET = withApi(async () => {
   const actor = await getActor();
-  try { assertCanDownload(actor); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  // 양식 다운로드는 읽기(+다운로드) 권한 — 원본 정책 복원 (비평 반영)
+  assertMenuAccess(actor, "distribution");
+  assertCanDownload(actor);
 
   const ws = XLSX.utils.aoa_to_sheet([
     HEADERS,
@@ -39,48 +43,46 @@ export async function GET() {
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent("배선반양식.xlsx")}`,
     },
   });
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try { assertCanWrite(actor); } catch (e) { const r = authzError(e); if (r) return r; throw e; }
+  assertMenuWrite(actor, "distribution");
+  assertCanWrite(actor);
   // team 계정이 업로드하면 자기 팀 소유로 생성. admin은 공유(NULL).
-  const ownerTeamId = actor?.role === "team" ? actor.teamId : null;
+  const ownerTeamId = actor.role === "team" ? actor.teamId : null;
   const db = getDb();
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
+  if (!file) throw new ValidationError("파일이 없습니다.");
 
   const wb = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: "buffer" });
-  const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as any[][];
+  const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as unknown[][];
 
   // 헤더 행 탐색 ("배선반명"으로 시작하는 행)
   const hIdx = aoa.findIndex((r) => String(r[0]).trim() === "배선반명");
   if (hIdx < 0) {
-    return NextResponse.json(
-      { error: "양식이 올바르지 않습니다 ('배선반명' 헤더 없음). 먼저 양식을 다운로드해 같은 형식으로 작성하세요." },
-      { status: 400 }
-    );
+    throw new ValidationError("양식이 올바르지 않습니다 ('배선반명' 헤더 없음). 먼저 양식을 다운로드해 같은 형식으로 작성하세요.");
   }
   const header = aoa[hIdx].map((h) => String(h).trim());
   const col = (name: string) => header.indexOf(name);
-  const v = (r: any[], name: string) => (col(name) >= 0 ? String(r[col(name)] ?? "").trim() : "");
+  const v = (r: unknown[], name: string) => (col(name) >= 0 ? String(r[col(name)] ?? "").trim() : "");
   const dataRows = aoa.slice(hIdx + 1).filter((r) => String(r[col("배선반명")]).trim() !== "");
 
-  const locations = db.prepare("SELECT id, location_name FROM locations ORDER BY id").all() as any[];
+  const locations = db.prepare("SELECT id, location_name FROM locations ORDER BY id").all() as Pick<LocationRow, "id" | "location_name">[];
   if (locations.length === 0) {
-    return NextResponse.json({ error: "등록된 위치가 없습니다. 먼저 위치를 등록하세요." }, { status: 400 });
+    throw new ValidationError("등록된 위치가 없습니다. 먼저 위치를 등록하세요.");
   }
-  const locByName = new Map(locations.map((l) => [l.location_name, l.id as number]));
+  const locByName = new Map(locations.map((l) => [l.location_name, l.id]));
 
   const existingNames = new Set(
-    (db.prepare("SELECT frame_name FROM dist_frames").all() as any[]).map((f) => f.frame_name as string)
+    (db.prepare("SELECT frame_name FROM dist_frames").all() as Pick<DistFrameRow, "frame_name">[]).map((f) => f.frame_name)
   );
 
   const issues: string[] = [];
   let created = 0, skipped = 0;
-  const createdLogs: Array<{ id: number; data: Record<string, any> }> = [];
+  const createdLogs: Array<{ id: number; data: Record<string, unknown> }> = [];
 
   const insertFrame = db.prepare(`
     INSERT INTO dist_frames (location_id, frame_name, frame_type, total_pairs, description, team_id)
@@ -104,14 +106,14 @@ export async function POST(req: NextRequest) {
 
       // 유형: 한글/영문 허용, 그 외 110block 기본값
       const typeRaw = v(r, "유형");
-      let frameType = KO_TYPE[typeRaw] || (VALID_TYPES.includes(typeRaw) ? typeRaw : "");
+      let frameType: FrameType | "" = (KO_TYPE[typeRaw] as FrameType) || ((VALID_TYPES as readonly string[]).includes(typeRaw) ? (typeRaw as FrameType) : "");
       if (!frameType) {
         if (typeRaw) issues.push(`${rowNo}행: 유형 '${typeRaw}' 인식 불가 — 110블록으로 등록`);
         frameType = "110block";
       }
 
-      // 총페어: 1~1000 클램프 (기본 50)
-      const totalPairs = Math.max(1, Math.min(1000, Number(v(r, "총페어")) || 50));
+      // 총페어: 1~2000 클램프 (기본 50)
+      const totalPairs = Math.max(1, Math.min(2000, Number(v(r, "총페어")) || 50));
 
       // 위치명 매칭, 없으면 첫 위치
       const locName = v(r, "위치명");
@@ -144,10 +146,10 @@ export async function POST(req: NextRequest) {
       entityId: id,
       entityName: String(data.frame_name),
       action: "create",
-      changedBy: actor?.username || "system",
+      changedBy: actor.username,
       newData: data,
     });
   }
 
   return NextResponse.json({ created, skipped, issues });
-}
+});

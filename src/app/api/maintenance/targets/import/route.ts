@@ -1,22 +1,17 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanWrite } from "@/lib/authz";
+import { getActor, withApi } from "@/lib/api-authz";
+import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { isXlsxBuffer } from "@/lib/validation/asset-rules";
 import { parseTargetWorkbook, TARGET_INSERT_COLUMNS } from "@/lib/maintenance-target-import";
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try {
-    assertCanWrite(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertMenuWrite(actor, "maintenance");
+  assertCanWrite(actor);
 
-  const actorName = actor?.username || "system";
+  const actorName = actor.username;
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const replace = String(formData.get("replace") || "") === "1";
@@ -74,4 +69,4 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ ok: true, inserted, skipped, replaced: replace });
-}
+});

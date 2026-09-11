@@ -1,39 +1,33 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanWrite } from "@/lib/authz";
+import { getActor, withApi } from "@/lib/api-authz";
+import { assertMenuWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { isXlsxBuffer } from "@/lib/validation/asset-rules";
 import { parseSubAssetWorkbook, SUBASSET_INSERT_COLUMNS } from "@/lib/subasset-import";
+import { ValidationError } from "@/lib/validation/input";
 
 // 부속자산 일괄 업로드 — 대량 가져오기는 쓰기 작업(viewer 차단).
 //   team 계정: 자기 팀으로 강제 귀속. admin: '관리부서' 열의 팀명으로 find-or-create.
 //   '상위장비' 열은 자산명으로 assets 매칭 → parent_asset_id 연결(데이터 연계). 미존재 시 null.
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
-  try {
-    assertCanWrite(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertMenuWrite(actor, "subassets");
 
-  const actorName = actor?.username || "system";
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
+  if (!file) throw new ValidationError("파일이 없습니다.");
 
   const buffer = Buffer.from(await file.arrayBuffer());
   if (!isXlsxBuffer(buffer)) {
-    return NextResponse.json({ error: "유효한 .xlsx 파일이 아닙니다 (매직바이트 불일치)." }, { status: 400 });
+    throw new ValidationError("유효한 .xlsx 파일이 아닙니다 (매직바이트 불일치).");
   }
 
   let parsed;
   try {
     parsed = parseSubAssetWorkbook(buffer);
   } catch {
-    return NextResponse.json({ error: "엑셀 파싱에 실패했습니다." }, { status: 400 });
+    throw new ValidationError("엑셀 파싱에 실패했습니다.");
   }
   const { subs, skipped } = parsed;
   if (subs.length === 0) {
@@ -72,7 +66,7 @@ export async function POST(req: NextRequest) {
   let inserted = 0;
   const tx = db.transaction(() => {
     for (const s of subs) {
-      const team_id = actor?.role === "team" ? (actor.teamId ?? null) : resolveTeamId(s.team_name);
+      const team_id = actor.role === "team" ? (actor.teamId ?? null) : resolveTeamId(s.team_name);
       const parent = s.parent_name
         ? (findParent.get(s.parent_name) as { id: number } | undefined)
         : undefined;
@@ -89,9 +83,9 @@ export async function POST(req: NextRequest) {
     entityId: null,
     entityName: "부속자산 가져오기",
     action: "create",
-    changedBy: actorName,
+    changedBy: actor.username,
     newData: { event: "subasset_import", inserted, skipped, teamsCreated },
   });
 
   return NextResponse.json({ ok: true, inserted, skipped, teamsCreated });
-}
+});

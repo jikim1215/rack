@@ -1,8 +1,11 @@
 import { getDb } from "@/lib/db";
 import { verifyPassword, createSessionToken, sessionCookieOptions } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
+import { withApi, readJson } from "@/lib/api-authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
 import { isIpAllowed } from "@/lib/ip-access";
+import { asBody, str } from "@/lib/validation/input";
+import type { UserRow, CountRow } from "@/lib/db-types";
 import type Database from "better-sqlite3";
 
 // 로그인 시도 제한 (brute-force 방어) — login_attempts 테이블 기반 (재시작·멀티프로세스 내성).
@@ -70,7 +73,7 @@ function resetAttempts(db: Database.Database, ...keys: string[]) {
   for (const key of keys) del.run(key);
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const { ip, userAgent } = clientMeta(req); // TRUST_PROXY=true가 아니면 ip = "direct"
   const db = getDb();
   const ipKey = `ip:${ip}`;
@@ -85,28 +88,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
-  }
-
-  const { username, password } = body;
-  if (!username || !password || typeof username !== "string" || typeof password !== "string") {
-    return NextResponse.json({ error: "아이디와 비밀번호를 입력하세요." }, { status: 400 });
-  }
-
-  // 입력값 길이 제한 (DoS 방지)
-  if (username.length > 254 || password.length > 256) {
-    return NextResponse.json({ error: "입력값이 너무 깁니다." }, { status: 400 });
-  }
+  const b = asBody(await readJson(req));
+  // 입력값 길이 제한(DoS 방지)은 기존 254/256을 max로 반영. 빈 값은 required 로 400.
+  const username = str(b, "username", { required: true, max: 254, label: "아이디" });
+  const password = str(b, "password", { required: true, max: 256, label: "비밀번호" });
 
   // 사용자명 키 잠금 확인 (분산 IP로 특정 계정을 노리는 공격 차단)
   const userKey = `u:${username}`;
   const userCheck = checkRateLimit(db, userKey);
   if (!userCheck.allowed) {
-    logAccess(db, { username: String(username), ip, userAgent, action: "fail", resultCode: "429", failureReason: "rate_limited" });
+    logAccess(db, { username, ip, userAgent, action: "fail", resultCode: "429", failureReason: "rate_limited" });
     return NextResponse.json(
       { error: `로그인 시도 횟수를 초과했습니다. ${userCheck.retryAfter}초 후 재시도하세요.` },
       { status: 429 }
@@ -115,22 +106,22 @@ export async function POST(req: NextRequest) {
 
   // 초기 설정 가드: 등록된 사용자가 0명이면(빈/미시드 DB 또는 잘못된 DB 경로) 구별되는 메시지로 안내.
   // 시스템 전역 상태이므로 사용자 열거 위험 없음. 잠금 카운트에도 포함하지 않는다(설정 오류이지 무차별 대입 아님).
-  const userCount = (db.prepare("SELECT COUNT(*) AS c FROM users").get() as { c: number }).c;
+  const userCount = (db.prepare("SELECT COUNT(*) AS c FROM users").get() as CountRow).c;
   if (userCount === 0) {
-    logAccess(db, { username: String(username ?? ""), ip, userAgent, action: "fail", resultCode: "503", failureReason: "no_users" });
+    logAccess(db, { username, ip, userAgent, action: "fail", resultCode: "503", failureReason: "no_users" });
     return NextResponse.json(
       { error: "등록된 사용자가 없습니다. 서버가 비어 있는 데이터베이스를 사용 중입니다 — 관리자에게 초기 데이터(예: npm run db:seed 또는 데이터 이관) 실행을 요청하세요." },
       { status: 503 }
     );
   }
-  const user = db.prepare("SELECT * FROM users WHERE username = ? AND is_active = 1").get(username) as any;
+  const user = db.prepare("SELECT * FROM users WHERE username = ? AND is_active = 1").get(username) as UserRow | undefined;
 
   // 고의적으로 동일한 에러 메시지 사용 (사용자 열거 방지)
   if (!user || !verifyPassword(password, user.password_hash)) {
     // 두 키 모두 실패 기록 — 남은 횟수는 각 키의 임계(직결 IP는 4배 완화)를 반영해 더 먼저 잠기는 쪽 기준 (외부 검토 R6-1)
     const userFails = recordFailedAttempt(db, userKey);
     const ipFails = recordFailedAttempt(db, ipKey);
-    logAccess(db, { userId: user?.id ?? null, username: String(username), ip, userAgent, action: "fail", resultCode: "401", failureReason: "invalid_credentials" });
+    logAccess(db, { userId: user?.id ?? null, username, ip, userAgent, action: "fail", resultCode: "401", failureReason: "invalid_credentials" });
     const remaining = Math.min(maxAttemptsFor(userKey) - userFails, maxAttemptsFor(ipKey) - ipFails);
     return NextResponse.json(
       { error: `아이디 또는 비밀번호가 일치하지 않습니다. (남은 시도: ${Math.max(0, remaining)}회)` },
@@ -184,4 +175,4 @@ export async function POST(req: NextRequest) {
   });
 
   return res;
-}
+});

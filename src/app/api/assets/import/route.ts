@@ -2,14 +2,15 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { logAssetChange } from "@/lib/audit";
-import { getActor, authzError } from "@/lib/api-authz";
-import { assertCanWrite } from "@/lib/authz";
+import { getActor, withApi } from "@/lib/api-authz";
+import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import {
   isXlsxBuffer,
   validateAssetRow,
   detectDuplicates,
   type IssueType,
 } from "@/lib/validation/asset-rules";
+import type { AssetRow, CustomFieldRow, RackRow, TeamRow } from "@/lib/db-types";
 
 
 // 고정 필드 인덱스 (키 행 기반)
@@ -33,7 +34,7 @@ const FIXED_LABELS = [
 ];
 
 // 라벨 정규화 + 별칭 (키 행 없는 일반 양식의 유연한 매핑용)
-const normLabel = (s: any) => String(s ?? "").replace(/\s+/g, "");
+const normLabel = (s: unknown) => String(s ?? "").replace(/\s+/g, "");
 const LABEL_ALIASES: Record<string, string> = {
   "망구분": "network_zone", "망": "network_zone", "망분류": "network_zone",
   "기밀성": "cia_c", "기밀성c": "cia_c", "c": "cia_c",
@@ -43,18 +44,13 @@ const LABEL_ALIASES: Record<string, string> = {
   "위치": "rack_name", "랙": "rack_name", "랙이름": "rack_name",
 };
 
-export async function POST(req: NextRequest) {
+export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
+  assertMenuWrite(actor, "assets");
   // 대량 가져오기는 쓰기 작업: viewer 차단, team/admin 허용
-  try {
-    assertCanWrite(actor);
-  } catch (e) {
-    const r = authzError(e);
-    if (r) return r;
-    throw e;
-  }
+  assertCanWrite(actor);
   // team 계정은 가져온 자산을 자기 팀으로 강제; admin은 미지정(none)
-  const ownerTeamId = actor?.role === "team" ? actor.teamId : null;
+  const ownerTeamId = actor.role === "team" ? actor.teamId : null;
   const t0 = Date.now();
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
@@ -77,7 +73,7 @@ export async function POST(req: NextRequest) {
 
   const wb = XLSX.read(buffer);
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<any>(ws, { header: 1 });
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
 
   if (rows.length < 2) {
     return NextResponse.json({
@@ -87,8 +83,8 @@ export async function POST(req: NextRequest) {
   }
 
   const db = getDb();
-  const headerRow = (rows[0] || []) as any[];
-  const secondRow = (rows[1] || []) as any[];
+  const headerRow = (rows[0] || []) as unknown[];
+  const secondRow = (rows[1] || []) as unknown[];
 
   const colMap: Record<string, number> = {};
   const customFieldCols: { colIdx: number; fieldId: number; label: string }[] = [];
@@ -99,7 +95,7 @@ export async function POST(req: NextRequest) {
     return FIXED_KEYS.includes(s) || s.startsWith("cf:");
   });
 
-  let dataRows: any[][];
+  let dataRows: unknown[][];
   let dataRowOffset: number;
 
   if (hasKeyRow) {
@@ -115,15 +111,15 @@ export async function POST(req: NextRequest) {
         colMap[key] = c;
       }
     }
-    dataRows = rows.slice(2).filter((r: any[]) => r.some((c) => c !== undefined && c !== ""));
+    dataRows = rows.slice(2).filter((r) => r.some((c) => c !== undefined && c !== ""));
     dataRowOffset = 3;
   } else {
     // 일반 양식: 1행 헤더(한글 라벨) + 2행~ 데이터 — 헤더 라벨로 컬럼 매핑
     const labelToKey: Record<string, string> = {};
     FIXED_LABELS.forEach((label, i) => { labelToKey[label] = FIXED_KEYS[i]; });
-    const cfRows = db.prepare("SELECT id, field_label FROM custom_fields WHERE is_active = 1").all() as any[];
-    const cfByLabel = new Map<string, number>(cfRows.map((f: any) => [String(f.field_label).trim(), f.id as number]));
-    const cfByNorm = new Map<string, number>(cfRows.map((f: any) => [normLabel(f.field_label).toLowerCase(), f.id as number]));
+    const cfRows = db.prepare("SELECT id, field_label FROM custom_fields WHERE is_active = 1").all() as Pick<CustomFieldRow, "id" | "field_label">[];
+    const cfByLabel = new Map<string, number>(cfRows.map((f) => [String(f.field_label).trim(), f.id]));
+    const cfByNorm = new Map<string, number>(cfRows.map((f) => [normLabel(f.field_label).toLowerCase(), f.id]));
     for (let c = 0; c < headerRow.length; c++) {
       const label = String(headerRow[c] ?? "").trim();
       if (!label) continue;
@@ -138,7 +134,7 @@ export async function POST(req: NextRequest) {
         customFieldCols.push({ colIdx: c, fieldId: cfByNorm.get(nk)!, label });
       }
     }
-    dataRows = rows.slice(1).filter((r: any[]) => r.some((c) => c !== undefined && c !== ""));
+    dataRows = rows.slice(1).filter((r) => r.some((c) => c !== undefined && c !== ""));
     dataRowOffset = 2;
   }
 
@@ -156,7 +152,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  function getVal(row: any[], key: string): string {
+  function getVal(row: unknown[], key: string): string {
     const idx = colMap[key];
     if (idx === undefined) return "";
     const v = row[idx];
@@ -165,16 +161,16 @@ export async function POST(req: NextRequest) {
 
   // 랙 매핑 (랙 이름 → id; 미존재/배치불가 시 rack_id null로 적재).
   // team 계정은 자기 소유 랙 또는 공유(team_id NULL) 랙에만 배치 가능 — 타팀 전용 랙은 매핑에서 제외.
-  const allRacks = db.prepare("SELECT id, rack_name, team_id FROM racks").all() as any[];
+  const allRacks = db.prepare("SELECT id, rack_name, team_id FROM racks").all() as Pick<RackRow, "id" | "rack_name" | "team_id">[];
   const rackMap = new Map(
     allRacks
-      .filter((r: any) => actor?.role !== "team" || r.team_id == null || r.team_id === ownerTeamId)
-      .map((r: any) => [r.rack_name, r.id]),
+      .filter((r) => actor.role !== "team" || r.team_id == null || r.team_id === ownerTeamId)
+      .map((r) => [r.rack_name, r.id]),
   );
   // 팀 매핑 (관리부서=팀명 → team_id). admin 업로드는 CLI 이관(import-asset-final)과 동일하게
   // find-or-create: 관리부서명이 teams에 없으면 팀을 새로 만들어 귀속(미배정으로 흘리지 않음).
   const teamByName = new Map<string, number>(
-    (db.prepare("SELECT id, team_name FROM teams").all() as any[]).map((t: any) => [String(t.team_name).trim(), t.id as number]),
+    (db.prepare("SELECT id, team_name FROM teams").all() as Pick<TeamRow, "id" | "team_name">[]).map((t) => [String(t.team_name).trim(), t.id]),
   );
   const insertTeamStmt = db.prepare("INSERT INTO teams (team_name) VALUES (?)");
   let teamsCreated = 0;
@@ -191,7 +187,7 @@ export async function POST(req: NextRequest) {
 
   // 커스텀 필드 유효성 확인
   const validFieldIds = new Set(
-    (db.prepare("SELECT id FROM custom_fields WHERE is_active = 1").all() as any[]).map((f: any) => f.id)
+    (db.prepare("SELECT id FROM custom_fields WHERE is_active = 1").all() as Pick<CustomFieldRow, "id">[]).map((f) => f.id)
   );
   const cfTypeStmt = db.prepare("SELECT field_type FROM custom_fields WHERE id = ?");
 
@@ -221,7 +217,7 @@ export async function POST(req: NextRequest) {
 
     // 팀(소유) 해석: team 계정은 자기 팀 강제(보안), admin은 양식의 관리부서(팀명) → find-or-create.
     const deptName = getVal(r, "department");
-    const team_id = actor?.role === "team" ? ownerTeamId : resolveTeamId(deptName);
+    const team_id = actor.role === "team" ? ownerTeamId : resolveTeamId(deptName);
 
     // 커스텀 필드 값 수집 (multi-text는 파이프 구분 → JSON 배열 변환)
     const customValues: { fieldId: number; value: string }[] = [];
@@ -230,7 +226,7 @@ export async function POST(req: NextRequest) {
       const val = r[cf.colIdx];
       if (val !== undefined && val !== null && String(val).trim() !== "") {
         let finalVal = String(val).trim();
-        const fieldDef = cfTypeStmt.get(cf.fieldId) as any;
+        const fieldDef = cfTypeStmt.get(cf.fieldId) as Pick<CustomFieldRow, "field_type"> | undefined;
         if (fieldDef?.field_type === "multi-text" && finalVal.includes("|")) {
           finalVal = JSON.stringify(finalVal.split("|").map((s: string) => s.trim()).filter(Boolean));
         }
@@ -243,7 +239,7 @@ export async function POST(req: NextRequest) {
 
   // ── 프리뷰 모드: DB에 쓰지 않고 예상 결과만 반환 ──
   if (dryRun) {
-    const issuePreview: Record<IssueType, number> = { ip_format: 0, missing_id: 0, missing_os: 0, dup_suspect: 0 };
+    const issuePreview: Record<IssueType, number> = { ip_format: 0, missing_id: 0, missing_os: 0, dup_suspect: 0, date_format: 0 };
     for (const p of prepared) for (const iss of p.issues) issuePreview[iss.issue_type]++;
     // 배치 내 동명 중복
     const { suspectIds } = detectDuplicates(prepared.map((p, i) => ({ id: i, asset_name: p.asset.asset_name, ip_address: p.asset.ip_address, serial_number: p.asset.serial_number })));
@@ -254,8 +250,8 @@ export async function POST(req: NextRequest) {
     const dupExisting: { source_row: number; name: string; reason: string }[] = [];
     for (const p of prepared) {
       const s = (p.asset.serial_number || "").trim();
-      const hitS = s ? (bySerial.get(s) as any) : null;
-      const hitN = hitS ? null : (byName.get(p.asset.asset_name) as any);
+      const hitS = s ? (bySerial.get(s) as Pick<AssetRow, "id" | "asset_name"> | undefined) : undefined;
+      const hitN = hitS ? undefined : (byName.get(p.asset.asset_name) as Pick<AssetRow, "id" | "asset_name"> | undefined);
       if (hitS) dupExisting.push({ source_row: p.sourceRow, name: p.asset.asset_name, reason: `기존 '${hitS.asset_name}'와 시리얼 동일` });
       else if (hitN) dupExisting.push({ source_row: p.sourceRow, name: p.asset.asset_name, reason: "기존 대장에 동명 자산 존재" });
       if (dupExisting.length >= 100) break;
@@ -274,7 +270,7 @@ export async function POST(req: NextRequest) {
   const batch_id = `up-${Date.now()}`;
 
   const issueCounts: Record<IssueType, number> = {
-    ip_format: 0, missing_id: 0, missing_os: 0, dup_suspect: 0,
+    ip_format: 0, missing_id: 0, missing_os: 0, dup_suspect: 0, date_format: 0,
   };
   const issueRows: { source_row: number | null; issue_type: IssueType; raw_value: string; note: string }[] = [];
   let imported = 0;
@@ -323,7 +319,7 @@ export async function POST(req: NextRequest) {
 
       // malformed → import_issue (raw 보존, asset_id 연결, 행은 차단하지 않음)
       for (const issue of issues) {
-        issueStmt.run(batch_id, sourceRow, assetId, issue.issue_type, issue.raw_value, issue.parsed_value, issue.note, actor?.username || '');
+        issueStmt.run(batch_id, sourceRow, assetId, issue.issue_type, issue.raw_value, issue.parsed_value, issue.note, actor.username);
         issueCounts[issue.issue_type]++;
         if (issueRows.length < 200) {
           issueRows.push({ source_row: sourceRow, issue_type: issue.issue_type, raw_value: issue.raw_value, note: issue.note });
@@ -338,7 +334,7 @@ export async function POST(req: NextRequest) {
         assetId,
         assetName: asset.asset_name,
         action: 'create',
-        changedBy: actor?.username || 'system',
+        changedBy: actor.username,
         // batch_id를 감사로그에도 남겨 배치 단위 사후 재구성 가능하게 (외부 검토 R8-4 합의)
         newData: { ...asset, import_batch_id: batch_id },
       });
@@ -349,7 +345,7 @@ export async function POST(req: NextRequest) {
     const { suspectIds } = detectDuplicates(insertedForDup);
     for (const sid of suspectIds) {
       const name = nameById.get(sid) ?? "";
-      issueStmt.run(batch_id, null, sid, "dup_suspect", name, "", "동명 자산 다건", actor?.username || "");
+      issueStmt.run(batch_id, null, sid, "dup_suspect", name, "", "동명 자산 다건", actor.username);
       issueCounts.dup_suspect++;
       if (issueRows.length < 200) {
         issueRows.push({ source_row: null, issue_type: "dup_suspect", raw_value: name, note: "동명 자산 다건" });
@@ -370,9 +366,10 @@ export async function POST(req: NextRequest) {
       missing_id: issueCounts.missing_id,
       missing_os: issueCounts.missing_os,
       dup_suspect: issueCounts.dup_suspect,
+      date_format: issueCounts.date_format,
     },
     issueRows,
     created,
     duration_ms: Date.now() - t0,
   });
-}
+});
