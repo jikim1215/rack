@@ -64,6 +64,9 @@ export type AssetStatus = "active" | "maintenance" | "standby" | "retired";
 export type RackSide = "L" | "R" | null;
 
 export interface AssetRow {
+  /** 현행화 도장: 마지막으로 사람이 "값이 맞다" 고 확인한 시각/사용자 (빈 문자열 = 미확인). updated_at 과 다르다. */
+  verified_at: string;
+  verified_by: string;
   id: number;
   asset_type: string;
   asset_name: string;

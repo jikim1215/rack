@@ -49,7 +49,7 @@
 **결정**: setup.sh가 self-signed 인증서 생성(키 권한 600) + Node 내장 TLS HTTPS + systemd 자동기동. reverse proxy 미동봉.
 **이유**: 폐쇄망 단일 서버·최소 의존성(EF13), 번들/설치 단순.
 **대안**: Caddy/Nginx reverse proxy 동봉 — 운영성↑이나 번들·설치 복잡도↑.
-**트레이드오프**: 인증서 교체/HSTS/장애격리를 앱이 부담 → docs/deploy-tls.md로 완화. 규모 확대 시 reverse proxy 도입(2차).
+**트레이드오프**: 인증서 교체/HSTS/장애격리를 앱이 부담 → nginx 리버스프록시 구성(docs/DEPLOY.md)으로 완화. 규모 확대 시 reverse proxy 도입(2차).
 
 ### ADR-009: 저장 도메인 영문 + UI 한글 / 검증룰 단일화
 **결정**: role/status DB 저장값 영문 고정(status active/maintenance/standby/retired), UI 라벨 한글. 검증룰은 src/lib/validation/asset-rules.ts 단일 모듈로 import route·스크립트가 공유.

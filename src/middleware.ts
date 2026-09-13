@@ -21,7 +21,7 @@ function getSecret(): string {
   return secret;
 }
 
-async function decodeToken(token: string): Promise<{ role?: string; exp?: number; mcp?: boolean; pur?: string } | null> {
+async function decodeToken(token: string): Promise<{ role?: string; exp?: number; mcp?: boolean; msr?: boolean; pur?: string } | null> {
   try {
     const [json, sig] = token.split(".");
     if (!json || !sig) return null;
@@ -102,6 +102,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
+    pathname === "/api/health" ||          // 모니터링·배포 스모크용 (업무 정보 미노출)
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"
   ) {
@@ -127,6 +128,16 @@ export async function middleware(request: NextRequest) {
       return NextResponse.json({ error: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
     }
     return redirectTo(new URL(`${forwardedOrigin(request)}/change-password`));
+  }
+
+  // 2단계 인증 등록 강제(MFA_REQUIRED_ROLES 에 속한 역할이 미등록): 설정 화면과 등록 API 밖은 차단.
+  //   세션은 준다(등록에 인증된 상태가 필요) — 단, 등록을 끝내기 전엔 업무 화면·API 어느 것도 열지 않는다.
+  //   /api/auth/* 는 상단에서 이미 통과(등록 API /api/auth/mfa/setup 포함).
+  if (payload.msr && pathname !== "/settings") {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "MFA_SETUP_REQUIRED" }, { status: 403 });
+    }
+    return redirectTo(new URL(`${forwardedOrigin(request)}/settings?tab=mfa&required=1`));
   }
 
   // 역할 게이트: 총괄 전용 API 접두사는 admin만 (방어적; 핸들러 assertAdmin이 최종 권위)

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn, ShieldCheck, ArrowLeft } from "lucide-react";
 import { sha512 } from "@/lib/sha512";
+import { validatePasswordPolicy } from "@/lib/password-policy";
 
 export function LoginForm() {
   const router = useRouter();
@@ -15,8 +16,23 @@ export function LoginForm() {
   // 2단계 인증: 비밀번호가 맞으면 서버가 mfaRequired 를 돌려주고, 코드 입력 단계로 넘어간다.
   const [mfaStep, setMfaStep] = useState(false);
   const [code, setCode] = useState("");
+  // 평문 비밀번호는 서버가 못 본다(sha512 프리해시). 정책 이전의 취약 비밀번호를 여기서 감지해
+  // 로그인 완료 직후 강제 변경을 켬다. MFA 단계를 거치는 동안 판정값만 보관(평문은 화면에서 지운다).
+  const weakPasswordRef = useRef(false);
 
-  function goAfterLogin() {
+  async function goAfterLogin(data: { mfaSetupRequired?: boolean } = {}) {
+    if (weakPasswordRef.current) {
+      // 서버가 must_change_password 를 켜고 세션을 mcp 로 재발급 → 미들웨어가 변경 화면 밖을 막는다
+      await fetch("/api/auth/password/weak", { method: "POST" }).catch(() => {});
+      router.push("/change-password?weak=1");
+      router.refresh();
+      return;
+    }
+    if (data.mfaSetupRequired) {
+      router.push("/settings?tab=mfa&required=1");
+      router.refresh();
+      return;
+    }
     const redirect = searchParams.get("redirect") || "/";
     router.push(redirect);
     router.refresh();
@@ -38,8 +54,9 @@ export function LoginForm() {
 
       // ⚠ res.ok 로 판단하면 안 된다 — 2단계 인증 필요는 "비밀번호는 맞았다"라 HTTP 200 이다.
       //   상태코드가 아니라 본문의 ok 를 성공 신호로 쓴다(200 ≠ 로그인 완료).
+      weakPasswordRef.current = validatePasswordPolicy(password) !== null;
       if (data.ok) {
-        goAfterLogin();
+        await goAfterLogin(data);
       } else if (data.mfaRequired) {
         setMfaStep(true);
         setPassword("");
@@ -68,7 +85,7 @@ export function LoginForm() {
         if (data.method === "backup") {
           alert(`백업 코드로 로그인했습니다. 남은 백업 코드 ${data.backupCodesLeft}개.\n설정 → 2단계 인증에서 인증 앱을 다시 등록하세요.`);
         }
-        goAfterLogin();
+        await goAfterLogin();
       } else {
         setError(data.error || "인증에 실패했습니다.");
         setCode("");

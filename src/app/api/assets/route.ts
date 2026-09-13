@@ -2,48 +2,26 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { logAssetChange } from "@/lib/audit";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
-import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertAdmin, scopeWhere, unassignedScopeWhere, assertCanPlaceInRack } from "@/lib/authz";
-import { ipSearchClause } from "@/lib/asset-search";
+import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertAdmin, assertCanPlaceInRack } from "@/lib/authz";
+import { listAssets, parseAssetListParams } from "@/lib/asset-list";
 import { findPublicIpDuplicate } from "@/lib/ip-utils";
 import { validateRackPlacement } from "@/lib/rack-validation";
 import { ValidationError } from "@/lib/validation/input";
 import { parseAssetBody } from "@/lib/validation/asset-input";
 import type { AssetRow, RackRow } from "@/lib/db-types";
 
+// ── 목록 (서버 페이지네이션) ──
+// 필터·검색·정렬·페이지는 src/lib/asset-list.ts 가 담당하고 /assets 페이지 SSR 과 동일 코드다.
+// 응답은 항상 { rows, total, limit, offset, customValues? }. 기본 100건, limit=0 은 전량(내보내기용, 상한 있음).
+//   ?q= 검색 · type= · rack_id= · status= · missing=ip|rack|admin|os|serial|verify · sort=created_at|asset_name|… · dir=asc|desc
+//   ?cv=1 이면 페이지 행의 커스텀 필드 값 포함. ?scope=unassigned 는 총괄 전용 미배정 큐(team_id IS NULL).
 export const GET = withApi(async (req: NextRequest) => {
   const actor = await getActor();
   const wantUnassigned = req.nextUrl.searchParams.get("scope") === "unassigned";
-  // 미배정 큐(AC-11)는 총괄(admin) 전용
   if (wantUnassigned) assertAdmin(actor); else assertMenuAccess(actor, "assets");
-  const scope = wantUnassigned
-    ? unassignedScopeWhere(actor, "a.team_id")
-    : scopeWhere(actor, "a.team_id");
-  const db = getDb();
-  // 다중 IP 검색(AC-5): q 파라미터로 대표 IP + asset_ips(vip/extra) + custom_values(추가IP) UNION 매칭. scope와 AND.
-  const q = req.nextUrl.searchParams.get("q") ?? "";
-  const ipSearch = ipSearchClause(q, "a");
-  // 서버측 페이지네이션 옵트인 (외부 검토 가격심의 갭 7 대응): limit 지정 시 {rows,total} 응답.
-  // 무파라미터는 기존 전량 배열 응답 유지 — 현 규모(수백~수천)에선 전량이 단순하고,
-  // 1만대급 기관은 limit 경로로 전환한다(성능 기준선: docs/ARCHITECTURE.md).
-  const limitRaw = req.nextUrl.searchParams.get("limit");
-  const baseSql = `
-    SELECT a.*, r.rack_name, l.location_name
-    FROM assets a
-    LEFT JOIN racks r ON a.rack_id = r.id
-    LEFT JOIN locations l ON r.location_id = l.id
-    WHERE ${scope.sql} AND ${ipSearch.sql}
-    ORDER BY a.created_at DESC
-  `;
-  if (limitRaw != null) {
-    const limit = Math.min(Math.max(Number(limitRaw) || 100, 1), 500);
-    const offset = Math.max(Number(req.nextUrl.searchParams.get("offset")) || 0, 0);
-    const total = (db.prepare(`SELECT COUNT(*) AS c FROM assets a WHERE ${scope.sql} AND ${ipSearch.sql}`)
-      .get(...scope.params, ...ipSearch.params) as { c: number }).c;
-    const rows = db.prepare(`${baseSql} LIMIT ? OFFSET ?`).all(...scope.params, ...ipSearch.params, limit, offset);
-    return NextResponse.json({ rows, total });
-  }
-  const assets = db.prepare(baseSql).all(...scope.params, ...ipSearch.params);
-  return NextResponse.json(assets);
+  const params = parseAssetListParams(req.nextUrl.searchParams);
+  const result = listAssets(getDb(), actor, { ...params, unassignedOnly: wantUnassigned });
+  return NextResponse.json(result);
 });
 
 export const POST = withApi(async (req: NextRequest) => {

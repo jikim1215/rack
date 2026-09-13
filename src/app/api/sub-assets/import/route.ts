@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi } from "@/lib/api-authz";
+import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { isXlsxBuffer } from "@/lib/validation/asset-rules";
@@ -16,7 +17,7 @@ export const POST = withApi(async (req: NextRequest) => {
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  if (!file) throw new ValidationError("파일이 없습니다.");
+  assertUploadSize(file);
 
   const buffer = Buffer.from(await file.arrayBuffer());
   if (!isXlsxBuffer(buffer)) {

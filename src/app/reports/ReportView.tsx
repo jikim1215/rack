@@ -11,7 +11,7 @@ const statusLabels: Record<string, string> = {
 };
 const gradeLabels: Record<string, string> = { H: "상(H)", M: "중(M)", L: "하(L)", 미평가: "미평가" };
 
-export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, totals, asOf }: {
+export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, totals, asOf, freshness, byTeamFreshness }: {
   byTypeStatus: { asset_type: string; status: string; c: number }[];
   byTeam: { team_name: string; assets: number; racked: number; with_ip: number; subs: number }[];
   byLocation: { location_name: string; racks: number; total_units: number; used_units: number }[];
@@ -19,6 +19,9 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
   byYear: { y: string; c: number }[];
   totals: { assets: number; subs: number; racks: number; frames: number };
   asOf: string;
+  /** 현행화 — 확인 도장(verified_at) 신선도 버킷 + 팀별 현행화율 */
+  freshness: { fresh: number; aging: number; stale: number; never: number };
+  byTeamFreshness: { team_name: string; total: number; fresh: number; verifiedPct: number }[];
 }) {
   // 표준 6종 중 데이터가 있는 것 + 독립 부서 자체 유형(enum 밖)까지 모두 행으로 포함(ADR-011 확장).
   const knownTypes = Object.keys(typeLabels).filter((t) => byTypeStatus.some((r) => r.asset_type === t));
@@ -162,6 +165,47 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
             </table>
           </section>
         </div>
+
+        {/* 6. 현행화 현황 — "값이 채워졌는가" 가 아니라 "사람이 최근에 확인했는가" (부서별 비교는 현행화를 움직이는 지표) */}
+        <section className="mt-6">
+          <h3 className="font-semibold mb-2 text-ink">6. 현행화 현황 (현행 확인 도장 기준)</h3>
+          <p className="text-xs text-ink-3 mb-2">
+            현행 확인 = 값을 바꾸지 않았어도 담당자가 &lsquo;봤고 맞다&rsquo;를 기록한 것. 90일 이내 확인을 현행으로 본다. 현행화율 = 90일 내 확인 / 전체(폐기 제외).
+          </p>
+          <table className="border-collapse w-full mb-3">
+            <thead><tr><th className={th}>90일 내 확인</th><th className={th}>90~180일</th><th className={th}>180일 초과</th><th className={th}>확인 이력 없음</th><th className={th}>현행화율</th></tr></thead>
+            <tbody>
+              {(() => {
+                const total = freshness.fresh + freshness.aging + freshness.stale + freshness.never;
+                const pct = total > 0 ? Math.round((freshness.fresh / total) * 100) : 0;
+                return (
+                  <tr>
+                    <td className={tdNum}>{freshness.fresh}</td>
+                    <td className={tdNum}>{freshness.aging}</td>
+                    <td className={tdNum}>{freshness.stale}</td>
+                    <td className={tdNum}>{freshness.never}</td>
+                    <td className={`${tdNum} font-semibold`}>{pct}%</td>
+                  </tr>
+                );
+              })()}
+            </tbody>
+          </table>
+          <table className="border-collapse w-full">
+            <thead><tr><th className={th}>팀</th><th className={th}>전체</th><th className={th}>90일 내 확인</th><th className={th}>미확인/경과</th><th className={th}>현행화율</th></tr></thead>
+            <tbody>
+              {byTeamFreshness.map((r) => (
+                <tr key={r.team_name}>
+                  <td className={td}>{r.team_name}</td>
+                  <td className={tdNum}>{r.total}</td>
+                  <td className={tdNum}>{r.fresh}</td>
+                  <td className={tdNum}>{r.total - r.fresh}</td>
+                  <td className={`${tdNum} font-semibold`}>{r.verifiedPct}%</td>
+                </tr>
+              ))}
+              {byTeamFreshness.length === 0 && <tr><td className={`${td} text-ink-3`} colSpan={5}>자산 없음</td></tr>}
+            </tbody>
+          </table>
+        </section>
       </div>
     </div>
   );

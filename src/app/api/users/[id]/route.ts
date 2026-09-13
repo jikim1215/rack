@@ -1,5 +1,5 @@
 import { getDb } from '@/lib/db';
-import { hashPassword, validatePasswordPolicy } from '@/lib/auth';
+import { hashPassword } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertAdmin } from '@/lib/authz';
@@ -44,10 +44,8 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   }
 
   const password = str(b, 'password', { max: 200 });
-  if (password) {
-    const policyError = validatePasswordPolicy(password);
-    if (policyError) throw new ValidationError(policyError);
-  }
+  // 서버는 sha512 프리해시만 받는다(평문 정책은 클라이언트). 프리해시 형식만 검증.
+  if (password && !/^[0-9a-f]{128}$/.test(password)) throw new ValidationError("비밀번호 전송 형식이 올바르지 않습니다(클라이언트 해시 누락).");
 
   const safeRole = oneOf(b, 'role', ['admin', 'team', 'viewer'] as const, { default: 'team', label: '역할' });
   const displayName = str(b, 'display_name', { max: 100, label: '이름' });

@@ -21,6 +21,16 @@ export default async function UnassignedPage() {
     WHERE a.team_id IS NULL
     ORDER BY a.created_at DESC
   `).all() as (Pick<AssetRow, "id" | "asset_name" | "asset_type" | "ip_address" | "status" | "department" | "admin_name" | "os"> & { rack_name: string | null; location_name: string | null })[];
+
+  const departmentSummary = db.prepare(`
+    SELECT COALESCE(department, '') as department, COUNT(*) as count
+    FROM assets
+    WHERE team_id IS NULL
+    GROUP BY COALESCE(department, '')
+    ORDER BY count DESC, department ASC
+  `).all() as { department: string; count: number }[];
+
   const teams = db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as Pick<TeamRow, "id" | "team_name">[];
-  return <UnassignedQueue assets={assets} teams={teams} />;
+
+  return <UnassignedQueue assets={assets} teams={teams} departmentSummary={departmentSummary} />;
 }

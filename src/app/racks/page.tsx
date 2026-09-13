@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
-import { RackView, type Asset as RackAsset } from "./RackView";
+import { RackView } from "./RackView";
+import type { Asset as RackAsset } from "./parts/types";
 import Link from "next/link";
 import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
 import type { LocationRow, RackRow, AssetRow, DistFrameRow, TeamRow } from "@/lib/db-types";
@@ -34,7 +35,7 @@ export default async function RacksPage() {
     FROM assets
     WHERE rack_id IS NOT NULL AND rack_unit_start IS NOT NULL AND rack_unit_size IS NOT NULL AND rack_unit_size >= 1 AND status != 'retired' AND ${assetScope.sql}
     ORDER BY rack_unit_start
-  `).all(...assetScope.params) as unknown as RackAsset[]; // RackView 계약(실장 자산은 rack_id/rack_unit_start non-null; 미배치는 View 가 null 을 런타임 처리)
+  `).all(...assetScope.params) as RackAsset[];
 
   // 미배치 자산 (드래그앤드롭 배치 대상) — 폐기 제외, 팀 스코프 적용
   const unplacedAssets = db.prepare(`
@@ -42,7 +43,7 @@ export default async function RacksPage() {
     FROM assets
     WHERE (rack_id IS NULL OR rack_unit_start IS NULL) AND status != 'retired' AND ${assetScope.sql}
     ORDER BY asset_name
-  `).all(...assetScope.params) as unknown as RackAsset[]; // RackView 계약(실장 자산은 rack_id/rack_unit_start non-null; 미배치는 View 가 null 을 런타임 처리)
+  `).all(...assetScope.params) as RackAsset[];
 
   // 선번장 바로가기용: 랙에 실장된 배선반(FDF 등) 위치 — 소유 전용(팀은 자기 배선반만)
   const frameScope = scopeWhere(actor, "team_id");

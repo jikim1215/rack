@@ -7,7 +7,7 @@
 // 클라이언트(LoginForm)가 평문을 SHA-512로 프리해시해 전송하므로, 서버의 hashPassword/verifyPassword가
 // 받는 `password` 인자는 이미 sha512(평문) 문자열이다. 시드(db-seed.mjs)는 평문을 갖고 있으므로
 // 서버측에서 sha512를 직접 적용해 동일한 규약을 만든다. 두 경로 모두 최종 저장물은 같다.
-// 주의: 프리해시는 전송구간 보호가 아니다(재전송 가능) — 전송 보호는 TLS가 담당(docs/deploy-tls.md).
+// 주의: 프리해시는 전송구간 보호가 아니다(재전송 가능) — 전송 보호는 TLS(nginx 종단, docs/DEPLOY.md)가 담당.
 import { scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from "crypto";
 
 export const SESSION_COOKIE = "asset_session";
@@ -61,18 +61,8 @@ export function hashPlaintextPassword(plain: string): string {
 }
 
 
-// --- 비밀번호 정책 (P10 보안 하드닝, AC-18) ---
-// 폐쇄망 내부 시스템 기준: 최소 8자, 영문/숫자/특수문자 중 2종 이상 조합, 256자 이하.
-export const PASSWORD_MIN_LENGTH = 8;
-export const PASSWORD_MAX_LENGTH = 256;
-export function validatePasswordPolicy(password: unknown): string | null {
-  if (typeof password !== "string") return "비밀번호를 입력하세요.";
-  if (password.length < PASSWORD_MIN_LENGTH) return `비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 합니다.`;
-  if (password.length > PASSWORD_MAX_LENGTH) return `비밀번호는 ${PASSWORD_MAX_LENGTH}자 이하여야 합니다.`;
-  const classes = [/[a-zA-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter(re => re.test(password)).length;
-  if (classes < 2) return "비밀번호는 영문/숫자/특수문자 중 2종 이상을 포함해야 합니다.";
-  return null;
-}
+// --- 비밀번호 정책 — src/lib/password-policy.ts (클라이언트와 공유하는 동형 모듈)에서 재수출 ---
+export { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, validatePasswordPolicy } from "./password-policy.ts";
 
 // --- Session token (HMAC-SHA512 signed) ---
 export type Role = "admin" | "team" | "viewer";
@@ -88,6 +78,11 @@ export interface SessionPayload {
   /** mustChangePassword — 관리자 비밀번호 초기화/강제변경. true면 미들웨어가 /change-password 로 유도. */
   mcp?: boolean;
   /**
+   * mfaSetupRequired — 역할이 MFA_REQUIRED_ROLES 에 속하는데 아직 2단계 인증을 등록하지 않았다.
+   * true 면 미들웨어가 /settings?tab=mfa 로 유도하고 등록 API 외는 막는다. 등록 완료 시 세션을 재발급해 해제.
+   */
+  msr?: boolean;
+  /**
    * 토큰 용도. 없으면 정상 세션.
    * "mfa" = 1차(비밀번호)만 통과한 임시 토큰 — 2단계 코드 교환 전용이라 세션으로 쓰지 못한다(getSession 이 거부).
    */
@@ -97,6 +92,17 @@ export interface SessionPayload {
 
 /** 2단계 인증 대기 토큰 수명 — 코드 입력할 만큼만 짧게. */
 export const MFA_PENDING_TTL_MS = 3 * 60 * 1000;
+
+/**
+ * 2단계 인증 등록이 강제되는 역할 — 환경변수 MFA_REQUIRED_ROLES (쉼표 구분, 예: "admin" 또는 "admin,team").
+ * 비어 있으면 강제 없음(선택 등록). 기본값은 admin — 총괄 계정이 계정·권한·감사로그를 줌어에서 가장 보호가 필요하다.
+ * 환경변수로 끄려면 MFA_REQUIRED_ROLES=none.
+ */
+export function mfaRequiredRoles(): ReadonlySet<Role> {
+  const raw = (process.env.MFA_REQUIRED_ROLES ?? "admin").trim().toLowerCase();
+  if (!raw || raw === "none") return new Set();
+  return new Set(raw.split(",").map((s) => s.trim()).filter((s): s is Role => s === "admin" || s === "team" || s === "viewer"));
+}
 
 export function createSessionToken(payload: Omit<SessionPayload, "exp">, ttlMs: number = SESSION_TTL): string {
   const data: SessionPayload = { ...payload, exp: Date.now() + ttlMs };

@@ -2,22 +2,24 @@ export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
 import { AssetTable } from "./AssetTable";
-import { scopeWhere, rackScopeWhere } from "@/lib/authz";
-import type { AssetRow, RackRow, CustomFieldRow, CustomValueRow, TeamRow } from "@/lib/db-types";
+import { rackScopeWhere } from "@/lib/authz";
+import { listAssets, ASSET_MISSING_FILTERS, type AssetMissingFilter } from "@/lib/asset-list";
+import type { RackRow, CustomFieldRow, TeamRow } from "@/lib/db-types";
 
 export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ rack_id?: string; missing?: string; q?: string }> }) {
   const db = getDb();
   const actor = await requireMenuPage("assets"); // 메뉴 접근 게이트(P1): 권한 없으면 /access-denied
-  const scope = scopeWhere(actor, "a.team_id");
-  const assets = db.prepare(`
-    SELECT a.*, r.rack_name, l.location_name, t.team_name
-    FROM assets a
-    LEFT JOIN racks r ON a.rack_id = r.id
-    LEFT JOIN locations l ON r.location_id = l.id
-    LEFT JOIN teams t ON a.team_id = t.id
-    WHERE ${scope.sql}
-    ORDER BY a.created_at DESC
-  `).all(...scope.params) as (AssetRow & { rack_name: string | null; location_name: string | null; team_name: string | null })[];
+  const sp = await searchParams;
+  // 첫 페이지만 SSR — API 와 같은 쿼리(listAssets)라 필터 의미가 어긋나지 않는다. 이후 페이지·조건 변경은 클라이언트가 /api/assets 로.
+  const rackIdRaw = Number(sp.rack_id);
+  const missing = (ASSET_MISSING_FILTERS as readonly string[]).includes(sp.missing ?? "") ? (sp.missing as AssetMissingFilter) : "";
+  const list = listAssets(db, actor, {
+    q: sp.q ?? "",
+    rack_id: Number.isInteger(rackIdRaw) && rackIdRaw > 0 ? rackIdRaw : null,
+    missing,
+    limit: 100, offset: 0, withCustomValues: true,
+  });
+  const assets = list.rows;
 
   // 배치 대상 랙: 팀은 자기 소유 랙 또는 공유(NULL) 랙 + 내 자산이 있는 랙(하이브리드). 총괄/전체열람은 전체.
   const rackScope = rackScopeWhere(actor, "r.team_id", "r.id");
@@ -32,24 +34,10 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
     SELECT * FROM custom_fields WHERE is_active = 1 ORDER BY sort_order, id
   `).all() as CustomFieldRow[];
 
-  // 자산별 커스텀 값을 미리 로드
-  const customValues = db.prepare(`
-    SELECT cv.asset_id, cv.field_id, cv.value
-    FROM custom_values cv
-    JOIN custom_fields cf ON cv.field_id = cf.id
-    WHERE cf.is_active = 1
-  `).all() as Pick<CustomValueRow, "asset_id" | "field_id" | "value">[];
   // 관리부서(소유 팀) 목록 — 일괄수정 팀 재지정 드롭다운용
   const teams = db.prepare(`SELECT id, team_name FROM teams ORDER BY team_name`).all() as Pick<TeamRow, "id" | "team_name">[];
 
-  // asset_id -> { field_id: value }
-  const cvMap: Record<number, Record<number, string>> = {};
-  for (const cv of customValues) {
-    if (!cvMap[cv.asset_id]) cvMap[cv.asset_id] = {};
-    cvMap[cv.asset_id][cv.field_id] = cv.value;
-  }
-
-  const sp = await searchParams;
+  const cvMap = list.customValues ?? {};
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -58,7 +46,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
           <h2 className="text-2xl font-bold tracking-tight">자산관리</h2>
         </div>
       </div>
-      <AssetTable assets={assets} racks={racks} customFields={customFields} customValuesMap={cvMap} teams={teams} isAdmin={actor?.role === "admin"} initialRackId={sp.rack_id ?? null} initialMissing={sp.missing ?? null} initialSearch={sp.q ?? null} />
+      <AssetTable assets={assets} total={list.total} racks={racks} customFields={customFields} customValuesMap={cvMap} teams={teams} isAdmin={actor?.role === "admin"} initialRackId={sp.rack_id ?? null} initialMissing={sp.missing ?? null} initialSearch={sp.q ?? null} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Key, Users, Shield, Mail, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Key, Users, Shield, Mail, ShieldCheck, AlertTriangle } from "lucide-react";
 import { PasswordTab } from "./tabs/PasswordTab";
 import { MfaTab } from "./tabs/MfaTab";
 import { UsersTab } from "./tabs/UsersTab";
@@ -31,6 +31,14 @@ export function SettingsView({ currentUser, users: initialUsers, teams: initialT
   const [activeTab, setActiveTab] = useState<Tab>("password");
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [teams, setTeams] = useState<Team[]>(initialTeams);
+  // 2단계 인증 등록 강제(MFA_REQUIRED_ROLES)로 미들웨어가 보낸 경우: ?tab=mfa&required=1
+  const [mfaRequired, setMfaRequired] = useState(false);
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const tab = sp.get("tab");
+    if (tab && TABS.some((t) => t.key === tab)) setActiveTab(tab as Tab);
+    setMfaRequired(sp.get("required") === "1");
+  }, []);
 
   if (!currentUser) return null;
 
@@ -44,6 +52,15 @@ export function SettingsView({ currentUser, users: initialUsers, teams: initialT
           <h2 className="text-2xl font-bold tracking-tight">설정</h2>
         </div>
       </div>
+
+      {mfaRequired && (
+        <div className="flex items-start gap-2 text-sm bg-amber-50 text-warn border border-amber-100 rounded-lg px-4 py-3">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <span>
+            <strong>현재 역할은 2단계 인증 등록이 필수</strong>입니다. 아래에서 인증 앱을 등록해야 다른 화면을 쓸 수 있습니다.
+          </span>
+        </div>
+      )}
 
       {/* 탭 */}
       <div className="flex gap-1 border-b border-line">

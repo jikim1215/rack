@@ -1,5 +1,5 @@
 import { getDb } from '@/lib/db';
-import { hashPassword, validatePasswordPolicy } from '@/lib/auth';
+import { hashPassword } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertAdmin } from '@/lib/authz';
@@ -31,8 +31,8 @@ export const POST = withApi(async (req: NextRequest) => {
   if (nameError) throw new ValidationError(nameError);
   const trimmedUsername = normalizeEmail(usernameRaw);
 
-  const policyError = validatePasswordPolicy(password);
-  if (policyError) throw new ValidationError(policyError);
+  // 서버는 sha512 프리해시만 받는다(평문 정책은 클라이언트 password-policy.ts). 여기서는 프리해시 형식만 검증 — 평문이 실수로 오면 거부.
+  if (!/^[0-9a-f]{128}$/.test(password)) throw new ValidationError("비밀번호 전송 형식이 올바르지 않습니다(클라이언트 해시 누락).");
 
   const db = getDb();
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(trimmedUsername);

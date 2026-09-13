@@ -1,11 +1,41 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import {
   Plus, Search, Pencil, Trash2, X, Save, ChevronDown, ChevronUp, ChevronRight,
-  Settings, Upload, Download, FileSpreadsheet, AlertCircle, History,
+  Settings, Upload, Download, FileSpreadsheet, AlertCircle, History, ShieldCheck,
 } from "lucide-react";
 import { splitAccessIps } from "@/lib/access-ip";
+import { freshnessOf, freshnessLabel } from "@/lib/freshness";
+
+// 현행 확인 도장 신선도 → 아이콘 색 (fresh 초록 / aging 주황 / stale 빨강 / never 회색)
+function freshnessTone(verifiedAt: string | null | undefined): string {
+  switch (freshnessOf(verifiedAt)) {
+    case "fresh": return "text-signal";
+    case "aging": return "text-warn";
+    case "stale": return "text-fault";
+    default: return "text-ink-3";
+  }
+}
+
+// 페이저 — 서버 페이지네이션 (상단/하단 공용)
+function Pager({ total, page, pageSize, pageCount, loading, onPage, onPageSize, bottom }: {
+  total: number; page: number; pageSize: number; pageCount: number; loading: boolean;
+  onPage: (p: number) => void; onPageSize: (n: number) => void; bottom?: boolean;
+}) {
+  if (total <= pageSize && !bottom) return null; // 한 페이지면 상단 페이저는 숨김(하단 총계만)
+  return (
+    <div className={`flex items-center gap-2 text-xs text-ink-2 ${bottom ? "" : "justify-end mb-2"}`}>
+      {loading && <span className="text-ink-3">불러오는 중…</span>}
+      <button className="px-2 py-1 border border-line rounded disabled:opacity-40 hover:bg-slate-100" disabled={page <= 0 || loading} onClick={() => onPage(page - 1)}>이전</button>
+      <span className="num">{page + 1} / {pageCount}</span>
+      <button className="px-2 py-1 border border-line rounded disabled:opacity-40 hover:bg-slate-100" disabled={page >= pageCount - 1 || loading} onClick={() => onPage(page + 1)}>다음</button>
+      <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="form-input !w-auto !py-1 text-xs" title="페이지 크기">
+        {[50, 100, 200].map((n) => <option key={n} value={n}>{n}건씩</option>)}
+      </select>
+    </div>
+  );
+}
 import { UsageGuide } from "@/components/UsageGuide";
 
 const typeLabels: Record<string, string> = {
@@ -54,6 +84,9 @@ interface Asset {
   department: string;
   team_name?: string | null;
   team_id: number | null;
+  /** 현행 확인 도장 (빈 문자열 = 미확인) */
+  verified_at?: string;
+  verified_by?: string;
   network_zone: string;
   cia_c: number | null;
   cia_i: number | null;
@@ -100,6 +133,8 @@ const emptyAsset = {
 
 interface Props {
   assets: Asset[];
+  /** 서버 페이지네이션: 전체 건수(필터 적용 후). 화면에는 한 페이지만 온다. */
+  total: number;
   racks: { id: number; rack_name: string; total_units: number; team_id: number | null; location_name: string | null }[];
   customFields: CustomField[];
   customValuesMap: Record<number, Record<number, string>>;
@@ -110,15 +145,57 @@ interface Props {
   initialSearch?: string | null;
 }
 
-export function AssetTable({ assets: initialAssets, racks, customFields: initFields, customValuesMap: initCvMap, teams, isAdmin, initialRackId, initialMissing, initialSearch }: Props) {
+export function AssetTable({ assets: initialAssets, total: initialTotal, racks, customFields: initFields, customValuesMap: initCvMap, teams, isAdmin, initialRackId, initialMissing, initialSearch }: Props) {
   const [assets, setAssets] = useState(initialAssets);
+  const [total, setTotal] = useState(initialTotal);
   const [search, setSearch] = useState(initialSearch || "");
   const [typeFilter, setTypeFilter] = useState("");
   const [rackFilter, setRackFilter] = useState<string>(initialRackId || "");
-  // 라이프사이클 넛지 필터: ?missing=ip|rack (대시보드 흐름 카드에서 진입)
+  // 정비 대상 필터: ?missing=ip|rack|admin|os|serial|verify (대시보드·현행화 패널에서 진입)
+  const MISSING_KEYS = ["ip", "rack", "admin", "os", "serial", "verify"];
   const [missingFilter, setMissingFilter] = useState<string>(
-    initialMissing === "ip" || initialMissing === "rack" ? initialMissing : ""
+    initialMissing && MISSING_KEYS.includes(initialMissing) ? initialMissing : ""
   );
+  // ── 서버 페이지네이션 ──
+  // 필터·검색·정렬은 서버(src/lib/asset-list.ts)가 하고 화면은 한 페이지(기본 100)만 받는다.
+  // 1만 대에서 전량 응답(6.8MB)이 병목이었다 — 이제 어떤 조건이든 응답은 페이지 크기로 고정된다.
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(100);
+  const [listLoading, setListLoading] = useState(false);
+  const firstRender = useRef(true);
+  const listQuery = useCallback(() => {
+    const qs = new URLSearchParams();
+    if (search.trim()) qs.set("q", search.trim());
+    if (typeFilter) qs.set("type", typeFilter);
+    if (rackFilter) qs.set("rack_id", rackFilter);
+    if (missingFilter) qs.set("missing", missingFilter);
+    qs.set("limit", String(pageSize));
+    qs.set("offset", String(page * pageSize));
+    qs.set("cv", "1");
+    return qs.toString();
+  }, [search, typeFilter, rackFilter, missingFilter, page, pageSize]);
+  const reloadList = useCallback(async () => {
+    setListLoading(true);
+    try {
+      const res = await fetch("/api/assets?" + listQuery());
+      if (!res.ok) return;
+      const data = await res.json();
+      setAssets(data.rows ?? []);
+      setTotal(data.total ?? 0);
+      if (data.customValues) setCvMap((prev) => ({ ...prev, ...data.customValues }));
+    } finally {
+      setListLoading(false);
+    }
+  }, [listQuery]);
+  // 조건 변경 시 서버 재조회 (검색어는 300ms 디바운스). 첫 렌더는 SSR 결과를 그대로 쓴다.
+  useEffect(() => {
+    if (firstRender.current) { firstRender.current = false; return; }
+    const t = setTimeout(() => { reloadList(); }, 300);
+    return () => clearTimeout(t);
+  }, [reloadList]);
+  // 필터가 바뀌면 1페이지로 (page 는 의존성에서 빼고 setPage 로만 조정)
+  useEffect(() => { setPage(0); }, [search, typeFilter, rackFilter, missingFilter, pageSize]);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyAsset);
@@ -185,35 +262,10 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   // 테이블에 표시할 커스텀 필드
   const tableCustomFields = customFields.filter((f) => f.show_in_table);
-  // 추가 IP(additional_ips 커스텀필드)도 검색 대상에 포함 — 값은 JSON 배열 문자열이라 부분일치로 매칭
-  const addlIpFieldId = customFields.find((f) => f.field_key === "additional_ips")?.id;
 
-  const filtered = assets.filter((a) => {
-    if (typeFilter && a.asset_type !== typeFilter) return false;
-    if (rackFilter && a.rack_id !== Number(rackFilter)) return false;
-    if (missingFilter === "ip" && (a.ip_address || "").trim() !== "") return false;
-    if (missingFilter === "rack" && a.rack_id != null) return false;
-    if (missingFilter && a.status === "retired") return false; // 폐기 자산은 정비 대상 아님
-    if (search) {
-      const q = search.toLowerCase();
-      return (
-        a.asset_name.toLowerCase().includes(q) ||
-
-        a.ip_address.toLowerCase().includes(q) ||
-        (a.access_ip || "").toLowerCase().includes(q) ||
-        a.manufacturer.toLowerCase().includes(q) ||
-        a.model.toLowerCase().includes(q) ||
-        a.serial_number.toLowerCase().includes(q) ||
-        a.os.toLowerCase().includes(q) ||
-        a.admin_name.toLowerCase().includes(q) ||
-        a.user_name.toLowerCase().includes(q) ||
-        (a.team_name || "").toLowerCase().includes(q) ||
-        a.department.toLowerCase().includes(q) ||
-        (addlIpFieldId != null && (cvMap[a.id]?.[addlIpFieldId] || "").toLowerCase().includes(q))
-      );
-    }
-    return true;
-  });
+  // 필터·검색은 서버(asset-list.ts)에서 이미 적용됐다 — 화면은 받은 페이지를 그대로 그린다.
+  //   (과거 클라이언트 필터의 검색 범위: 자산명/IP/접근IP/제조사/모델/시리얼/OS/관리자/사용자/팀/부서/추가IP — 서버가 동일 범위를 LIKE·UNION 으로 매칭)
+  const filtered = assets;
 
   // 유형 고정 정렬 순서: 서버 → 네트워크 → 정보보호 → 전화설비 → 가상머신 → 기타 → 그 외(가나다순)
   const typeOrder = ["server", "network", "security", "telecom", "vm", "other"];
@@ -313,7 +365,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
       const res = await fetch("/api/assets/import", { method: "POST", body: fd });
       const data = await res.json(); setImportResult(data); setPendingImportFile(null);
       if (data.imported > 0) {
-        const r = await fetch("/api/assets"); if (r.ok) setAssets(await r.json());
+        await reloadList();
       }
     } catch { setImportResult({ success: false, error: "업로드 실패" }); }
     finally { setImporting(false); }
@@ -374,8 +426,8 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
         setAssets((prev) => prev.map((a) => (a.id === editId ? { ...a, ...data } : a)));
         setCvMap((prev) => ({ ...prev, [editId]: { ...customValues } }));
       } else {
-        setAssets((prev) => [data, ...prev]);
         setCvMap((prev) => ({ ...prev, [data.id]: { ...customValues } }));
+        await reloadList(); // 정렬·페이지 기준으로 서버가 다시 준다
         // 다음 등록을 위해 공통 맥락 필드 기억(식별자 필드는 매번 비움)
         setLastAssetCommon({
           asset_type: form.asset_type, network_zone: form.network_zone, status: form.status,
@@ -399,7 +451,32 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
     const ident = target ? `'${target.asset_name}'${target.asset_tag ? ` (자산태그 ${target.asset_tag})` : target.serial_number ? ` (S/N ${target.serial_number})` : ""}` : "이 자산";
     if (!confirm(`${ident} 자산을 삭제하시겠습니까?\n\n자동 처리: 랙 실장·IP·계약 연결이 함께 제거되고, 연결된 부속자산은 연결만 해제되어 남습니다.\n삭제는 되돌릴 수 없습니다(변경이력은 감사로그에 보존).`)) return;
     const res = await fetch(`/api/assets/${id}`, { method: "DELETE" });
-    if (res.ok) setAssets((prev) => prev.filter((a) => a.id !== id));
+    if (res.ok) { setAssets((prev) => prev.filter((a) => a.id !== id)); setTotal((t) => Math.max(0, t - 1)); }
+  }
+
+  // 현행 확인 도장 — 값을 바꾸지 않아도 "봤고 맞다" 를 기록(verified_at/by). updated_at 은 안 움직인다.
+  async function handleVerify(id: number) {
+    const res = await fetch(`/api/assets/${id}/verify`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(data.error || "현행 확인에 실패했습니다."); return; }
+    setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, verified_at: data.verified_at, verified_by: data.verified_by } : a)));
+  }
+  async function handleBulkVerify() {
+    const ids = filtered.map((a) => a.id).filter((id) => selectedIds.has(id));
+    if (ids.length === 0) { alert("현행 확인할 자산을 선택하세요."); return; }
+    if (!confirm(`선택한 ${ids.length}건을 '현재 값이 맞다' 로 확인 처리하시겠습니까?
+(값은 바뀌지 않고 확인 시각·확인자만 기록됩니다)`)) return;
+    setBulkBusy(true);
+    try {
+      const res = await fetch("/api/assets/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ asset_ids: ids }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(data.error || "현행 확인에 실패했습니다."); return; }
+      const idSet = new Set<number>(ids);
+      setAssets((prev) => prev.map((a) => (idSet.has(a.id) ? { ...a, verified_at: data.verified_at, verified_by: a.verified_by } : a)));
+      clearSelection();
+      alert(`${data.verified}건 현행 확인 완료${data.skipped ? ` (권한밖 ${data.skipped}건 제외)` : ""}.`);
+      await reloadList();
+    } finally { setBulkBusy(false); }
   }
 
   // 선택한 자산의 망구분/상태를 일괄 변경 (서버측 scope로 권한 밖 자산은 제외됨)
@@ -654,6 +731,10 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
           <option value="">정비 대상</option>
           <option value="rack">랙 미실장</option>
           <option value="ip">IP 미부여</option>
+          <option value="admin">관리자 미지정</option>
+          <option value="os">OS 미입력</option>
+          <option value="serial">시리얼 미입력</option>
+          <option value="verify">현행 미확인(180일+)</option>
         </select>
         <button onClick={() => (allExpanded ? collapseAllTypes() : expandAllTypes())}
           className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2"
@@ -1122,10 +1203,18 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
             className="flex items-center gap-1.5 border border-fault/40 text-fault px-3 py-2 rounded-lg text-sm hover:bg-red-50 disabled:opacity-50">
             <Trash2 size={16} /> {bulkBusy ? "처리 중..." : "선택 삭제"}
           </button>
+          <button onClick={handleBulkVerify} disabled={bulkBusy}
+            className="flex items-center gap-1.5 border border-signal/40 text-signal px-3 py-2 rounded-lg text-sm hover:bg-signal/10 disabled:opacity-50"
+            title="값을 바꾸지 않아도 '봤고 맞다' 를 기록합니다(현행 확인 도장)">
+            <ShieldCheck size={16} /> {bulkBusy ? "처리 중..." : "선택 현행 확인"}
+          </button>
           <button onClick={clearSelection}
             className="px-3 py-2 border border-line rounded-lg text-sm hover:bg-slate-100 text-ink-2">선택 해제</button>
         </div>
       )}
+
+      {/* 페이저 (상단) — 서버 페이지네이션: 화면에는 한 페이지만 온다 */}
+      <Pager total={total} page={page} pageSize={pageSize} pageCount={pageCount} loading={listLoading} onPage={setPage} onPageSize={setPageSize} />
 
       {/* 테이블 */}
       <div className="panel overflow-hidden">
@@ -1169,7 +1258,7 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
                       <TableRow key={a.id} asset={a} expanded={expandedId === a.id}
                         selected={selectedIds.has(a.id)} onSelect={() => toggleSelect(a.id)}
                         onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
-                        onEdit={() => startEdit(a)} onDelete={() => handleDelete(a.id)}
+                        onEdit={() => startEdit(a)} onDelete={() => handleDelete(a.id)} onVerify={() => handleVerify(a.id)}
                         tableCustomFields={tableCustomFields} allCustomFields={customFields}
                         cvMap={cvMap} renderCustomValue={renderCustomValue}
                         getFieldsForType={getFieldsForType} />
@@ -1197,7 +1286,10 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
             </tbody>
           </table>
         </div>
-        <div className="border-t border-line p-3 text-xs text-ink-3">총 <span className="num">{filtered.length}</span>건</div>
+        <div className="border-t border-line p-3 text-xs text-ink-3 flex items-center justify-between">
+          <span>표시 <span className="num">{filtered.length}</span>건 / 전체 <span className="num">{total}</span>건</span>
+          <Pager total={total} page={page} pageSize={pageSize} pageCount={pageCount} loading={listLoading} onPage={setPage} onPageSize={setPageSize} bottom />
+        </div>
       </div>
 
     </div>
@@ -1205,10 +1297,10 @@ export function AssetTable({ assets: initialAssets, racks, customFields: initFie
 }
 
 // --- 테이블 행 ---
-function TableRow({ asset: a, expanded, selected, onSelect, onToggle, onEdit, onDelete,
+function TableRow({ asset: a, expanded, selected, onSelect, onToggle, onEdit, onDelete, onVerify,
   tableCustomFields, allCustomFields, cvMap, renderCustomValue, getFieldsForType,
 }: {
-  asset: Asset; expanded: boolean; selected: boolean; onSelect: () => void; onToggle: () => void; onEdit: () => void; onDelete: () => void;
+  asset: Asset; expanded: boolean; selected: boolean; onSelect: () => void; onToggle: () => void; onEdit: () => void; onDelete: () => void; onVerify: () => void;
   tableCustomFields: CustomField[]; allCustomFields: CustomField[];
   cvMap: Record<number, Record<number, string>>;
   renderCustomValue: (f: CustomField, v: string | undefined) => string;
@@ -1240,6 +1332,7 @@ function TableRow({ asset: a, expanded, selected, onSelect, onToggle, onEdit, on
         <td className="p-3"><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${statusColors[a.status] || "text-idle"}`}><span className={`led ${statusLed[a.status] || "led-idle"}`} />{statusLabels[a.status]}</span></td>
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex gap-0.5">
+            <button onClick={onVerify} className={`p-1.5 rounded hover:bg-slate-100 ${freshnessTone(a.verified_at)}`} title={`현행 확인 도장 — ${freshnessLabel(a.verified_at)}${a.verified_at ? ` (${a.verified_at.slice(0, 10)} ${a.verified_by || ""})` : ""}`}><ShieldCheck size={14} /></button>
             <button onClick={onEdit} className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="수정"><Pencil size={14} /></button>
             <button onClick={onDelete} className="p-1.5 text-fault hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
           </div>

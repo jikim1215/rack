@@ -235,7 +235,14 @@ export function MfaTab({ active }: { active: boolean }) {
             <button onClick={() => window.print()} className="px-3 py-1.5 rounded border border-line text-sm text-ink-2 hover:bg-slate-50">
               인쇄
             </button>
-            <button onClick={() => setBackupCodes(null)} className="ml-auto px-3 py-1.5 text-sm text-ink-3 hover:text-ink">
+            <button
+              onClick={() => {
+                setBackupCodes(null);
+                // 등록 강제로 들어온 경우(?required=1): 서버가 세션을 재발급했으므로 이제 대시보드로 보낸다
+                if (new URLSearchParams(window.location.search).get("required") === "1") window.location.href = "/";
+              }}
+              className="ml-auto px-3 py-1.5 text-sm text-ink-3 hover:text-ink"
+            >
               저장했습니다
             </button>
           </div>

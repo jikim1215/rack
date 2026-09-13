@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Key } from "lucide-react";
 import { sha512 } from "@/lib/sha512";
+import { validatePasswordPolicy } from "@/lib/password-policy";
 
 export function PasswordTab() {
   // --- 비밀번호 변경 ---
@@ -23,8 +24,15 @@ export function PasswordTab() {
       setPwError(true);
       return;
     }
-    if (newPw.length < 4) {
-      setPwMsg("비밀번호는 4자 이상이어야 합니다.");
+    // 정책은 평문을 아는 여기서만 검사할 수 있다(서버는 sha512 프리해시만 받는다) — 서버와 같은 규칙
+    const policyError = validatePasswordPolicy(newPw);
+    if (policyError) {
+      setPwMsg(policyError);
+      setPwError(true);
+      return;
+    }
+    if (newPw === currentPw) {
+      setPwMsg("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
       setPwError(true);
       return;
     }

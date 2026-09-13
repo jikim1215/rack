@@ -97,6 +97,12 @@ for (const file of files) {
       }
       if (sessionOnly) {
         if (url.startsWith("/api/auth")) continue; // 인증 흐름 자체
+        // /api/health: 유일한 무인증 엔드포인트(미들웨어 예외). GET 만 허용하고 업무 데이터 조회가 없어야 한다.
+        if (url === "/api/health") {
+          assert.equal(c.method, "GET", `${label}: 헬스체크는 GET 만`);
+          assert.ok(!/FROM\s+(assets|users|audit_logs|sub_assets|contracts)/i.test(c.body), `${label}: 무인증 엔드포인트가 업무 테이블을 읽음`);
+          continue;
+        }
         // /api/permissions: GET 은 전 역할(assertCanRead), 쓰기는 assertAdmin
         assert.ok(c.method === "GET" ? /assertCanRead\(/.test(c.body) || hasAdmin : hasAdmin, `${label}: 인가 호출 없음`);
         continue;

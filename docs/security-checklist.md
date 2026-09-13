@@ -12,6 +12,10 @@
 - [x] AUTH_SECRET 미설정/기본값이면 운영(NODE_ENV=production)에서 **기동 거부**(fail-fast). `getSecret`.
 - [x] 비밀번호 scrypt(N=16384,r=8,p=1) + 32바이트 솔트, 검증은 timingSafeEqual. `hashPassword`/`verifyPassword`.
 - [x] **2단계 인증(TOTP, RFC 6238)** — 사용자별 등록(설정 → 2단계 인증). 비밀번호 통과 시 세션 대신 3분 대기 토큰(`pur='mfa'`, getSession/미들웨어가 거부) 발급 → `/api/auth/mfa` 코드 교환. replay 차단(`totp_last_counter`), ±1스텝, 코드 시도 5회/15분 잠금(`m:<user>`), 백업코드 10개 scrypt 해시·1회용. 외부 패키지 0 (`src/lib/totp.ts`, RFC 4226/6238 벡터 테스트 통과). ADR-017.
+- [x] **MFA 등록 강제** — `MFA_REQUIRED_ROLES`(기본 admin). 미등록이면 세션에 `msr` 플래그 → 미들웨어가 /settings 외 전부 차단(API 403 `MFA_SETUP_REQUIRED`), 등록 완료 시 세션 재발급으로 즉시 해제. `scripts/verify-hardening.mjs`.
+- [x] **비밀번호 정책은 평문을 아는 클라이언트가 검사** (`src/lib/password-policy.ts`, 변경/초기화/계정생성 전부). 서버는 sha512 프리해시만 받으므로 평문 정책을 판정할 수 없다 — 과거 `validatePasswordPolicy(해시)` 는 항상 통과하는 허수 검사였고(그래서 정책 위반 비밀번호가 존재), 지금은 "프리해시 형식인가" 만 검증. 정책 미달 비밀번호로 로그인하면 브라우저가 `/api/auth/password/weak` 로 자진 신고 → must_change 강제(엄격해지는 방향만 가능하므로 악용 가치 없음).
+- [x] 엑셀 업로드 상한 20MB/2만 행 (`src/lib/validation/upload.ts`, 임포트 4종 공통) — XLSX.read 전 차단.
+- [x] `/api/health` 무인증 — 업무 수치 미노출(가드레일 테스트가 업무 테이블 조회를 금지), no-store.
 - [x] MFA 해제 경로 통제 — 본인: 현재 코드 필수(세션 탈취로는 못 끕) / 총괄: `/api/users/[id]/mfa` DELETE(감사로그 + 세션 무효화) / 서버 CLI `disable-mfa.cjs`(총괄 본인 잠김).
 
 ## 2. 비밀번호 정책 (AC-18)

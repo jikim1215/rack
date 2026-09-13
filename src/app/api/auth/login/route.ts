@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { verifyPassword, createSessionToken, createMfaPendingToken, sessionCookieOptions, MFA_PENDING_TTL_MS } from "@/lib/auth";
+import { verifyPassword, createSessionToken, createMfaPendingToken, sessionCookieOptions, MFA_PENDING_TTL_MS, mfaRequiredRoles } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { withApi, readJson } from "@/lib/api-authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
@@ -168,9 +168,13 @@ export const POST = withApi(async (req: NextRequest) => {
     return res;
   }
 
+  // 2단계 인증 등록 강제: 역할이 대상인데 미등록이면 세션은 주되 msr 플래그로 등록 화면 밖을 막는다(미들웨어).
+  //   세션 없이는 등록 자체가 불가하므로 "로그인은 시키되 다른 일은 못 하게" 가 맞다. 등록 완료 시 setup PUT 이 세션을 재발급.
+  const mfaSetupRequired = mfaRequiredRoles().has(user.role) && !user.totp_enabled;
+
   // 로그인 성공 → 두 키 모두 시도 횟수 초기화
   resetAttempts(db, userKey, ipKey);
-  logAccess(db, { userId: user.id, username: user.username, ip, userAgent, action: "login", resultCode: "200" });
+  logAccess(db, { userId: user.id, username: user.username, ip, userAgent, action: "login", resultCode: "200", failureReason: mfaSetupRequired ? "mfa_setup_required" : undefined });
 
   const token = createSessionToken({
     userId: user.id,
@@ -180,10 +184,13 @@ export const POST = withApi(async (req: NextRequest) => {
     teamId: user.team_id ?? null,
     tv: user.token_version ?? 0,
     mcp: !!user.must_change_password,
+    ...(mfaSetupRequired ? { msr: true } : {}),
   });
 
   const res = NextResponse.json({
     ok: true,
+    // 클라이언트가 등록 화면으로 바로 보내도록 알린다(미들웨어가 어차피 막지만 UX 상 명시)
+    mfaSetupRequired,
     user: {
       id: user.id,
       username: user.username,

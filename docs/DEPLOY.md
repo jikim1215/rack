@@ -1,250 +1,126 @@
-# 폐쇄망 배포 가이드
+# 폐쇄망 배포 (운영자 상세)
 
-대상 환경: **Rocky Linux 8.10** (Intel x86_64, 폐쇄망/인터넷 차단)
-
----
-
-## 전체 절차 요약
-
-```
-[인터넷 PC]                    [USB/망연계]              [폐쇄망 서버]
-빌드 + 패키징  ──────────────▶  파일 전송  ──────────────▶  설치 + 실행
-```
+반입 담당자용 한 장 안내는 번들 안 `scripts/deploy/README-반입.md` 입니다. 이 문서는 **운영자 상세** — 빌드·옵션·환경변수·롤백·문제해결.
 
 ---
 
-## 1단계: 빌드 PC에서 릴리스 패키징 (인터넷 필요)
+## 1. 구성
 
-### 필요 파일 3개 준비
+```
+[사용자 PC] ──HTTPS(443)──▶ nginx (server_name itam.example.go.kr, 공존시스템 인증서 공유)
+                                │ proxy_pass
+                                ▼
+                     Next.js standalone (127.0.0.1:3100, 번들 Node 22)
+                                │
+                                ▼
+                     SQLite data.db (WAL) + backups/ + tls/
+```
 
-| 파일 | 설명 | 비고 |
-|------|------|------|
-| `rack-release.tar.gz` | 앱 빌드 결과물 | 빌드 스크립트로 생성 |
-| `node-v20.18.1-linux-x64.tar.xz` | Node.js 런타임 | [공식 다운로드](https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.xz) |
-| `scripts/deploy/install.sh` | 설치 스크립트 | 프로젝트에 포함 |
+- 대상 OS: Rocky Linux 8.10 x86_64 (glibc 2.28). **빌드도 같은 OS 에서** — better-sqlite3 native ABI 일치.
+- 서비스 계정 `asset`, 앱 `/opt/asset-inventory`, systemd `asset-inventory` + `asset-backup.timer` + `asset-retention.timer`.
+- 인터넷 불필요: 번들에 Node 런타임·native 모듈·nginx RPM·앱·문서가 전부 들어 있다.
 
-### 빌드 방법
-
-**방법 A: Linux/WSL2에서 빌드 (권장)**
+## 2. 빌드 (스테이징/빌드 머신, Rocky 8.10)
 
 ```bash
-cd /path/to/rack
-bash scripts/deploy/build-release.sh
+bash scripts/deploy/build-release.sh      # npm ci(오프라인 캐시) → next build → 스테이징 → tar
+node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (nonce CSP 양립 — 필수)
+sha256sum dist/asset-inventory-offline.tar.gz > dist/SHA256SUMS.txt
 ```
 
-- better-sqlite3가 linux-x64용으로 빌드됨
-- 서버에 빌드 도구 불필요
+전제: `vendor/node-linux-x64.tar.xz`(Node 22.6+), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. 첫 빌드는 인터넷 되는 시점에 한 번 `npm ci` 로 캐시를 채워 둔다.
 
-**방법 B: Windows에서 빌드**
-
-```powershell
-cd <프로젝트경로>
-powershell -ExecutionPolicy Bypass -File scripts/deploy/build-release.ps1
-```
-
-- better-sqlite3가 win32-x64용으로 빌드됨
-- 서버에서 install.sh가 자동 재빌드 (서버에 gcc/make/python3 필요)
-- 서버에 인터넷 없이 `npm rebuild`를 하려면 빌드 도구가 사전 설치되어 있어야 함
-
-### Node.js 바이너리 다운로드
-
-```
-https://nodejs.org/dist/v20.18.1/node-v20.18.1-linux-x64.tar.xz
-```
-
----
-
-## 2단계: 파일 전송
-
-USB, CD, 망연계 시스템 등으로 3개 파일을 폐쇄망 서버에 전송.
-
-```
-/tmp/rack-deploy/
-├── rack-release.tar.gz
-├── node-v20.18.1-linux-x64.tar.xz
-└── install.sh
-```
-
----
-
-## 3단계: 서버 설치
+## 3. 배포 — 한 줄
 
 ```bash
-cd /tmp/rack-deploy
-sudo bash install.sh
+tar -xzf asset-inventory-offline.tar.gz
+sudo bash asset-inventory/scripts/deploy/deploy.sh          # 신규/업그레이드 자동 판별
+sudo bash asset-inventory/scripts/deploy/deploy.sh --check  # 변경 없이 점검만
 ```
 
-### install.sh가 하는 일
+| 판별 | 조건 | 하는 일 |
+|---|---|---|
+| **업그레이드** | `/opt/asset-inventory/data.db` 있음 | `upgrade-inplace.sh` — DB 백업 → 롤백본 보관 → 앱 트리 교체(.next/src/scripts/docs/node_modules) → 재기동 → 스모크. **data.db·.env·node/·tls/·backups/ 보존** |
+| **신규설치** | 없음 | `setup-nginx.sh` — 번들 Node 전개 → 서비스 계정 → native smoke → .env 생성(강한 AUTH_SECRET) → nginx RPM 설치·사이트 설정 → systemd·타이머 등록 → 기동 |
 
-1. Node.js 20.x 설치 (`/usr/local/`)
-2. 서비스 계정 `rackapp` 생성
-3. `/opt/rack-asset-manager/`에 앱 배포
-4. better-sqlite3 네이티브 바인딩 검증 (필요 시 재빌드)
-5. `.env` 생성 (랜덤 AUTH_SECRET)
-6. DB 초기화 + 시드 데이터
-7. 파일 권한 설정 (600)
-8. systemd 서비스 등록 + 시작
-9. 방화벽 포트 3000 개방
-10. SELinux 정책 설정
+`--check` 는 설치 상태, 수행 예정 작업, **현재 메뉴 권한이 어느 화면을 막게 되는지**(`preflight-perms.cjs`)까지 출력한다.
 
-### 설치 후 확인
+### 신규설치 옵션
 
 ```bash
-# 서비스 상태
-systemctl status rack-asset-manager
-
-# 로그
-journalctl -u rack-asset-manager -f
-
-# 접속
-curl http://localhost:3000
-
-# 스모크 테스트 (필수) — 핵심 화면 데이터 불변식 검증
-# 자산관리 IP 렌더, IP 보유 자산 하한, 실장도/배선/실사 화면, 비로그인 401 등 14개 항목
-SMOKE_PASS=<admin비밀번호> npm run smoke
-
-# 인가·입력검증·CSP E2E (권장, 시드 계정 3종이 있는 환경) — 메뉴 권한이 서버에서 실제로 막힐는지, 400/403 응답, nonce 부착
-# ※ 실운영 DB 에는 실행하지 말 것(테스트 데이터를 쓰고 지운다). 스테이징/리허설 환경 전용.
-BASE_URL=https://localhost npm run verify:api
+sudo PUBLIC_FQDN=itam.example.go.kr bash …/deploy.sh
+sudo SSL_CRT=/etc/ssl/certs/shared.crt SSL_KEY=/etc/ssl/private/shared.key PUBLIC_FQDN=… bash …/deploy.sh
+sudo NEXT_INTERNAL_PORT=3100 bash …/deploy.sh    # 공존시스템이 3000 을 쓰므로 기본 3100
 ```
 
-> `npm run verify:build` 는 **빌드 머신에서** `next build` 직후에 실행한다(정적 프리렌더 페이지 0건 = nonce CSP 양립 확인).
-> 배포 번들에는 루트 검증 스크립트가 포함되지 않는다(build-release.sh 가 런타임 불필요 스크립트를 제거).
->
-> 배포·업그레이드·데이터 이관 후에는 반드시 `npm run smoke` 를 실행한다.
-> "화면에 데이터가 조용히 사라지는" 류의 회귀(예: 자산 IP 미표시)와 "정적 페이지가 CSP 에 막혔 잠김" 류의 회귀를 즉시 감지하기 위한 가드레일이다.
-> 데모 시드처럼 부속자산이 없는 환경은 `SMOKE_MIN_SUBASSETS=0` 로 하한을 내린다.
+인증서는 번들에 넣지 않는다 — 공존시스템(share)의 정식 인증서를 nginx 가 참조한다. 갱신도 그쪽에서 한 번만.
 
----
+## 4. 환경변수 (`/opt/asset-inventory/.env`)
 
-## 4단계: 접속 및 초기 설정
+`setup-nginx.sh` 가 만든다. 전체 목록과 설명은 저장소의 `.env.example`. 운영에서 자주 바꾸는 것:
 
-| 항목 | 값 |
-|------|-----|
-| URL | `http://<서버IP>:3000` |
-| 관리자 계정 | `admin` / `admin123!` |
+| 키 | 기본 | 설명 |
+|---|---|---|
+| `SESSION_TTL_HOURS` | 8 | 세션 수명. 공용 PC 환경이면 4 |
+| `MFA_REQUIRED_ROLES` | admin | 2단계 인증 등록 강제 역할. `none` 이면 전원 선택 |
+| `TRUST_PROXY` | true | nginx 뒤에서 X-Forwarded-For 신뢰(허용 IP·접속기록) |
+| `COOKIE_SECURE` | true | HTTPS 전용 쿠키 |
+| `NOTIFICATION_CHANNELS` | inapp,email | `inapp` 만이면 메일 발송 차단 |
 
-**첫 로그인 후 반드시:**
-1. 관리자 비밀번호 변경 (설정 > 비밀번호 변경)
-2. 사용자 계정 생성 (설정 > 사용자 관리)
-3. 메뉴 권한 설정 (설정 > 권한 관리)
+변경 후 `sudo systemctl restart asset-inventory`.
 
----
+## 5. 첫 기동 시 자동 마이그레이션
 
-## 운영
+앱이 DB 를 처음 건드리는 요청에서 `getDb()` 가 스키마를 맞춘다(수동 작업 없음): 메뉴 권한 시드(레지스트리 기본값, 유령 행 정리), 감사로그 `entity_type` 확장, `feedback` 테이블, 날짜 정규화(`user_version` 2), 2단계 인증·현행 확인 컬럼, 인덱스.
 
-### DB 백업 (일일)
+해석 불가 날짜가 있으면 로그에 남는다 — `sudo journalctl -u asset-inventory | grep MIGRATION`.
+
+## 6. 배포 후 확인
 
 ```bash
-# 수동 백업
-sudo bash /opt/rack-asset-manager/scripts/deploy/backup.sh
-
-# cron 자동 백업 (매일 02:00)
-echo "0 2 * * * root /opt/rack-asset-manager/scripts/deploy/backup.sh" \
-  >> /etc/cron.d/rack-backup
+curl -s https://localhost/api/health -k            # {"ok":true,"db":"ok","schema":2,...}
+cd /opt/asset-inventory && sudo -u asset ./node/bin/node scripts/smoke.mjs   # 핵심 화면 불변식
 ```
 
-### DB 복원
+`npm run verify:api`(인가·MFA·개선의견 E2E)는 **스테이징 전용** — 테스트 데이터를 쓰고 지운다. 실운영 DB 에 돌리지 말 것.
+
+## 7. 롤백
+
+`upgrade-inplace.sh` 가 종료 시 복원 명령을 출력한다:
 
 ```bash
-# 백업 목록 확인
-ls /opt/rack-asset-manager/backups/
-
-# 복원
-sudo bash /opt/rack-asset-manager/scripts/deploy/restore.sh \
-  /opt/rack-asset-manager/backups/data.db.20260619_020000.gz
+sudo systemctl stop asset-inventory
+sudo cp -a /opt/asset-inventory.rollback-<시각>/. /opt/asset-inventory/
+sudo chown -R asset:asset /opt/asset-inventory
+sudo systemctl start asset-inventory
 ```
 
-### 업데이트
-
-1. 빌드 PC에서 새 `rack-release.tar.gz` 생성
-2. 서버에 전송
-3. `sudo bash install.sh` 재실행 (DB는 자동 보존)
-
-### 서비스 관리
+DB 까지 되돌려야 하면(스키마가 앞선 버전이라 구버전이 못 읽는 경우):
 
 ```bash
-systemctl status rack-asset-manager    # 상태
-systemctl restart rack-asset-manager   # 재시작
-systemctl stop rack-asset-manager      # 중지
-journalctl -u rack-asset-manager -f    # 실시간 로그
+sudo systemctl stop asset-inventory
+sudo -u asset sh -c 'gunzip -c /opt/asset-inventory/backups/data.db.preupgrade-<시각>.gz > /opt/asset-inventory/data.db'
+sudo systemctl start asset-inventory
 ```
 
-### 포트 변경
+## 8. 백업·보존
 
-```bash
-# /opt/rack-asset-manager/.env 수정
-PORT=8080
+- `asset-backup.timer` → `backup.sh`: SQLite online backup + gzip, `backups/` 30일 보관, 권한 600.
+- `asset-retention.timer` → `retention-runner.ts`: 감사로그·접속기록 1년 초과분 프루닝(append-only 트리거가 1년 이내 삭제를 막는다).
+- 복구 리허설: `restore.sh <백업파일>` 을 스테이징에서 분기 1회.
 
-# systemd 서비스 파일 수정
-vi /etc/systemd/system/rack-asset-manager.service
-# ExecStart 줄의 -p 값 변경
+## 9. 계정 문제
 
-# 방화벽 + 재시작
-firewall-cmd --permanent --add-port=8080/tcp
-firewall-cmd --reload
-systemctl daemon-reload
-systemctl restart rack-asset-manager
-```
+- 비밀번호 분실: 다른 총괄이 설정 → 사용자 관리 → 초기화. 총괄이 유일하면 `scripts/deploy/reset-password-server.cjs`.
+- 2단계 인증 기기 분실: 다른 총괄이 사용자 관리 → 🛡 해제. 총괄이 유일하면 `scripts/deploy/disable-mfa.cjs`.
+- **`db-seed.mjs` 는 재설정 용도로 쓰지 말 것** — 전체 테이블을 DROP 한다.
 
----
+## 10. 문제해결
 
-## 사전 요구사항
-
-### 서버 최소 사양
-
-| 항목 | 최소 | 권장 |
-|------|------|------|
-| CPU | 2코어 | 4코어 |
-| RAM | 2GB | 4GB |
-| 디스크 | 10GB | 50GB |
-| OS | Rocky Linux 8.x | Rocky Linux 8.10 |
-
-### Windows 빌드 후 서버 추가 요구사항
-
-better-sqlite3 재빌드를 위해:
-
-```bash
-dnf groupinstall -y "Development Tools"
-dnf install -y python3
-```
-
-> Linux에서 빌드하면 이 요구사항은 필요 없음
-
----
-
-## 문제 해결
-
-### better-sqlite3 로딩 오류
-
-```
-Error: Cannot find module '../build/Release/better_sqlite3.node'
-```
-
-→ 네이티브 바인딩이 현재 OS에 맞지 않음. 재빌드:
-
-```bash
-cd /opt/rack-asset-manager
-npm rebuild better-sqlite3
-systemctl restart rack-asset-manager
-```
-
-### 포트 접속 불가
-
-```bash
-# 방화벽 확인
-firewall-cmd --list-ports
-
-# SELinux 확인
-getenforce
-# Enforcing이면:
-setsebool -P httpd_can_network_connect 1
-```
-
-### 권한 오류
-
-```bash
-chown -R rackapp:rackapp /opt/rack-asset-manager
-chmod 600 /opt/rack-asset-manager/.env
-chmod 600 /opt/rack-asset-manager/data.db
-```
+| 증상 | 확인 |
+|---|---|
+| 서비스가 안 뜸 | `sudo journalctl -u asset-inventory -n 100` · `.env` 의 `ASSET_DB_PATH` 경로 · `data.db` 소유자 `asset` |
+| 로그인 500 | `/api/health` 의 `db` 가 `error` 면 DB 파일 권한/경로 |
+| 화면이 흰 화면 | CSP 차단 — `verify-build.mjs` 가 정적 프리렌더 0건이었는지(nonce 미부착 페이지) |
+| nginx 502 | `ss -tlnp | grep 3100` · `NEXT_INTERNAL_PORT` 와 nginx `proxy_pass` 포트 일치 |
+| 인증서 경고 | 공존시스템 인증서 만료 — 그쪽에서 갱신 후 `nginx -s reload` |

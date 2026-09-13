@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ScrollText, RefreshCw } from "lucide-react";
+import { ScrollText, RefreshCw, Download } from "lucide-react";
+import { useToast } from "@/components/Toast";
 
 interface AccessLog {
   id: number;
@@ -94,6 +95,7 @@ function fmtTime(value: string): string {
 
 export function LogViewer() {
   const [tab, setTab] = useState<Tab>("access");
+  const { addToast } = useToast();
 
   // 접속기록 상태
   const [accessAction, setAccessAction] = useState<string>("");
@@ -158,6 +160,20 @@ export function LogViewer() {
       setAuditLoading(false);
     }
   }, [entityType, auditPage]);
+  const handleExportAccess = () => {
+    const qs = new URLSearchParams();
+    if (accessAction) qs.set("action", accessAction);
+    if (accessUser.trim()) qs.set("username", accessUser.trim());
+    addToast("현재 필터 조건으로 내보냅니다", "success");
+    window.location.href = `/api/access-logs/export?${qs.toString()}`;
+  };
+
+  const handleExportAudit = () => {
+    const qs = new URLSearchParams();
+    if (entityType) qs.set("entity_type", entityType);
+    addToast("현재 필터 조건으로 내보냅니다", "success");
+    window.location.href = `/api/audit/export?${qs.toString()}`;
+  };
 
   useEffect(() => {
     if (tab === "access") loadAccess();
@@ -226,6 +242,13 @@ export function LogViewer() {
             >
               <RefreshCw size={14} className={accessLoading ? "animate-spin" : ""} /> 새로고침
             </button>
+            <button
+              type="button"
+              onClick={handleExportAccess}
+              className="btn inline-flex items-center gap-1.5"
+            >
+              <Download size={14} /> CSV 내보내기
+            </button>
             <span className="text-sm text-slate-500">총 <span className="num">{accessTotal}</span>건</span>
             {accessError && <span className="text-sm text-fault">{accessError}</span>}
             <span className="ml-auto"><Pager page={accessPage} total={accessTotal} onChange={setAccessPage} /></span>
@@ -287,6 +310,13 @@ export function LogViewer() {
               className="btn inline-flex items-center gap-1.5 disabled:opacity-50"
             >
               <RefreshCw size={14} className={auditLoading ? "animate-spin" : ""} /> 새로고침
+            </button>
+            <button
+              type="button"
+              onClick={handleExportAudit}
+              className="btn inline-flex items-center gap-1.5"
+            >
+              <Download size={14} /> CSV 내보내기
             </button>
             <span className="text-sm text-slate-500">총 <span className="num">{auditTotal}</span>건</span>
             {auditError && <span className="text-sm text-fault">{auditError}</span>}

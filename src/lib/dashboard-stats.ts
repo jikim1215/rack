@@ -4,6 +4,7 @@ import type Database from "better-sqlite3";
 import type { ScopeClause, Actor } from "./authz.ts";
 import { scopeWhere, rackScopeWhere, locationScopeWhere } from "./authz.ts";
 import type { CountRow, MovementRow, MaintenanceLogRow, ContractRow, AssetStatus } from "./db-types";
+import { freshnessCaseSql } from "./freshness.ts";
 
 export interface DupGroup {
   asset_name: string;
@@ -70,6 +71,8 @@ export interface DashboardStats {
   cleanupQueue: CleanupStats["cleanupQueue"];
   dupSuspect: CleanupStats["dupSuspect"];
   rackConflicts: CleanupStats["rackConflicts"];
+  freshness: { fresh: number; aging: number; stale: number; never: number };
+  byTeamFreshness: { team_id: number | null; team_name: string; total: number; fresh: number; verifiedPct: number }[];
 }
 
 /** 대시보드(src/app/page.tsx) 전체 통계. actor 스코프로 모든 집계를 제한한다. SQL은 getStats()에서 그대로 이관(동작 불변). */
@@ -177,6 +180,49 @@ export function getDashboardStats(db: Database.Database, actor: Actor | null): D
   // ── P6 정리 필요 큐 / 데이터 품질 (AC-2/13/14) ──
   const { byTeam, issueSummary, cleanupCount, cleanupQueue, dupSuspect, rackConflicts } =
     computeCleanupStats(db, scope, scopeA);
+  // ── 현행화 통계 (스코프 내 비폐기 자산 대상) ──
+  const freshnessRow = db.prepare(`
+    SELECT
+      SUM(CASE WHEN ${freshnessCaseSql("verified_at")} = 'fresh' THEN 1 ELSE 0 END) as fresh,
+      SUM(CASE WHEN ${freshnessCaseSql("verified_at")} = 'aging' THEN 1 ELSE 0 END) as aging,
+      SUM(CASE WHEN ${freshnessCaseSql("verified_at")} = 'stale' THEN 1 ELSE 0 END) as stale,
+      SUM(CASE WHEN ${freshnessCaseSql("verified_at")} = 'never' THEN 1 ELSE 0 END) as never
+    FROM assets
+    WHERE status != 'retired' AND ${scope.sql}
+  `).get(...scope.params) as { fresh: number | null; aging: number | null; stale: number | null; never: number | null } | undefined;
+
+  const freshness = {
+    fresh: freshnessRow?.fresh ?? 0,
+    aging: freshnessRow?.aging ?? 0,
+    stale: freshnessRow?.stale ?? 0,
+    never: freshnessRow?.never ?? 0,
+  };
+
+  const teamFreshRows = db.prepare(`
+    SELECT
+      a.team_id,
+      COALESCE(t.team_name, '(미배정)') as team_name,
+      COUNT(*) as total,
+      SUM(CASE WHEN ${freshnessCaseSql("a.verified_at")} = 'fresh' THEN 1 ELSE 0 END) as fresh
+    FROM assets a
+    LEFT JOIN teams t ON a.team_id = t.id
+    WHERE a.status != 'retired' AND ${scopeA.sql}
+    GROUP BY a.team_id, t.team_name
+  `).all(...scopeA.params) as { team_id: number | null; team_name: string; total: number; fresh: number }[];
+
+  const byTeamFreshness = teamFreshRows
+    .map((row) => {
+      const verifiedPct = row.total > 0 ? Math.round((row.fresh / row.total) * 100 * 10) / 10 : 0;
+      return {
+        team_id: row.team_id,
+        team_name: row.team_name,
+        total: row.total,
+        fresh: row.fresh,
+        verifiedPct,
+      };
+    })
+    .sort((a, b) => b.verifiedPct - a.verifiedPct || b.total - a.total);
+
 
   return {
     totalAssets, byType, activeAssets, totalRacks, totalPorts, usedPorts,
@@ -185,6 +231,7 @@ export function getDashboardStats(db: Database.Database, actor: Actor | null): D
     pendingMovements, recentMovements, openMaintenance, recentMaintenance, expiringContracts,
     bringInPending, bringOutInProgress,
     byTeam, issueSummary, cleanupCount, cleanupQueue, dupSuspect, rackConflicts,
+    freshness, byTeamFreshness,
   };
 }
 

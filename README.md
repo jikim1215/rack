@@ -116,19 +116,20 @@
 
 ## 폐쇄망 배포
 
-RockyLinux 8.10(OS만 설치)에 **완전 자립 오프라인 번들**로 배포합니다. 자세한 절차·옵션은
-[docs/DEPLOY.md](docs/DEPLOY.md), TLS 구성은 [docs/deploy-tls.md](docs/deploy-tls.md) 참조.
+RockyLinux 8.10(OS만 설치)에 **완전 자립 오프라인 번들**로 배포합니다. 자세한 절차는
+[docs/DEPLOY.md](docs/DEPLOY.md) 참조. 반입 담당자용 한 장 안내는 번들 안 `scripts/deploy/README-반입.md`.
 
 ```bash
-# 1) 빌드(리눅스/WSL2) — Node 런타임 + linux-x64 better-sqlite3 + 전체 의존성 포함
+# 1) 빌드(Rocky 8.10 동일 OS — native ABI 일치) — Node 런타임 + better-sqlite3 + nginx RPM + 배포 스크립트 포함
 bash scripts/deploy/build-release.sh          # → dist/asset-inventory-offline.tar.gz
+node scripts/verify-build.mjs                 # nonce CSP 양립(정적 프리렌더 0건) 확인
 
-# 2) 서버로 번들 전송(USB/망연계) 후 무인터넷 설치 (systemd 등록 + 최초 DB 초기화)
-tar xzf asset-inventory-offline.tar.gz
-sudo bash install.sh
+# 2) 서버로 번들 전송(USB/망연계) 후 한 줄 배포 — 신규설치/업그레이드 자동 판별, 데이터·설정 보존
+tar -xzf asset-inventory-offline.tar.gz
+sudo bash asset-inventory/scripts/deploy/deploy.sh          # --check 로 사전 점검만 가능
 
-# 3) HTTPS(nginx 리버스프록시 또는 Node TLS, self-signed) 접속
-#    admin@example.go.kr / admin123  →  첫 로그인 시 비밀번호 변경 필수
+# 3) https://<PUBLIC_FQDN>/ 접속 (nginx 리버스프록시, 공존시스템 인증서 공유)
+#    최초 계정 admin@example.go.kr / admin123 → 첫 로그인 시 비밀번호 변경 + 2단계 인증 등록
 ```
 
 > 실제 자산 데이터는 배포 후 **엑셀 임포트**로 투입합니다(번들·저장소에는 데모/시드 데이터만 포함).

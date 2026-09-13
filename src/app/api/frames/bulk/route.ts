@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi } from "@/lib/api-authz";
+import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertCanDownload } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { ValidationError } from "@/lib/validation/input";
@@ -55,10 +56,11 @@ export const POST = withApi(async (req: NextRequest) => {
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  if (!file) throw new ValidationError("파일이 없습니다.");
+  assertUploadSize(file);
 
   const wb = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: "buffer" });
   const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as unknown[][];
+  assertRowLimit(Math.max(0, aoa.length - 1));
 
   // 헤더 행 탐색 ("배선반명"으로 시작하는 행)
   const hIdx = aoa.findIndex((r) => String(r[0]).trim() === "배선반명");

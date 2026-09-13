@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertCanRead, AuthzError } from "@/lib/authz";
+import { getSession, createSessionToken, sessionCookieOptions } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import {
   generateSecret, verifyTotp, otpauthUri, formatSecretForDisplay, generateBackupCodes,
@@ -87,7 +88,18 @@ export const PUT = withApi(async (req: NextRequest) => {
   });
 
   // 백업 코드 평문은 이 응답에서만 나간다. DB 에는 해시만 남는다.
-  return NextResponse.json({ ok: true, backupCodes: plain });
+  const res = NextResponse.json({ ok: true, backupCodes: plain });
+  // 등록 강제(msr) 상태였다면 세션을 재발급해 미들웨어 차단을 즉시 풀어준다(재로그인 불필요).
+  const session = await getSession();
+  if (session?.msr) {
+    const token = createSessionToken({
+      userId: session.userId, username: session.username, displayName: session.displayName,
+      role: session.role, teamId: session.teamId ?? null, tv: session.tv ?? 0, mcp: !!session.mcp,
+    });
+    const opts = sessionCookieOptions();
+    res.cookies.set(opts.name, token, { httpOnly: opts.httpOnly, secure: opts.secure, sameSite: opts.sameSite, path: opts.path, maxAge: opts.maxAge });
+  }
+  return res;
 });
 
 export const DELETE = withApi(async (req: NextRequest) => {

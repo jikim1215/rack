@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { logAssetChange } from "@/lib/audit";
 import { getActor, withApi } from "@/lib/api-authz";
+import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import {
   isXlsxBuffer,
@@ -57,9 +58,7 @@ export const POST = withApi(async (req: NextRequest) => {
   // 프리뷰(dry_run): 반영 없이 생성 예정/이슈 예상/기존 중복 의심만 산출 (외부 검토 R6-2 합의)
   const dryRun = String(formData.get("dry_run") || "") === "1";
 
-  if (!file) {
-    return NextResponse.json({ error: "파일이 없습니다." }, { status: 400 });
-  }
+  assertUploadSize(file); // 크기 상한 — XLSX.read 가 전부 메모리에 올리므로 읽기 전에 차단
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -74,6 +73,7 @@ export const POST = withApi(async (req: NextRequest) => {
   const wb = XLSX.read(buffer);
   const ws = wb.Sheets[wb.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
+  assertRowLimit(Math.max(0, rows.length - 1));
 
   if (rows.length < 2) {
     return NextResponse.json({

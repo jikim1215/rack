@@ -32,8 +32,12 @@ async function main() {
 
   // 1) 자산 API 불변식: '데이터 증발' 클래스 감지용 저감도 하한 — 배포처 규모에 맞게 SMOKE_MIN_* 로 조정 (비평 합의 R4-1)
   const MIN = Number(process.env.SMOKE_MIN_ASSETS || 100);
-  const assets = await (await fetch(`${BASE}/api/assets`, { headers: H })).json();
-  assert(Array.isArray(assets) && assets.length >= MIN, `자산 API 응답/규모(>=${MIN})`, `len=${assets?.length}`);
+  // 목록 API 는 서버 페이지네이션({rows,total}) — 전량은 limit=0 으로 명시
+  const listRes = await (await fetch(`${BASE}/api/assets?limit=0`, { headers: H })).json();
+  const assets = Array.isArray(listRes?.rows) ? listRes.rows : [];
+  assert(assets.length >= MIN && listRes.total === assets.length, `자산 API 응답/규모(>=${MIN})`, `len=${assets.length} total=${listRes?.total}`);
+  const page1 = await (await fetch(`${BASE}/api/assets`, { headers: H })).json();
+  assert(Array.isArray(page1?.rows) && page1.rows.length <= 100 && page1.total === listRes.total, "무파라미터 응답은 100건 페이지 + total", `rows=${page1?.rows?.length} total=${page1?.total}`);
   const withIp = assets.filter((a) => a.ip_address && a.ip_address.trim() !== "");
   assert(withIp.length >= MIN, `IP 보유 자산 하한(>=${MIN})`, `현재 ${withIp.length}대 — 급감 시 임포트/쿼리 회귀 의심`);
   assert(assets.some((a) => a.serial_number), "시리얼 보유 자산 존재", "");

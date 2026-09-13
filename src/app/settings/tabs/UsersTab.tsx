@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Users, Plus, Save, ToggleLeft, ToggleRight, Trash2, KeyRound, ShieldOff } from "lucide-react";
 import { sha512 } from "@/lib/sha512";
+import { validatePasswordPolicy } from "@/lib/password-policy";
 import { roleOptions, type Team, type User } from "./types";
 
 interface Props {
@@ -39,11 +40,14 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
     e.preventDefault();
     setUserMsg("");
     setUserError(false);
-    // 비밀번호 정책(원문 기준): 서버는 sha512 해시만 받으므로 길이 검증은 클라이언트에서 수행한다(P3; 전체 정책은 P10).
-    if (addForm.password.length < 8) {
-      setUserMsg("비밀번호는 8자 이상이어야 합니다.");
-      setUserError(true);
-      return;
+    // 비밀번호 정책(원문 기준): 서버는 sha512 해시만 받으므로 정책 검증은 평문을 아는 클라이언트가 수행한다(서버와 같은 규칙).
+    {
+      const policyError = validatePasswordPolicy(addForm.password);
+      if (policyError) {
+        setUserMsg(policyError);
+        setUserError(true);
+        return;
+      }
     }
     if (addForm.role === "team" && addForm.team_id == null) {
       setUserMsg("팀 역할은 소속 팀을 선택해야 합니다.");
@@ -56,7 +60,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...addForm,
-          password: await sha512(addForm.password),
+          password: await sha512(addForm.password), // 정책 검사는 위에서(평문)
           team_id: addForm.role === "team" ? addForm.team_id : null,
         }),
       });
@@ -103,6 +107,8 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
         team_id: editForm.role === "team" ? editForm.team_id : null,
       };
       if (editPasswordValue) {
+        const policyError = validatePasswordPolicy(editPasswordValue);
+        if (policyError) { setUserMsg(policyError); setUserError(true); return; }
         body.password = await sha512(editPasswordValue);
       }
       const res = await fetch(`/api/users/${id}`, {

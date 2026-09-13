@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, LogIn } from "lucide-react";
 import { sha512 } from "@/lib/sha512";
+import { validatePasswordPolicy } from "@/lib/password-policy";
 
 // 비밀번호 변경 화면. 관리자 초기화(must_change_password)로 강제 진입하거나, 사용자가 직접 변경.
 // 강제 진입 시 미들웨어가 /change-password 외 모든 경로를 막으므로 여기서 변경을 마쳐야 콘솔로 돌아간다.
@@ -25,8 +26,10 @@ export default function ChangePasswordPage() {
       setError(true);
       return;
     }
-    if (newPw.length < 8) {
-      setMsg("비밀번호는 8자 이상이어야 합니다.");
+    // 정책은 평문을 아는 여기서만 검사할 수 있다(서버는 sha512 프리해시만 받는다) — 서버와 같은 규칙
+    const policyError = validatePasswordPolicy(newPw);
+    if (policyError) {
+      setMsg(policyError);
       setError(true);
       return;
     }

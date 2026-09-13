@@ -11,6 +11,7 @@ import LifecyclePanel from "@/components/dashboard/LifecyclePanel";
 import WarningsPanel from "@/components/dashboard/WarningsPanel";
 import QualityPanel from "@/components/dashboard/QualityPanel";
 import CleanupPanel from "@/components/dashboard/CleanupPanel";
+import FreshnessPanel from "@/components/dashboard/FreshnessPanel";
 import { MovementsPanel, MaintenancePanel, ContractsPanel, RecentAssetsPanel } from "@/components/dashboard/ActivityPanels";
 
 export default async function DashboardPage() {
@@ -89,6 +90,9 @@ export default async function DashboardPage() {
         <WarningsPanel eosWarnings={stats.eosWarnings} warrantyWarnings={stats.warrantyWarnings} today={today} />
         <QualityPanel totalAssets={stats.totalAssets} dataQuality={stats.dataQuality} />
       </div>
+
+      {/* 현행화 — 확인 도장 신선도 + 팀별 현행화율 (값 채움이 아니라 "사람이 봤고 맞다" 를 보상한다) */}
+      <FreshnessPanel freshness={stats.freshness} byTeam={stats.byTeamFreshness} />
 
       <CleanupPanel
         isAdmin={isAdmin}

@@ -14,6 +14,7 @@
     "verify:feedback": "node scripts/verify-feedback.mjs",
     "verify:authz": "node scripts/verify-authz.mjs",
     "verify:mfa": "node scripts/verify-mfa.mjs",
+    "verify:hardening": "node scripts/verify-hardening.mjs",
     "verify:api": "npm run verify:feedback && npm run verify:authz && npm run verify:mfa",
     "verify:build": "node scripts/verify-build.mjs"
   },

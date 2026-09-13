@@ -81,3 +81,4 @@ gltmp/
 
 # E2E 검증 임시 산출물 (스크래치 DB·스크린샷·런처)
 .e2e-*
+docs/archive/itam-공존-작업정리.md

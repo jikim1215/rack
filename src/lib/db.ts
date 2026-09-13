@@ -1209,6 +1209,24 @@ function initSchema(db: Database.Database) {
   }
 
   // 정리 대기열(클린업 큐) 뷰: 보완이 필요한 자산 + 임포트 이슈 건수
+  // 현행화 도장(확인 이력) — "값을 바꾸지 않았어도 사람이 봤고 맞다" 를 기록한다. 신선도(에이징)의 근거.
+  //   updated_at 은 값 변경 시에만 움직이므로 "점검했지만 변화 없음" 을 표현하지 못한다 — 별도 컴럼이 필요하다.
+  //   모든 assets 재빌드 마이그레이션 뒤에 ALTER (재빌드는 고정 컴럼 목록으로 테이블을 다시 만든다).
+  {
+    const aCols = new Set((db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[]).map((c) => c.name));
+    if (!aCols.has("verified_at")) db.exec(`ALTER TABLE assets ADD COLUMN verified_at TEXT DEFAULT ''`);
+    if (!aCols.has("verified_by")) db.exec(`ALTER TABLE assets ADD COLUMN verified_by TEXT DEFAULT ''`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_assets_verified ON assets(verified_at)`);
+  }
+
+  // 목록 정렬·이름 검색·시리얼 중복 검사 인덱스 — 반드시 모든 assets 재빌드 마이그레이션 **뒤**에 만든다
+  //   (재빌드는 테이블을 새로 만들어 인덱스가 사라진다). 1만 대 이상에서 전체 스캔을 막는다 (scripts/bench-scale.mjs).
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_assets_created ON assets(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_assets_name ON assets(asset_name);
+    CREATE INDEX IF NOT EXISTS idx_assets_serial ON assets(serial_number);
+  `);
+
   db.exec(`
     DROP VIEW IF EXISTS v_cleanup_queue;
     CREATE VIEW v_cleanup_queue AS

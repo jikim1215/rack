@@ -173,9 +173,10 @@ export default function SubAssetsView({
   async function loadParentOptions() {
     if (parentLoaded) return;
     try {
-      const res = await fetch("/api/assets");
+      // 상위 장비 선택 드롭다운 — 목록 API 는 기본 100건 페이지마다 주므로 전량(limit=0)을 명시한다
+      const res = await fetch("/api/assets?limit=0&sort=asset_name&dir=asc");
       if (!res.ok) throw new Error();
-      const list = (await res.json()) as ParentAsset[];
+      const list = ((await res.json()).rows ?? []) as ParentAsset[];
       setParentOptions(
         list.map((a) => ({
           id: a.id,

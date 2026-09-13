@@ -40,6 +40,9 @@ const MENU_INFO: Record<string, { title: string; menu: string; screen: string }>
   "/logs": { title: "로그/감사", menu: "접속·변경 감사 메뉴입니다(총괄 전용).", screen: "접속기록과 데이터 변경 감사 로그를 조건으로 필터해 조회합니다." },
   "/settings": { title: "설정", menu: "계정·권한·메일 등 시스템 설정 메뉴입니다.", screen: "탭에서 비밀번호 변경, 사용자·팀·권한 관리, 메일 설정을 합니다." },
 };
+// 가이드 투어에 표시할 핵심 6개 메뉴
+const TOUR_MENUS = ["/", "/assets", "/racks", "/movements", "/feedback", "/settings"];
+
 
 function cssAttr(href: string): string {
   return `[data-onboard-href="${href.replace(/"/g, '\\"')}"]`;
@@ -53,22 +56,32 @@ export function Onboarding() {
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   const buildSteps = useCallback((): Step[] => {
-    const hrefs = Array.from(document.querySelectorAll<HTMLElement>('[data-onboard="menu"]'))
-      .map((el) => el.getAttribute("data-onboard-href") || "")
-      .filter((href) => MENU_INFO[href]);
-    const menuSteps: Step[] = hrefs.flatMap((href) => {
+    const visibleHrefs = new Set(
+      Array.from(document.querySelectorAll<HTMLElement>('[data-onboard="menu"]'))
+        .map((el) => el.getAttribute("data-onboard-href") || "")
+    );
+    const hrefs = TOUR_MENUS.filter((href) => visibleHrefs.has(href) && MENU_INFO[href]);
+    const menuSteps: Step[] = hrefs.map((href) => {
       const info = MENU_INFO[href];
-      return [
-        { selector: cssAttr(href), title: info.title, desc: info.menu, clickable: true },
-        { selector: '[data-onboard="main"]', title: `${info.title} 화면`, desc: info.screen, navigateTo: href, wide: true },
-      ];
+      return {
+        selector: cssAttr(href),
+        title: info.title,
+        desc: `${info.menu} ${info.screen}`,
+        navigateTo: href,
+        clickable: true,
+      };
     });
     return [
-      { title: "정보시스템 자산관리에 오신 걸 환영합니다 👋", desc: "주요 메뉴와 각 화면을 짧게 안내해 드릴게요. 메뉴 → 그 메뉴의 중앙 화면 순서로 살펴봅니다. 언제든 '건너뛰기'로 종료할 수 있어요." },
+      {
+        title: "정보시스템 자산관리에 오신 걸 환영합니다 👋",
+        desc: "주요 메뉴와 각 화면을 짧게 안내해 드릴게요. 언제든 '건너뛰기'로 종료할 수 있어요.",
+      },
       ...menuSteps,
-      { selector: '[data-onboard="nav"]', title: "메뉴 순서 바꾸기", desc: "메뉴를 마우스로 끌어다 놓으면 순서를 바꿀 수 있어요. 자주 쓰는 메뉴를 위로 올려 보세요." },
-      { selector: '[data-onboard="help"]', title: "언제든 다시 보기", desc: "이 안내가 다시 필요하면 좌측 하단의 '도움말' 버튼을 누르면 됩니다." },
-      { title: "준비 완료! 🎉", desc: "이제 직접 사용해 보세요. 궁금하면 언제든 도움말에서 이 안내를 다시 볼 수 있어요." },
+      {
+        selector: '[data-onboard="help"]',
+        title: "준비 완료! 🎉",
+        desc: "이제 직접 사용해 보세요. 나머지 메뉴는 각 화면의 '사용법' 토글을 보세요. 궁금하면 언제든 좌측 하단의 '도움말' 버튼을 누르면 됩니다.",
+      },
     ];
   }, []);
 

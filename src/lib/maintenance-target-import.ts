@@ -1,5 +1,6 @@
 // 유지관리 대상/금액 엑셀 파서/직렬화 (import·export·seed·test 공용, 순수 모듈)
 import * as XLSX from "xlsx";
+import { assertRowLimit } from "./validation/upload.ts";
 
 export interface ParsedTarget {
   system_name: string;
@@ -184,6 +185,7 @@ export function parseTargetWorkbook(buffer: Buffer): { targets: ParsedTarget[]; 
   const ws = wb.Sheets[wb.SheetNames[0]];
   if (!ws) return { targets: [], skipped: 0 };
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false });
+  assertRowLimit(Math.max(0, rows.length - 1)); // 행 상한(업로드 공통 정책)
   return parseTargetRows(rows);
 }
 

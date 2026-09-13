@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
 import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
 import { ReportView } from "./ReportView";
+import { getDashboardStats } from "@/lib/dashboard-stats";
 import type { CountRow } from "@/lib/db-types";
 
 // ── 통계 리포트 (외부 검토 가격심의 갭 5 대응) ──
@@ -68,6 +69,9 @@ export default async function ReportsPage() {
 
   const asOf = new Date().toLocaleString("ko-KR", { hour12: false });
 
+  // 7. 현행화 — 대시보드와 같은 계산(getDashboardStats)을 재사용해 두 화면 수치가 어긋나지 않게
+  const { freshness, byTeamFreshness } = getDashboardStats(db, actor);
+
   return (
     <ReportView
       byTypeStatus={byTypeStatus}
@@ -77,6 +81,8 @@ export default async function ReportsPage() {
       byYear={byYear}
       totals={totals}
       asOf={asOf}
+      freshness={freshness}
+      byTeamFreshness={byTeamFreshness}
     />
   );
 }
