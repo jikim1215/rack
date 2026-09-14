@@ -77,12 +77,57 @@ sudo NEXT_INTERNAL_PORT=3100 bash …/deploy.sh    # 공존시스템이 3000 을
 
 ## 6. 배포 후 확인
 
+### 6-1. 헬스체크 (무인증)
+
 ```bash
-curl -s https://localhost/api/health -k            # {"ok":true,"db":"ok","schema":2,...}
-cd /opt/asset-inventory && sudo -u asset ./node/bin/node scripts/smoke.mjs   # 핵심 화면 불변식
+curl -s http://127.0.0.1:3100/api/health                              # 앱 직접
+curl -sk -H 'Host: itam.example.go.kr' https://127.0.0.1/api/health   # nginx 경유
+# → {"ok":true,"db":"ok","schema":2,"version":"1.0.0",...}
 ```
 
+**`-H 'Host: ...'` 를 빼면 안 된다** — nginx 는 server_name(SNI)으로 갈라서 IP·localhost 직접 접속은 default 서버(공존시스템)로 간다.
+
+### 6-2. 핵심 화면 불변식 (smoke)
+
+```bash
+sudo install -m 644 /opt/asset-inventory/scripts/smoke.mjs /tmp/smoke.mjs
+cd /opt/asset-inventory && sudo -u asset env \
+  BASE_URL=http://127.0.0.1:3100 \
+  SMOKE_USER=<총괄계정ID> SMOKE_PASS='<비밀번호>' \
+  SMOKE_MIN_ASSETS=100 SMOKE_MIN_SUBASSETS=100 \
+  ./node/bin/node /tmp/smoke.mjs
+sudo rm -f /tmp/smoke.mjs
+```
+
+주의점 3가지 — 전부 실제로 걸리는 것들이다:
+
+| 함정 | 이유 · 대처 |
+|---|---|
+| `/tmp` 로 복사해서 실행 | 번들을 운영자 홈(mode 700)에 풀었으면 `asset` 계정이 경로를 탐색하지 못해 `MODULE_NOT_FOUND` 로 죽는다 |
+| `BASE_URL` 명시 | 기본값은 `localhost:3000` — 이 시스템의 내부 포트는 **3100** |
+| **MFA 게이트** | `MFA_REQUIRED_ROLES` 기본값이 `admin` 이라, 2단계 인증 미등록 총괄계정은 로그인은 되지만 모든 API 가 `403 MFA_SETUP_REQUIRED` 다 → smoke 가 전부 실패한다 |
+
+MFA 게이트 해결은 **둘 중 하나** — 신규 설치 직후라면 앞쪽을 권장한다:
+
+1. 먼저 브라우저로 총괄계정 2단계 인증을 등록(설정 → 2단계 인증)한 뒤 smoke 실행. 어차피 운영 시작 전에 해야 하는 작업이다.
+2. 점검 창에서만 잠시 푸는 방법 — **끝나면 반드시 원복**:
+   ```bash
+   sudo cp -a /opt/asset-inventory/.env /opt/asset-inventory/.env.bak
+   sudo sh -c 'echo MFA_REQUIRED_ROLES=none >> /opt/asset-inventory/.env'
+   sudo systemctl restart asset-inventory && sleep 7
+   # … smoke 실행 …
+   sudo mv /opt/asset-inventory/.env.bak /opt/asset-inventory/.env
+   sudo chown asset:asset /opt/asset-inventory/.env && sudo chmod 600 /opt/asset-inventory/.env
+   sudo systemctl restart asset-inventory
+   ```
+
+`SMOKE_MIN_ASSETS`·`SMOKE_MIN_SUBASSETS` 는 배포처 규모에 맞춘다(빈 DB 로 시작했으면 `0`). 값은 '데이터가 조용히 증발하는' 회귀를 잡는 하한이다.
+
+### 6-3. 스테이징 전용
+
 `npm run verify:api`(인가·MFA·개선의견 E2E)는 **스테이징 전용** — 테스트 데이터를 쓰고 지운다. 실운영 DB 에 돌리지 말 것.
+
+> `verify-mfa.mjs` 는 대상 계정의 2단계 인증을 켡0다가 **마지막에 끔다**. 중간에 실패하면 MFA 가 켜진 채로 남을 수 있으니 `scripts/deploy/disable-mfa.cjs` 로 풀 것.
 
 ## 7. 롤백
 

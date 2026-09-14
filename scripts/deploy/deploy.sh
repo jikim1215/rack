@@ -69,9 +69,16 @@ if [[ "$CHECK_ONLY" == "1" ]]; then
     say "   * 첫 요청 시 스키마 마이그레이션 자동 실행(메뉴권한 시드·감사로그 확장·날짜 정규화)"
     if [[ -f "${HERE}/preflight-perms.cjs" && -x "${APP_DIR}/node/bin/node" ]]; then
       say ""; say " 현재 메뉴 권한이 실제로 막게 될 범위:"
+      # data.db(600, asset 소유)를 읽어야 해서 asset 으로 실행한다. 그런데 번들을 푼 위치가
+      # 운영자 홈(예: /home/<id>, mode 700)이면 asset 이 번들 경로를 탐색할 수 없어
+      # MODULE_NOT_FOUND 로 죽는다 → 스크립트를 /tmp 에 복사해 asset 이 읽을 수 있게 한 뒤 실행.
+      PF_TMP="$(mktemp -d /tmp/asset-preflight-XXXXXX)"
+      install -m 644 "${HERE}/preflight-perms.cjs" "${PF_TMP}/preflight-perms.cjs"
+      chmod 755 "$PF_TMP"
       # 권한 문제로 읽기 실패하면 조용히 비지 않고 사유를 남긴다.
-      sudo -u asset "${APP_DIR}/node/bin/node" "${HERE}/preflight-perms.cjs" "$APP_DIR" 2>&1 | sed 's/^/   /' \
+      sudo -u asset "${APP_DIR}/node/bin/node" "${PF_TMP}/preflight-perms.cjs" "$APP_DIR" 2>&1 | sed 's/^/   /' \
         || say "   (권한 리포트 생성 실패 — 배포 자체에는 영향 없음)"
+      rm -rf "$PF_TMP"
     fi
   else
     say " 수행 예정: nginx 설치(번들 RPM) + 앱 배치 + systemd 등록 + 최소 DB 초기화"

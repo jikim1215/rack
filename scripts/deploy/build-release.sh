@@ -41,9 +41,11 @@ cp -a public "$STAGE/public" 2>/dev/null || true
 cp -a src "$STAGE/src"            # 런타임 라이브러리(db/authz/retention/asset-rules…) — retention-runner/import 스크립트가 사용
 cp -a scripts "$STAGE/scripts"
 # scripts/ 정리 — 배포/런타임 불필요 자산 제거.
-#   유지: db-seed.mjs(설치 최소초기화) + deploy/*(설치·백업·systemd). ※ deploy/ 하위는 아래에서 별도 정리.
+#   유지: db-seed.mjs(설치 최소초기화) + smoke.mjs(배포 후 확인 — DEPLOY.md §6 이 지시하는 게이트,
+#         외부 의존 없이 node 내장 crypto/fetch 만 쓴다) + deploy/*(설치·백업·systemd).
+#         ※ deploy/ 하위는 아래에서 별도 정리.
 #   제거: 루트의 1회용 데이터가공/검증/e2e 스크립트(*.mjs,*.ts) + AI 리뷰 닷파일(scripts/.*) + 모든 Windows .ps1.
-find "$STAGE/scripts" -maxdepth 1 -type f ! -name 'db-seed.mjs' -delete
+find "$STAGE/scripts" -maxdepth 1 -type f ! -name 'db-seed.mjs' ! -name 'smoke.mjs' -delete
 find "$STAGE/scripts" -name '*.ps1' -delete
 # next 빌드가 standalone 으로 잘못 트레이스한 개발 산출물(scripts/.serial-verify-list.json 등) 제거.
 #   런타임은 standalone/scripts 를 참조하지 않는다(라우트는 src/lib 만 사용).

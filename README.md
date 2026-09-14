@@ -89,7 +89,7 @@
 | 구분 | 기술 | 비고 |
 |------|------|------|
 | 프레임워크 | Next.js 15 (App Router) | 서버 컴포넌트 + standalone 빌드 |
-| 런타임 | Node.js 20 (LTS) | 폐쇄망 오프라인 번들에 포함 |
+| 런타임 | Node.js 22 (LTS) | 폐쇄망 오프라인 번들에 포함(`node-linux-x64.tar.xz`) |
 | DB | SQLite (better-sqlite3, WAL) | 파일 1개로 운영, 별도 DB 서버 불필요 |
 | UI | Tailwind CSS 4 | 빌드 시 번들링, 외부 CDN 미사용 |
 | 아이콘 | Lucide React | npm 번들, 외부 요청 없음 |
@@ -123,23 +123,31 @@ RockyLinux 8.10(OS만 설치)에 **완전 자립 오프라인 번들**로 배포
 # 1) 빌드(Rocky 8.10 동일 OS — native ABI 일치) — Node 런타임 + better-sqlite3 + nginx RPM + 배포 스크립트 포함
 bash scripts/deploy/build-release.sh          # → dist/asset-inventory-offline.tar.gz
 node scripts/verify-build.mjs                 # nonce CSP 양립(정적 프리렌더 0건) 확인
+sha256sum dist/asset-inventory-offline.tar.gz > dist/SHA256SUMS.txt
 
 # 2) 서버로 번들 전송(USB/망연계) 후 한 줄 배포 — 신규설치/업그레이드 자동 판별, 데이터·설정 보존
 tar -xzf asset-inventory-offline.tar.gz
 sudo bash asset-inventory/scripts/deploy/deploy.sh          # --check 로 사전 점검만 가능
 
-# 3) https://<PUBLIC_FQDN>/ 접속 (nginx 리버스프록시, 공존시스템 인증서 공유)
+# 3) 배포 후 확인 — Host 헤더 필수(nginx 가 SNI 로 갈라서 IP 직접 접속은 공존시스템으로 간다)
+curl -sk -H 'Host: <PUBLIC_FQDN>' https://127.0.0.1/api/health   # {"ok":true,"db":"ok","schema":2,...}
+
+# 4) https://<PUBLIC_FQDN>/ 접속 (nginx 리버스프록시, 공존시스템 인증서 공유)
 #    최초 계정 admin@example.go.kr / admin123 → 첫 로그인 시 비밀번호 변경 + 2단계 인증 등록
 ```
+
+> **총괄계정 2단계 인증을 먼저 등록할 것** — `MFA_REQUIRED_ROLES` 기본값이 `admin` 이라,
+> 미등록 상태의 총괄은 로그인은 되지만 모든 API 가 `403 MFA_SETUP_REQUIRED` 다(설계된 동작).
+> 배포 후 `smoke.mjs` 검증도 이 단계를 먼저 마쳐야 통과한다. 상세는 [docs/DEPLOY.md §6](docs/DEPLOY.md).
 
 > 실제 자산 데이터는 배포 후 **엑셀 임포트**로 투입합니다(번들·저장소에는 데모/시드 데이터만 포함).
 > 운영 DB(`data.db`)·엑셀 원장·`.env`·인증서 등 민감·산출물은 저장소에서 제외됩니다(`.gitignore`).
 
 ## 데이터 모델
 
-29개 테이블 (SQLite, `src/lib/db.ts`):
+30개 테이블 (SQLite, `src/lib/db.ts`):
 
-- **자산**: `assets`, `asset_ips`, `sub_assets`, `custom_fields`, `custom_values`, `ports`
+- **자산**: `assets`, `asset_ips`, `sub_assets`, `custom_fields`, `custom_values`, `ports`, `import_batch_assets`
 - **물리/배치**: `locations`, `racks`, `dist_frames`, `frame_pairs`, `ip_subnets`
 - **운영**: `asset_movements`, `maintenance_logs`, `maintenance_targets`, `contracts`, `contract_assets`, `vendors`, `inventory_audits`, `inventory_audit_checks`
 - **계정/권한/감사**: `users`, `teams`, `menu_permissions`, `audit_logs`, `access_logs`, `login_attempts`, `import_issue`
@@ -164,7 +172,10 @@ npm run dev            # http://localhost:3000
 | 팀(team) | `user@example.go.kr` | `user123` |
 | 전체열람(viewer) | `viewer@example.go.kr` | `viewer123` |
 
-기타 스크립트: `npm test`(단위 테스트), `npm run check`(타입 체크), `npm run smoke`(스모크), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견·2단계인증 E2E), `node scripts/bench-scale.mjs 10000`(자산 N건 시나리오 쿼리 벤치 — 운영 DB 복사본에서만).
+기타 스크립트: `npm test`(단위 테스트 284개), `npm run check`(타입 체크), `npm run smoke`(스모크 — 핵심 화면·API 불변식), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견·2단계인증 E2E), `node scripts/bench-scale.mjs 10000`(자산 N건 시나리오 쿼리 벤치 — 운영 DB 복사본에서만).
+
+> `verify:api`·`verify-hardening.mjs` 는 **시드 계정(`@example.go.kr`) 전제 · 권한과 데이터를 변조**한다.
+> 실데이터가 들어있는 DB(운영·실데이터 스테이징 포함)에는 돌리지 말 것. 그쪽은 `smoke.mjs` 로 확인한다.
 
 ## 프로젝트 구조
 
@@ -192,7 +203,7 @@ src/
 │   ├── settings/             # 설정
 │   ├── login/                # 로그인
 │   ├── change-password/      # 비밀번호 변경
-│   └── api/                  # 63개 REST API 라우트
+│   └── api/                  # 72개 REST API 라우트
 ├── components/               # 공통 컴포넌트 (Sidebar, LayoutShell, Toast, AuditLogModal, Onboarding, SessionExpiryBanner, UsageGuide, FeedbackModal/Form …)
 ├── lib/
 │   ├── db.ts                 # SQLite 스키마 + 연결 + 마이그레이션
