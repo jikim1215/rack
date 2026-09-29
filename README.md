@@ -215,7 +215,14 @@ src/
 │   └── …                     # ip-utils, mail-config, rack-validation 등
 └── middleware.ts             # 인증·권한 미들웨어
 
-scripts/deploy/               # 오프라인 번들 빌드·설치·nginx·TLS·백업·보존
+scripts/
+├── deploy/               # 오프라인 번들 빌드·설치·nginx·TLS·백업·보존
+├── db-seed.mjs           # 시드 데이터 생성
+├── smoke.mjs             # 스모크 테스트
+├── bench-scale.mjs       # 대량 데이터 벤치마크
+├── verify-*.mjs          # E2E 검증 (hardening, authz, mfa, feedback, build)
+├── e2e-security.mjs      # 보안 E2E
+└── reset-password.mjs    # 비밀번호 초기화 헬퍼
 docs/                         # 배포/운영/사용자·관리자 매뉴얼, 아키텍처, 보안 체크리스트
-tests/                        # 단위 테스트 (node --test)
+tests/                        # 단위 테스트 284개 (node --test)
 ```

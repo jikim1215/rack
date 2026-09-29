@@ -19,7 +19,6 @@
     "verify:build": "node scripts/verify-build.mjs"
   },
   "dependencies": {
-    "@types/nodemailer": "^8.0.1",
     "better-sqlite3": "^11.8.0",
     "lucide-react": "^0.468.0",
     "next": "~15.3.0",
@@ -31,8 +30,8 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/bun": "latest",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "postcss": "^8.5.0",

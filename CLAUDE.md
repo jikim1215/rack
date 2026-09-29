@@ -7,7 +7,8 @@
 - Tailwind CSS 4 — 빌드 시 번들링, 외부 CDN 미사용
 - Lucide React — 아이콘 (npm 번들)
 - xlsx (SheetJS) — 엑셀 처리
-- qrcode — QR코드 생성
+- Nodemailer — 사내 SMTP 릴레이 (알림 전용)
+- QR: 자체 구현 (`src/lib/qr.ts`, 외부 패키지 없음)
 
 ## 아키텍처 규칙
 - CRITICAL: 폐쇄망 전용. 외부 CDN, API, 폰트, 텔레메트리 등 일체의 외부 네트워크 요청 금지
@@ -25,13 +26,17 @@
 
 ## 명령어
 ```
-npm run dev       # 개발 서버 (http://localhost:3000)
-npm run build     # 프로덕션 빌드
-npm run start     # 프로덕션 서버
-npm run db:seed   # 시드 데이터 생성 (DB 초기화)
+npm run dev         # 개발 서버 (http://localhost:3000)
+npm run build       # 프로덕션 빌드
+npm run start       # 프로덕션 서버
+npm run db:seed     # 시드 데이터 생성 (DB 초기화)
+npm test            # 단위 테스트 (284개)
+npm run check       # 타입 체크
+npm run smoke       # 스모크 테스트 (핵심 화면·API 불변식)
+npm run verify:api  # E2E 인가·입력검증·CSP·MFA 검증 (시드 DB 전제, 운영 DB 금지)
 ```
 
-## 계정 (시드 기본값)
-- admin / admin123 (관리자)
-- user / user123 (사용자)
-- viewer / viewer123 (열람자)
+## 계정 (시드 기본값, 이메일 기반 로그인)
+- `admin@example.go.kr` / `admin123` (총괄)
+- `user@example.go.kr` / `user123` (팀)
+- `viewer@example.go.kr` / `viewer123` (전체열람)

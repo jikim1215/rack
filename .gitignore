@@ -67,9 +67,42 @@ scripts/asset-template-fill.mjs
 scripts/template-fill.mjs
 scripts/verify-rackmap-import.mjs
 scripts/run-web-import.ts
+scripts/fix-b10-sides.mjs
+scripts/import-assets.mjs
+scripts/import-maintenance-targets.mjs
+scripts/derive-subnets.mjs
+scripts/test-authz-matrix.mjs
+scripts/test-import-upload.mjs
+scripts/test-ip-search.mjs
+scripts/verify-asset-rules.ts
+scripts/verify-authz-matrix.ts
+scripts/verify-bulk-delete.ts
+scripts/verify-dashboard-stats.ts
+scripts/verify-import-final.ts
+scripts/verify-import-result.mjs
+scripts/verify-ip-search.ts
+scripts/verify-p1-migration.ts
+scripts/verify-page-scope.ts
+scripts/verify-portmap-peer.ts
+scripts/verify-reassign.ts
+scripts/verify-retention.ts
+scripts/verify-seed-boot.ts
+scripts/verify-teams.ts
+scripts/e2e-empty-db.mjs
+scripts/e2e-seed.ts
 
 # 내부 인프라 공존(itam·공존시스템) 작업노트 — 내부 네트워크/인증서/호스트 상세 포함, 커밋 금지
 docs/itam-공존-작업정리.md
+# 프로젝트 무관 로컬 파일 / 고아 이미지
+ssl/
+docs/images/improve-*
+docs/images/rackmap-*
+docs/images/rack-standard-*
+docs/images/search-icon-*
+docs/images/b10-*
+docs/images/ipam-usage-*
+docs/images/ipam-edit-*
+
 # 로컬 스크래치 / VM 배포·검증 헬퍼 (환경 종속: VM IP·SSH 키 경로 하드코딩 — 커밋 금지)
 /_*
 rollback-bootstrap.sh
