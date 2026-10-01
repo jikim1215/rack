@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
-import { getActor, withApi } from "@/lib/api-authz";
+import { getActor, withApi, readFormData } from "@/lib/api-authz";
+import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { pathId, ValidationError } from "@/lib/validation/input";
@@ -93,9 +94,9 @@ export const POST = withApi(async (req: NextRequest, { params }: Ctx) => {
   if (!frame) return NextResponse.json({ error: "배선반이 없습니다." }, { status: 404 });
   assertCanWrite(actor, frame.team_id ?? null);
 
-  const formData = await req.formData();
+  const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
-  if (!file) throw new ValidationError("파일이 없습니다.");
+  assertUploadSize(file);
 
   const wb = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: "buffer" });
   const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as unknown[][];
@@ -106,6 +107,7 @@ export const POST = withApi(async (req: NextRequest, { params }: Ctx) => {
   const header = aoa[hIdx].map((h) => String(h).trim());
   const col = (name: string) => header.indexOf(name);
   const dataRows = aoa.slice(hIdx + 1).filter((r) => String(r[col("포트")]).trim() !== "");
+  assertRowLimit(dataRows.length);
 
   const issues: string[] = [];
   let updated = 0, linked = 0, unlinked = 0;

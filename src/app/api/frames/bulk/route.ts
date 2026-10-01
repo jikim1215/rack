@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { getActor, withApi } from "@/lib/api-authz";
+import { getActor, withApi, readFormData } from "@/lib/api-authz";
 import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertCanDownload } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -54,7 +54,7 @@ export const POST = withApi(async (req: NextRequest) => {
   const ownerTeamId = actor.role === "team" ? actor.teamId : null;
   const db = getDb();
 
-  const formData = await req.formData();
+  const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
   assertUploadSize(file);
 

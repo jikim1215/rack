@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { logAssetChange } from "@/lib/audit";
-import { getActor, withApi } from "@/lib/api-authz";
+import { getActor, withApi, readFormData } from "@/lib/api-authz";
 import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import {
@@ -53,7 +53,7 @@ export const POST = withApi(async (req: NextRequest) => {
   // team 계정은 가져온 자산을 자기 팀으로 강제; admin은 미지정(none)
   const ownerTeamId = actor.role === "team" ? actor.teamId : null;
   const t0 = Date.now();
-  const formData = await req.formData();
+  const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
   // 프리뷰(dry_run): 반영 없이 생성 예정/이슈 예상/기존 중복 의심만 산출 (외부 검토 R6-2 합의)
   const dryRun = String(formData.get("dry_run") || "") === "1";

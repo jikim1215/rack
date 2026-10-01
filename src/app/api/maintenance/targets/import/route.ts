@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, withApi } from "@/lib/api-authz";
+import { getActor, withApi, readFormData } from "@/lib/api-authz";
 import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -13,7 +13,7 @@ export const POST = withApi(async (req: NextRequest) => {
   assertCanWrite(actor);
 
   const actorName = actor.username;
-  const formData = await req.formData();
+  const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
   const replace = String(formData.get("replace") || "") === "1";
   assertUploadSize(file);

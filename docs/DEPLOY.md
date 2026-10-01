@@ -63,7 +63,7 @@ sudo NEXT_INTERNAL_PORT=3100 bash …/deploy.sh    # 공존시스템이 3000 을
 |---|---|---|
 | `SESSION_TTL_HOURS` | 8 | 세션 수명. 공용 PC 환경이면 4 |
 | `MFA_REQUIRED_ROLES` | admin | 2단계 인증 등록 강제 역할. `none` 이면 전원 선택 |
-| `TRUST_PROXY` | true | nginx 뒤에서 X-Forwarded-For 신뢰(허용 IP·접속기록) |
+| `TRUST_PROXY` | true | nginx 뒤에서 프록시가 덮어쓴 X-Real-IP 신뢰(허용 IP·로그인 잠금·접속기록). 앱이 프록시 없이 직접 노출되면 false |
 | `COOKIE_SECURE` | true | HTTPS 전용 쿠키 |
 | `NOTIFICATION_CHANNELS` | inapp,email | `inapp` 만이면 메일 발송 차단 |
 

@@ -30,7 +30,7 @@ npm run dev         # 개발 서버 (http://localhost:3000)
 npm run build       # 프로덕션 빌드
 npm run start       # 프로덕션 서버
 npm run db:seed     # 시드 데이터 생성 (DB 초기화)
-npm test            # 단위 테스트 (284개)
+npm test            # 단위 테스트 (288개)
 npm run check       # 타입 체크
 npm run smoke       # 스모크 테스트 (핵심 화면·API 불변식)
 npm run verify:api  # E2E 인가·입력검증·CSP·MFA 검증 (시드 DB 전제, 운영 DB 금지)

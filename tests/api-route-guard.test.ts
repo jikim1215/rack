@@ -75,6 +75,8 @@ for (const file of files) {
     assert.ok(!/authzError\(/.test(src), "authzError 보일러플레이트가 남아 있음");
     assert.ok(!/\bas any\b|:\s*any\b/.test(src), "`any` 가 남아 있음 — db-types 행 타입을 사용");
     assert.ok(!/\breq(uest)?\.json\(\)/.test(src), "req.json() 직접 호출 — readJson(req) 사용(JSON 파싱 오류만 400)");
+    assert.ok(!/\breq(uest)?\.formData\(\)/.test(src), "req.formData() 직접 호출 — readFormData(req) 사용(상한 초과·잘린 본문 400)");
+    if (/readFormData\(/.test(src)) assert.ok(/assertUploadSize\(/.test(src), "업로드 라우트인데 assertUploadSize 누락");
 
     const chunks = handlerChunks(src);
     assert.ok(chunks.length > 0, "HTTP 핸들러가 없음");

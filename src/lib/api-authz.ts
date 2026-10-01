@@ -4,6 +4,10 @@ import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { actorFromSession, AuthzError, type Actor, type MenuPerm } from "@/lib/authz";
 import { ValidationError } from "@/lib/validation/input";
+import { UPLOAD_MAX_BYTES } from "@/lib/validation/upload";
+
+// multipart 경계·헤더·부가 필드(dry_run 등) 여유. 파일 자체는 assertUploadSize 가 정확히 잰다.
+const UPLOAD_MULTIPART_SLACK = 1024 * 1024;
 
 /** 역할의 menu_permissions 행을 한 번에 읽는다 (요청당 1회, SQLite 경량 조회). */
 export function loadMenuPerms(role: string): Record<string, MenuPerm> {
@@ -59,6 +63,24 @@ export async function readJson(req: NextRequest): Promise<unknown> {
     return await req.json();
   } catch {
     throw new ValidationError("요청 본문(JSON)이 올바르지 않습니다.");
+  }
+}
+
+/**
+ * 업로드(multipart) 본문. 선언 길이가 상한을 넘으면 파싱 전에 400, 파싱 실패(잘린 본문·비 multipart)도 400.
+ * 파일 자체 크기·형식 검사는 호출측 assertUploadSize/매직바이트가 계속 담당한다.
+ */
+export async function readFormData(req: NextRequest): Promise<FormData> {
+  const declared = Number(req.headers.get("content-length") || 0);
+  if (declared > UPLOAD_MAX_BYTES + UPLOAD_MULTIPART_SLACK) {
+    throw new ValidationError(
+      `파일이 너무 큽니다 (${(declared / 1048576).toFixed(1)}MB). 최대 ${UPLOAD_MAX_BYTES / 1048576}MB — 시트를 나눠 올리세요.`,
+    );
+  }
+  try {
+    return await req.formData();
+  } catch {
+    throw new ValidationError("업로드 본문을 읽을 수 없습니다. 파일을 다시 선택해 올리세요.");
   }
 }
 

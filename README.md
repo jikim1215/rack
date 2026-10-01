@@ -172,7 +172,7 @@ npm run dev            # http://localhost:3000
 | 팀(team) | `user@example.go.kr` | `user123` |
 | 전체열람(viewer) | `viewer@example.go.kr` | `viewer123` |
 
-기타 스크립트: `npm test`(단위 테스트 284개), `npm run check`(타입 체크), `npm run smoke`(스모크 — 핵심 화면·API 불변식), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견·2단계인증 E2E), `node scripts/bench-scale.mjs 10000`(자산 N건 시나리오 쿼리 벤치 — 운영 DB 복사본에서만).
+기타 스크립트: `npm test`(단위 테스트 288개), `npm run check`(타입 체크), `npm run smoke`(스모크 — 핵심 화면·API 불변식), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견·2단계인증 E2E), `node scripts/bench-scale.mjs 10000`(자산 N건 시나리오 쿼리 벤치 — 운영 DB 복사본에서만).
 
 > `verify:api`·`verify-hardening.mjs` 는 **시드 계정(`@example.go.kr`) 전제 · 권한과 데이터를 변조**한다.
 > 실데이터가 들어있는 DB(운영·실데이터 스테이징 포함)에는 돌리지 말 것. 그쪽은 `smoke.mjs` 로 확인한다.
@@ -224,5 +224,5 @@ scripts/
 ├── e2e-security.mjs      # 보안 E2E
 └── reset-password.mjs    # 비밀번호 초기화 헬퍼
 docs/                         # 배포/운영/사용자·관리자 매뉴얼, 아키텍처, 보안 체크리스트
-tests/                        # 단위 테스트 284개 (node --test)
+tests/                        # 단위 테스트 288개 (node --test)
 ```
