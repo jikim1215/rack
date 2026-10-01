@@ -36,7 +36,11 @@ async function decodeToken(token: string): Promise<{ role?: string; exp?: number
     const expected = btoa(String.fromCharCode(...new Uint8Array(signature)))
       .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-    if (sig !== expected) return null;
+    // 상수시간 비교 — auth-core verifySessionToken(timingSafeEqual)과 동일 정책 (Edge 에는 timingSafeEqual 없음)
+    if (sig.length !== expected.length) return null;
+    let diff = 0;
+    for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
+    if (diff !== 0) return null;
     const payload = JSON.parse(atob(json.replace(/-/g, "+").replace(/_/g, "/")));
     if (!(payload.exp > Date.now())) return null;
     // 2단계 인증 대기 토큰(pur='mfa')은 세션으로 치지 않는다 — auth.ts getSession 과 동일 정책.

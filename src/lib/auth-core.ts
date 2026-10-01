@@ -49,7 +49,9 @@ export function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(":");
   if (!salt || !hash) return false;
   const buf = scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 });
-  return timingSafeEqual(buf, Buffer.from(hash, "hex"));
+  const expected = Buffer.from(hash, "hex");
+  // 손상·비정상 저장값이면 timingSafeEqual 이 던져 500 이 나므로 길이부터 확인
+  return expected.length === buf.length && timingSafeEqual(buf, expected);
 }
 
 // 서버측 프리해시(sha512) + scrypt. 시드/초기화처럼 평문을 가진 경로에서

@@ -34,10 +34,22 @@ process.on("SIGTERM", () => { child.kill("SIGTERM"); });
 process.on("SIGINT", () => { child.kill("SIGINT"); });
 
 // 2) TLS 종단 → 내부 Next로 프록시
+function clientIp(req) {
+  const a = req.socket.remoteAddress || "";
+  return a.startsWith("::ffff:") ? a.slice(7) : a; // IPv4-mapped IPv6 → IPv4 (허용 IP 규칙은 IPv4)
+}
+
 function proxy(req, res) {
   const opts = {
     hostname: "127.0.0.1", port: NEXT_PORT, path: req.url, method: req.method,
-    headers: { ...req.headers, "x-forwarded-proto": "https", "x-forwarded-host": req.headers.host || "" },
+    // 클라이언트가 보낸 X-Real-IP/X-Forwarded-For 는 실제 소켓 주소로 덮어쓴다(허용 IP·로그인 잠금 위조 방지).
+    headers: {
+      ...req.headers,
+      "x-forwarded-proto": "https",
+      "x-forwarded-host": req.headers.host || "",
+      "x-real-ip": clientIp(req),
+      "x-forwarded-for": clientIp(req),
+    },
   };
   const up = http.request(opts, (upRes) => {
     res.writeHead(upRes.statusCode || 502, upRes.headers);
