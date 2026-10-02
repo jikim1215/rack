@@ -1,12 +1,12 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readFormData } from "@/lib/api-authz";
-import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertCanDownload } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { ValidationError } from "@/lib/validation/input";
 import type { DistFrameRow, FrameType, LocationRow } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { readUploadSheet } from "@/lib/xlsx-upload";
 
 // ── 배선반 일괄 등록 (엑셀 왕복) ──
 // GET: 양식 다운로드. POST: 같은 양식 업로드로 배선반+페어 일괄 생성.
@@ -56,11 +56,8 @@ export const POST = withApi(async (req: NextRequest) => {
 
   const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
-  assertUploadSize(file);
-
-  const wb = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: "buffer" });
-  const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as unknown[][];
-  assertRowLimit(Math.max(0, aoa.length - 1));
+  // 크기 → 매직바이트 → 압축 폭탄 → 파싱 실패 → 행 상한, 전부 400 (lib/xlsx-upload.ts)
+  const aoa = await readUploadSheet(file, { defval: "" });
 
   // 헤더 행 탐색 ("배선반명"으로 시작하는 행)
   const hIdx = aoa.findIndex((r) => String(r[0]).trim() === "배선반명");

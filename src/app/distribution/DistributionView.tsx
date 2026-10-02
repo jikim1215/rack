@@ -446,7 +446,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
           className="flex items-center gap-1 border border-line px-2.5 py-1.5 rounded text-xs hover:bg-slate-100 text-ink-2 hover:text-ink disabled:opacity-50">
           <Upload size={12} /> {bulkUploading ? "등록중..." : "프레임 일괄 등록"}
         </button>
-        <input ref={bulkUploadRef} type="file" accept=".xlsx,.xls" className="hidden"
+        <input ref={bulkUploadRef} type="file" accept=".xlsx" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFramesBulk(f); }} />
       </div>
 
@@ -619,7 +619,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                     className="flex items-center gap-1 border border-line px-2 py-1 rounded hover:bg-slate-100 text-ink-2 hover:text-ink disabled:opacity-50">
                     <Upload size={12} /> {uploading ? "반영중..." : "업로드"}
                   </button>
-                  <input ref={uploadRef} type="file" accept=".xlsx,.xls" className="hidden"
+                  <input ref={uploadRef} type="file" accept=".xlsx" className="hidden"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLedger(f); }} />
                 </div>
               </div>

@@ -1,6 +1,6 @@
 // 유지관리 대상/금액 엑셀 파서/직렬화 (import·export·seed·test 공용, 순수 모듈)
 import * as XLSX from "xlsx";
-import { assertRowLimit } from "./validation/upload.ts";
+import { parseUploadBuffer } from "./xlsx-upload.ts";
 
 export interface ParsedTarget {
   system_name: string;
@@ -179,14 +179,9 @@ export function parseTargetRows(rows: unknown[][]): { targets: ParsedTarget[]; s
   return { targets, skipped };
 }
 
-/** .xlsx 버퍼 → ParsedTarget[] */
+/** .xlsx 버퍼 → 파싱 결과. 매직바이트·압축 폭탄·파싱 실패·행 상한은 공통 입구(parseUploadBuffer)가 ValidationError 로 거른다. */
 export function parseTargetWorkbook(buffer: Buffer): { targets: ParsedTarget[]; skipped: number } {
-  const wb = XLSX.read(buffer, { cellDates: true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  if (!ws) return { targets: [], skipped: 0 };
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false });
-  assertRowLimit(Math.max(0, rows.length - 1)); // 행 상한(업로드 공통 정책)
-  return parseTargetRows(rows);
+  return parseTargetRows(parseUploadBuffer(buffer, { cellDates: true, blankrows: false }));
 }
 
 /** target 레코드 배열 → 엑셀 버퍼(내보내기). 입력은 DB row(문자열/숫자 혼재 허용). */

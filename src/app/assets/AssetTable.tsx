@@ -28,7 +28,7 @@ function Pager({ total, page, pageSize, pageCount, loading, onPage, onPageSize, 
     <div className={`flex items-center gap-2 text-xs text-ink-2 ${bottom ? "" : "justify-end mb-2"}`}>
       {loading && <span className="text-ink-3">불러오는 중…</span>}
       <button className="px-2 py-1 border border-line rounded disabled:opacity-40 hover:bg-slate-100" disabled={page <= 0 || loading} onClick={() => onPage(page - 1)}>이전</button>
-      <span className="num">{page + 1} / {pageCount}</span>
+      <span className="num whitespace-nowrap">{page + 1} / {pageCount}</span>
       <button className="px-2 py-1 border border-line rounded disabled:opacity-40 hover:bg-slate-100" disabled={page >= pageCount - 1 || loading} onClick={() => onPage(page + 1)}>다음</button>
       <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="form-input !w-auto !py-1 text-xs" title="페이지 크기">
         {[50, 100, 200].map((n) => <option key={n} value={n}>{n}건씩</option>)}
@@ -37,6 +37,7 @@ function Pager({ total, page, pageSize, pageCount, loading, onPage, onPageSize, 
   );
 }
 import { UsageGuide } from "@/components/UsageGuide";
+import { toCsv } from "@/lib/csv";
 
 const typeLabels: Record<string, string> = {
   server: "서버", network: "네트워크", security: "정보보호", telecom: "전화설비", vm: "가상머신", other: "기타",
@@ -403,7 +404,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
   function downloadCreatedCsv() {
     const rows: any[] = importResult?.created || [];
     if (!rows.length) return;
-    const csv = "\uFEFFid,자산명,원본행\n" + rows.map((c) => `${c.id},"${String(c.asset_name).replace(/"/g, '""')}",${c.source_row}`).join("\n");
+    const csv = toCsv([["id", "자산명", "원본행"], ...rows.map((c) => [c.id, c.asset_name, c.source_row])]);
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     a.download = `import-${importResult.batch_id || "batch"}-created.csv`;
@@ -652,14 +653,14 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
     const val = customValues[f.id] || "";
     if (f.field_type === "select") {
       return (
-        <select value={val} onChange={(e) => setCustomValues({ ...customValues, [f.id]: e.target.value })} className="form-input">
+        <select aria-label={f.field_label} value={val} onChange={(e) => setCustomValues({ ...customValues, [f.id]: e.target.value })} className="form-input">
           <option value="">선택</option>
           {f.options.split(",").map((opt: string) => <option key={opt.trim()} value={opt.trim()}>{opt.trim()}</option>)}
         </select>
       );
     }
     if (f.field_type === "textarea") {
-      return <textarea value={val} onChange={(e) => setCustomValues({ ...customValues, [f.id]: e.target.value })} className="form-input" rows={2} />;
+      return <textarea aria-label={f.field_label} value={val} onChange={(e) => setCustomValues({ ...customValues, [f.id]: e.target.value })} className="form-input" rows={2} />;
     }
     if (f.field_type === "multi-text") {
       let items: string[] = [];
@@ -668,7 +669,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
         <div className="space-y-1">
           {items.map((item, i) => (
             <div key={i} className="flex gap-1">
-              <input value={item} onChange={(e) => {
+              <input aria-label={`${f.field_label} ${i + 1}`} value={item} onChange={(e) => {
                 const newItems = [...items]; newItems[i] = e.target.value;
                 setCustomValues({ ...customValues, [f.id]: JSON.stringify(newItems) });
               }} className="form-input flex-1" />
@@ -685,7 +686,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
       );
     }
     return (
-      <input
+      <input aria-label={f.field_label}
         type={f.field_type === "number" ? "number" : f.field_type === "date" ? "date" : "text"}
         value={val}
         onChange={(e) => setCustomValues({ ...customValues, [f.id]: e.target.value })}
@@ -712,16 +713,16 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
-          <input type="text" placeholder="이름, IP, 제조사, OS, 관리자, 부서 검색..."
+          <input aria-label="이름, IP, 제조사, OS, 관리자, 부서 검색" type="text" placeholder="이름, IP, 제조사, OS, 관리자, 부서 검색..."
             value={search} onChange={(e) => setSearch(e.target.value)}
             className="form-input w-full pl-9" />
         </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
+        <select aria-label="자산 유형 필터" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
           className="form-input">
           <option value="">전체 유형</option>
           {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select value={rackFilter} onChange={(e) => setRackFilter(e.target.value)}
+        <select aria-label="랙 필터" value={rackFilter} onChange={(e) => setRackFilter(e.target.value)}
           className="form-input">
           <option value="">전체 랙</option>
           {racks.map((r: any) => <option key={r.id} value={r.id}>{r.rack_name} ({r.location_name})</option>)}
@@ -790,14 +791,14 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
                 editFieldId === f.id ? (
                   <div key={f.id} className="grid grid-cols-2 md:grid-cols-9 gap-1.5 bg-slate-100 rounded px-3 py-2 items-center text-xs">
                     <input value={fieldForm.field_key} disabled className="form-input text-xs bg-slate-100" title="키는 변경 불가" />
-                    <input value={fieldForm.field_label} onChange={(e) => setFieldForm({ ...fieldForm, field_label: e.target.value })} className="form-input text-xs" placeholder="라벨" />
-                    <select value={fieldForm.field_type} onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })} className="form-input text-xs">
+                    <input aria-label="라벨" value={fieldForm.field_label} onChange={(e) => setFieldForm({ ...fieldForm, field_label: e.target.value })} className="form-input text-xs" placeholder="라벨" />
+                    <select aria-label="필드 유형" value={fieldForm.field_type} onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })} className="form-input text-xs">
                       <option value="text">텍스트</option><option value="number">숫자</option><option value="date">날짜</option>
                       <option value="select">선택</option><option value="textarea">텍스트영역</option><option value="multi-text">다중값</option>
                     </select>
-                    <input value={fieldForm.field_group} onChange={(e) => setFieldForm({ ...fieldForm, field_group: e.target.value })} className="form-input text-xs" placeholder="그룹" />
-                    <input value={fieldForm.options} onChange={(e) => setFieldForm({ ...fieldForm, options: e.target.value })} className="form-input text-xs" placeholder="옵션(콤마)" />
-                    <input value={fieldForm.asset_types} onChange={(e) => setFieldForm({ ...fieldForm, asset_types: e.target.value })} className="form-input text-xs" placeholder="유형필터" />
+                    <input aria-label="그룹" value={fieldForm.field_group} onChange={(e) => setFieldForm({ ...fieldForm, field_group: e.target.value })} className="form-input text-xs" placeholder="그룹" />
+                    <input aria-label="옵션(콤마)" value={fieldForm.options} onChange={(e) => setFieldForm({ ...fieldForm, options: e.target.value })} className="form-input text-xs" placeholder="옵션(콤마)" />
+                    <input aria-label="유형필터" value={fieldForm.asset_types} onChange={(e) => setFieldForm({ ...fieldForm, asset_types: e.target.value })} className="form-input text-xs" placeholder="유형필터" />
                     <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!fieldForm.show_in_table} onChange={(e) => setFieldForm({ ...fieldForm, show_in_table: e.target.checked ? 1 : 0 })} /> 테이블</label>
                     <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={!!fieldForm.is_required} onChange={(e) => setFieldForm({ ...fieldForm, is_required: e.target.checked ? 1 : 0 })} /> 필수</label>
                     <div className="flex gap-1">
@@ -828,15 +829,15 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
 
           {!editFieldId && (
             <div className="grid grid-cols-2 md:grid-cols-9 gap-1.5 text-xs">
-              <input placeholder="키(영문)" value={fieldForm.field_key} onChange={(e) => setFieldForm({ ...fieldForm, field_key: e.target.value })} className="form-input text-xs" />
-              <input placeholder="라벨" value={fieldForm.field_label} onChange={(e) => setFieldForm({ ...fieldForm, field_label: e.target.value })} className="form-input text-xs" />
-              <select value={fieldForm.field_type} onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })} className="form-input text-xs">
+              <input aria-label="키(영문)" placeholder="키(영문)" value={fieldForm.field_key} onChange={(e) => setFieldForm({ ...fieldForm, field_key: e.target.value })} className="form-input text-xs" />
+              <input aria-label="라벨" placeholder="라벨" value={fieldForm.field_label} onChange={(e) => setFieldForm({ ...fieldForm, field_label: e.target.value })} className="form-input text-xs" />
+              <select aria-label="필드 유형" value={fieldForm.field_type} onChange={(e) => setFieldForm({ ...fieldForm, field_type: e.target.value })} className="form-input text-xs">
                 <option value="text">텍스트</option><option value="number">숫자</option><option value="date">날짜</option>
                 <option value="select">선택</option><option value="textarea">텍스트영역</option><option value="multi-text">다중값</option>
               </select>
-              <input placeholder="그룹명" value={fieldForm.field_group} onChange={(e) => setFieldForm({ ...fieldForm, field_group: e.target.value })} className="form-input text-xs" />
-              <input placeholder="옵션(콤마)" value={fieldForm.options} onChange={(e) => setFieldForm({ ...fieldForm, options: e.target.value })} className="form-input text-xs" />
-              <input placeholder="유형필터" value={fieldForm.asset_types} onChange={(e) => setFieldForm({ ...fieldForm, asset_types: e.target.value })} className="form-input text-xs" />
+              <input aria-label="그룹명" placeholder="그룹명" value={fieldForm.field_group} onChange={(e) => setFieldForm({ ...fieldForm, field_group: e.target.value })} className="form-input text-xs" />
+              <input aria-label="옵션(콤마)" placeholder="옵션(콤마)" value={fieldForm.options} onChange={(e) => setFieldForm({ ...fieldForm, options: e.target.value })} className="form-input text-xs" />
+              <input aria-label="유형필터" placeholder="유형필터" value={fieldForm.asset_types} onChange={(e) => setFieldForm({ ...fieldForm, asset_types: e.target.value })} className="form-input text-xs" />
               <label className="flex items-center gap-1"><input type="checkbox" checked={!!fieldForm.show_in_table} onChange={(e) => setFieldForm({ ...fieldForm, show_in_table: e.target.checked ? 1 : 0 })} /> 테이블</label>
               <label className="flex items-center gap-1"><input type="checkbox" checked={!!fieldForm.is_required} onChange={(e) => setFieldForm({ ...fieldForm, is_required: e.target.checked ? 1 : 0 })} /> 필수</label>
               <button onClick={addCustomField} className="bg-ink hover:bg-rail text-white rounded text-xs py-1.5">추가</button>
@@ -880,8 +881,8 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
                 >
                   <Upload size={20} className="text-ink-3" />
                   <span className="text-sm text-ink-2">파일을 여기로 드래그하거나 <span className="text-ink font-medium underline">클릭하여 선택</span></span>
-                  <span className="text-xs text-ink-3">지원 형식: .xlsx, .xls</span>
-                  <input type="file" accept=".xlsx,.xls" disabled={importing} className="hidden"
+                  <span className="text-xs text-ink-3">지원 형식: .xlsx (구버전 .xls 는 엑셀에서 .xlsx 로 다시 저장)</span>
+                  <input type="file" accept=".xlsx" disabled={importing} className="hidden"
                     onChange={(e) => { handleImportFile(e.target.files?.[0]); e.target.value = ""; }} />
                 </label>
                 {importing && <p className="text-xs text-ink-2 mt-2">업로드 중...</p>}
@@ -902,7 +903,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
                 {!importResult.error && importResult.issues && (
                   <>
                     {/* 결과 요약 카드: 오류/식별자없음/OS미입력/중복의심 */}
-                    <div className="grid grid-cols-4 gap-2 mb-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
                       {[
                         { label: "오류(IP)", n: importResult.issues.ip_format ?? 0 },
                         { label: "식별자 없음", n: importResult.issues.missing_id ?? 0 },
@@ -1149,7 +1150,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
       {selectedVisibleIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-3 p-3 rounded-lg border border-ink/30 bg-surface">
           <span className="text-sm font-semibold text-ink">선택 <span className="num">{selectedVisibleIds.length}</span>건 일괄수정</span>
-          <select value={bulkField} onChange={(e) => { setBulkField(e.target.value as BulkField); setBulkValue(""); }} className="form-input">
+          <select aria-label="일괄수정 항목" value={bulkField} onChange={(e) => { setBulkField(e.target.value as BulkField); setBulkValue(""); }} className="form-input">
             {isAdmin && <option value="team_id">관리부서</option>}
             <option value="user_name">사용자</option>
             <option value="admin_name">관리자</option>
@@ -1160,11 +1161,11 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
             <option value="network_zone">망구분</option>
           </select>
           {(bulkField === "admin_name" || bulkField === "user_name") ? (
-            <input type="text" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}
+            <input aria-label="일괄수정 값 (비우면 삭제)" type="text" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}
               placeholder="값 입력 (비우면 삭제)" maxLength={100} className="form-input" />
           ) : bulkField === "network_zone" ? (
             <>
-              <input type="text" list="zone-presets-bulk" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}
+              <input aria-label="일괄수정 망구분 (직접 입력 가능)" type="text" list="zone-presets-bulk" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)}
                 placeholder="미지정 (직접 입력 가능)" maxLength={30} className="form-input" />
               <datalist id="zone-presets-bulk">
                 <option value="업무망" />
@@ -1172,7 +1173,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
               </datalist>
             </>
           ) : (
-            <select value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} className="form-input">
+            <select aria-label="일괄수정 값" value={bulkValue} onChange={(e) => setBulkValue(e.target.value)} className="form-input">
               {bulkField === "status" && (
                 <>
                   <option value="">상태 선택</option>
@@ -1221,7 +1222,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ minWidth: 1200 }}>
             <thead>
-              <tr className="bg-surface border-b border-line text-left text-ink-2">
+              <tr className="bg-surface border-b border-line text-left text-ink-2 whitespace-nowrap">
                 <th className="p-3 w-8">
                   <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
                     aria-label="검색결과 전체 선택" title="검색결과 전체 선택" />
@@ -1246,7 +1247,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
                   <Fragment key={type}>
                     <tr className="bg-surface/60 border-b border-line">
                       <td colSpan={groupColSpan} className="p-0">
-                        <button onClick={() => toggleType(type)}
+                        <button onClick={() => toggleType(type)} aria-expanded={open}
                           className="w-full flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-ink hover:bg-slate-100">
                           {open ? <ChevronDown size={16} className="shrink-0" /> : <ChevronRight size={16} className="shrink-0" />}
                           <span>{typeLabels[type] || type}</span>
@@ -1312,9 +1313,15 @@ function TableRow({ asset: a, expanded, selected, onSelect, onToggle, onEdit, on
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" checked={selected} onChange={onSelect} aria-label="자산 선택" />
         </td>
-        <td className="p-3 text-ink-3">{expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
-        <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded ${typeColors[a.asset_type] || typeColors.other}`}>{typeLabels[a.asset_type] || a.asset_type}</span></td>
-        <td className="p-3 text-xs text-ink-3">{a.network_zone ? (zoneLabels[a.network_zone] || a.network_zone) : "-"}</td>
+        <td className="p-3 text-ink-3">
+          {/* 행 클릭(마우스)과 같은 동작을 키보드로 — 행 자체는 표 의미를 지키려 버튼 역할을 주지 않는다 */}
+          <button type="button" onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-expanded={expanded}
+            aria-label={`${a.asset_name} 상세 ${expanded ? "접기" : "펼치기"}`} className="p-0.5 rounded hover:bg-slate-100">
+            {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </td>
+        <td className="p-3"><span className={`text-xs px-2 py-0.5 rounded whitespace-nowrap ${typeColors[a.asset_type] || typeColors.other}`}>{typeLabels[a.asset_type] || a.asset_type}</span></td>
+        <td className="p-3 text-xs text-ink-3 whitespace-nowrap">{a.network_zone ? (zoneLabels[a.network_zone] || a.network_zone) : "-"}</td>
         <td className="p-3 font-medium">{a.asset_name}</td>
         <td className="p-3 text-ink-3 text-xs">{a.manufacturer} {a.model}</td>
         <td className="p-3 text-xs text-ink-3">
@@ -1329,7 +1336,7 @@ function TableRow({ asset: a, expanded, selected, onSelect, onToggle, onEdit, on
           <td key={f.id} className="p-3 text-xs text-ink-3">{renderCustomValue(f, cvMap[a.id]?.[f.id])}</td>
         ))}
         <td className="p-3 text-xs text-ink-3">{a.rack_name ? <>{a.location_name}/{a.rack_name} (<span className="num">{a.rack_unit_start}</span>U)</> : "-"}</td>
-        <td className="p-3"><span className={`inline-flex items-center gap-1.5 text-xs font-medium ${statusColors[a.status] || "text-idle"}`}><span className={`led ${statusLed[a.status] || "led-idle"}`} />{statusLabels[a.status]}</span></td>
+        <td className="p-3"><span className={`inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${statusColors[a.status] || "text-idle"}`}><span className={`led ${statusLed[a.status] || "led-idle"}`} />{statusLabels[a.status]}</span></td>
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex gap-0.5">
             <button onClick={onVerify} className={`p-1.5 rounded hover:bg-slate-100 ${freshnessTone(a.verified_at)}`} title={`현행 확인 도장 — ${freshnessLabel(a.verified_at)}${a.verified_at ? ` (${a.verified_at.slice(0, 10)} ${a.verified_by || ""})` : ""}`}><ShieldCheck size={14} /></button>

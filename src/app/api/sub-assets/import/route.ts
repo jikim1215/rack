@@ -1,12 +1,10 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readFormData } from "@/lib/api-authz";
-import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
+import { assertUploadSize } from "@/lib/validation/upload";
 import { assertMenuWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { isXlsxBuffer } from "@/lib/validation/asset-rules";
 import { parseSubAssetWorkbook, SUBASSET_INSERT_COLUMNS } from "@/lib/subasset-import";
-import { ValidationError } from "@/lib/validation/input";
 
 // 부속자산 일괄 업로드 — 대량 가져오기는 쓰기 작업(viewer 차단).
 //   team 계정: 자기 팀으로 강제 귀속. admin: '관리부서' 열의 팀명으로 find-or-create.
@@ -18,19 +16,8 @@ export const POST = withApi(async (req: NextRequest) => {
   const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
   assertUploadSize(file);
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  if (!isXlsxBuffer(buffer)) {
-    throw new ValidationError("유효한 .xlsx 파일이 아닙니다 (매직바이트 불일치).");
-  }
-
-  let parsed;
-  try {
-    parsed = parseSubAssetWorkbook(buffer);
-  } catch {
-    throw new ValidationError("엑셀 파싱에 실패했습니다.");
-  }
-  const { subs, skipped } = parsed;
+  // 매직바이트·압축 폭탄·파싱 실패·행 상한 → 400 (lib/xlsx-upload.ts)
+  const { subs, skipped } = parseSubAssetWorkbook(Buffer.from(await file.arrayBuffer()));
   if (subs.length === 0) {
     return NextResponse.json({ error: "가져올 유효한 행이 없습니다.", skipped }, { status: 400 });
   }

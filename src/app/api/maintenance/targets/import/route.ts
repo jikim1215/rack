@@ -1,10 +1,9 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readFormData } from "@/lib/api-authz";
-import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
+import { assertUploadSize } from "@/lib/validation/upload";
 import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { isXlsxBuffer } from "@/lib/validation/asset-rules";
 import { parseTargetWorkbook, TARGET_INSERT_COLUMNS } from "@/lib/maintenance-target-import";
 
 export const POST = withApi(async (req: NextRequest) => {
@@ -17,19 +16,8 @@ export const POST = withApi(async (req: NextRequest) => {
   const file = formData.get("file") as File | null;
   const replace = String(formData.get("replace") || "") === "1";
   assertUploadSize(file);
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  if (!isXlsxBuffer(buffer)) {
-    return NextResponse.json({ error: "유효한 .xlsx 파일이 아닙니다 (매직바이트 불일치)." }, { status: 400 });
-  }
-
-  let parsed;
-  try {
-    parsed = parseTargetWorkbook(buffer);
-  } catch {
-    return NextResponse.json({ error: "엑셀 파싱에 실패했습니다." }, { status: 400 });
-  }
-  const { targets, skipped } = parsed;
+  // 매직바이트·압축 폭탄·파싱 실패·행 상한 → 400 (lib/xlsx-upload.ts)
+  const { targets, skipped } = parseTargetWorkbook(Buffer.from(await file.arrayBuffer()));
   if (targets.length === 0) {
     return NextResponse.json({ error: "가져올 유효한 행이 없습니다.", skipped }, { status: 400 });
   }

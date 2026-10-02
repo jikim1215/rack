@@ -76,7 +76,10 @@ for (const file of files) {
     assert.ok(!/\bas any\b|:\s*any\b/.test(src), "`any` 가 남아 있음 — db-types 행 타입을 사용");
     assert.ok(!/\breq(uest)?\.json\(\)/.test(src), "req.json() 직접 호출 — readJson(req) 사용(JSON 파싱 오류만 400)");
     assert.ok(!/\breq(uest)?\.formData\(\)/.test(src), "req.formData() 직접 호출 — readFormData(req) 사용(상한 초과·잘린 본문 400)");
-    if (/readFormData\(/.test(src)) assert.ok(/assertUploadSize\(/.test(src), "업로드 라우트인데 assertUploadSize 누락");
+    if (/readFormData\(/.test(src)) assert.ok(/assertUploadSize\(|readUploadSheet\(/.test(src), "업로드 라우트인데 크기 상한 누락(readUploadSheet 또는 assertUploadSize)");
+    // 엑셀은 공통 입구(lib/xlsx-upload.ts)로만 읽는다 — 매직바이트·압축 폭탄·파싱 실패 400 을 빠뜨린 XLSX.read 직접 호출 금지
+    assert.ok(!/XLSX\.read\(/.test(src), "XLSX.read 직접 호출 — readUploadSheet()/parse*Workbook() 사용(압축 폭탄·매직바이트 검사)");
+    assert.ok(!/Number\([^)]*\.get\("(limit|offset)"\)/.test(src), "limit/offset 을 Number() 로 직접 해석 — pageParams() 사용(NaN·소수 → SQLITE_MISMATCH 500)");
 
     const chunks = handlerChunks(src);
     assert.ok(chunks.length > 0, "HTTP 핸들러가 없음");
@@ -121,6 +124,37 @@ for (const file of files) {
     }
   });
 }
+
+// 쓰기 핸들러는 감사로그(audit_logs) 또는 접속기록(access_logs)을 남긴다 (AC-1 변경 추적).
+// 직접 logAudit/logAssetChange/logAccess 를 호출하거나, 감사 기록을 책임지는 lib 함수에 위임해야 한다.
+// 아래 예외는 "기록할 업무 변경이 없거나 다른 증적이 이미 있는" 경우만 — 늘릴 때는 사유를 같이 적는다.
+const AUDIT_CALL = /logAudit\(|logAssetChange\(|logAccess\(|INSERT INTO audit_logs|reassignUnassignedAssets\(|rollbackBatch\(/;
+const AUDIT_EXEMPT: Record<string, string> = {
+  "POST /api/admin/mail-config/test": "테스트 메일 발송 — 상태 변경 없음",
+  "POST /api/auth/refresh": "세션 연장 — 상태 변경 없음",
+  "POST /api/auth/mfa/setup": "등록 시작(비활성 비밀 생성) — 실제 활성화는 PUT 에서 감사",
+  "POST /api/feedback": "개선의견 접수 — feedback 행 자체가 작성자·시각 증적",
+  "POST /api/feedback/[id]/vote": "공감 토글 — feedback_votes 행 자체가 증적",
+  "PATCH /api/import-issues": "가져오기 이슈 처리 — import_issue.resolved_by/resolved_at 가 증적",
+  "POST /api/inventory-audits/[id]/checks": "실사 확인 — inventory_audit_checks.checked_by/checked_at 가 증적",
+};
+
+test("쓰기 핸들러는 감사로그를 남긴다 (예외 목록 외)", () => {
+  const missing: string[] = [];
+  const seen = new Set<string>();
+  for (const file of files) {
+    const url = urlPath(file);
+    for (const c of handlerChunks(readFileSync(file, "utf8"))) {
+      if (c.method === "GET") continue;
+      const key = `${c.method} ${url}`;
+      seen.add(key);
+      if (key in AUDIT_EXEMPT) continue;
+      if (!AUDIT_CALL.test(c.body)) missing.push(key);
+    }
+  }
+  assert.deepEqual(missing, [], `감사로그 없는 쓰기 핸들러: ${missing.join(", ")}`);
+  for (const k of Object.keys(AUDIT_EXEMPT)) assert.ok(seen.has(k), `AUDIT_EXEMPT 에 없는 핸들러가 남아 있음: ${k}`);
+});
 
 test("menus.ts 레지스트리 정합성: 키/href/apiPrefixes 중복 없음, 3역할 기본값 존재, 총괄/세션 전용 접두사 형식", () => {
   const keys = MENUS.map((m) => m.key);

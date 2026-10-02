@@ -1,32 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AUDIT_ENTITY_TYPES } from "@/lib/db-types";
 import { getDb } from "@/lib/db";
 import { getActor, withApi } from "@/lib/api-authz";
 import { assertAdmin } from "@/lib/authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
+import { kstStamp, toCsv } from "@/lib/csv";
 import type { AuditLogRow } from "@/lib/db-types";
-
-function escapeCsvCell(val: unknown): string {
-  if (val === null || val === undefined) return "";
-  let str = String(val);
-  if (/^[=+\-@]/.test(str)) {
-    str = "'" + str;
-  }
-  if (/[",\r\n]/.test(str)) {
-    str = `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
-function getFormattedTimestamp(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const YYYY = kst.getUTCFullYear();
-  const MM = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const DD = String(kst.getUTCDate()).padStart(2, "0");
-  const HH = String(kst.getUTCHours()).padStart(2, "0");
-  const mm = String(kst.getUTCMinutes()).padStart(2, "0");
-  return `${YYYY}${MM}${DD}-${HH}${mm}`;
-}
 
 export const GET = withApi(async (req: NextRequest) => {
   const actor = await getActor();
@@ -47,21 +26,7 @@ export const GET = withApi(async (req: NextRequest) => {
   const entityType = req.nextUrl.searchParams.get("entity_type");
   const entityId = req.nextUrl.searchParams.get("entity_id");
 
-  const VALID_ENTITY_TYPES = [
-    "asset",
-    "rack",
-    "location",
-    "frame",
-    "contract",
-    "movement",
-    "maintenance",
-    "inventory_audit",
-    "sub_asset",
-    "user",
-    "team",
-    "permission",
-    "feedback",
-  ];
+  const VALID_ENTITY_TYPES: readonly string[] = AUDIT_ENTITY_TYPES;
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -96,8 +61,9 @@ export const GET = withApi(async (req: NextRequest) => {
     "생성시각",
   ];
 
-  const csvRows = logs.map((log) =>
-    [
+  const csvContent = toCsv([
+    headers,
+    ...logs.map((log) => [
       log.id,
       log.entity_type,
       log.entity_id ?? "",
@@ -108,14 +74,10 @@ export const GET = withApi(async (req: NextRequest) => {
       log.old_values,
       log.new_values,
       log.created_at,
-    ]
-      .map(escapeCsvCell)
-      .join(",")
-  );
+    ]),
+  ]);
 
-  const csvContent = "\uFEFF" + [headers.map(escapeCsvCell).join(","), ...csvRows].join("\r\n");
-
-  const filename = `audit-${getFormattedTimestamp()}.csv`;
+  const filename = `audit-${kstStamp()}.csv`;
 
   return new NextResponse(csvContent, {
     status: 200,

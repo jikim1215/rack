@@ -1,12 +1,13 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readFormData } from "@/lib/api-authz";
-import { assertUploadSize, assertRowLimit } from "@/lib/validation/upload";
+import { assertRowLimit } from "@/lib/validation/upload";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { pathId, ValidationError } from "@/lib/validation/input";
 import type { DistFrameRow, FramePairRow, PairStatus } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
+import { readUploadSheet } from "@/lib/xlsx-upload";
 
 // ── 선번장 엑셀 왕복 (FDF A안 ④) ──
 // GET: 프레임 단위 선번장 다운로드. POST: 같은 양식 업로드로 일괄 갱신 + 대향 링크 반영.
@@ -96,10 +97,8 @@ export const POST = withApi(async (req: NextRequest, { params }: Ctx) => {
 
   const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
-  assertUploadSize(file);
-
-  const wb = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: "buffer" });
-  const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" }) as unknown[][];
+  // 크기 → 매직바이트 → 압축 폭탄 → 파싱 실패 → (전체)행 상한, 전부 400 (lib/xlsx-upload.ts)
+  const aoa = await readUploadSheet(file, { defval: "" });
 
   // 헤더 행 탐색 ("포트"로 시작하는 행)
   const hIdx = aoa.findIndex((r) => String(r[0]).trim() === "포트");

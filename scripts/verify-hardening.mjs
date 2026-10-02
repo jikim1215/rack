@@ -3,6 +3,7 @@
 // 사용: BASE_URL=http://localhost:3000 node scripts/verify-hardening.mjs   (시드 계정 3종 필요, 실운영 DB 금지)
 // 전제: 서버가 MFA_REQUIRED_ROLES=admin(기본) 으로 기동됨.
 import { createHash } from "crypto";
+import { deflateRawSync } from "zlib";
 
 const BASE = process.env.BASE_URL || "http://localhost:3000";
 const sha512 = (s) => createHash("sha512").update(s).digest("hex");
@@ -10,6 +11,27 @@ let failures = 0;
 const ok = (n) => console.log(`  ✓ ${n}`);
 const fail = (n, d) => { failures++; console.error(`  ✗ ${n} — ${d}`); };
 const assert = (c, n, d = "") => (c ? ok(n) : fail(n, d));
+
+/** 최소 zip(deflate) 조립 — 압축 폭탄 픽스처용. CRC 는 앱이 검사하지 않으므로 0. */
+function zipOf(entries) {
+  const locals = [], centrals = [];
+  let offset = 0;
+  for (const [n, data] of entries) {
+    const body = deflateRawSync(data), name = Buffer.from(n);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(8, 8);
+    lh.writeUInt32LE(body.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(name.length, 26);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(8, 10);
+    ch.writeUInt32LE(body.length, 20); ch.writeUInt32LE(data.length, 24); ch.writeUInt16LE(name.length, 28); ch.writeUInt32LE(offset, 42);
+    locals.push(lh, name, body); centrals.push(ch, name);
+    offset += 30 + name.length + body.length;
+  }
+  const cd = Buffer.concat(centrals), eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(entries.length, 8); eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, eocd]);
+}
 
 function jar() {
   let cookie = "";
@@ -118,6 +140,20 @@ async function main() {
   const small = new Blob([new Uint8Array(10)]); const fd2 = new FormData(); fd2.append("file", small, "x.xlsx");
   r = await team.req("/api/assets/import", { method: "POST" }, fd2, true);
   assert(r.status === 400 && /xlsx/.test(r.body.error || ""), "작은 비-xlsx → 400 매직바이트(크기는 통과)", `${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
+  // 5) 압축 폭탄 — 수십 KB 가 70MB 로 풀리는 zip(.xlsx 위장). 크기 상한은 통과하므로 XLSX.read 전에 해제량으로 끊어야 한다.
+  //    배선반 일괄(이전엔 매직바이트·폭탄 검사 없이 XLSX.read)과 자산 임포트 둘 다, 빠르게 400.
+  const bomb = zipOf([["[Content_Types].xml", Buffer.from("<Types/>")], ["xl/worksheets/sheet1.xml", Buffer.alloc(70 * 1024 * 1024)]]);
+  for (const [who, url] of [[team, "/api/assets/import"], [admin, "/api/frames/bulk"]]) {
+    const fd3 = new FormData(); fd3.append("file", new Blob([bomb]), "bomb.xlsx");
+    const t0 = Date.now();
+    r = await who.req(url, { method: "POST" }, fd3, true);
+    const ms = Date.now() - t0;
+    assert(r.status === 400 && /압축을 풀면/.test(r.body.error || "") && ms < 5000, `${url} 압축 폭탄(${(bomb.length / 1024).toFixed(0)}KB→70MB) → 400`, `${r.status} ${ms}ms ${JSON.stringify(r.body).slice(0, 120)}`);
+  }
+  const fake = new Blob([Buffer.concat([Buffer.from("PK\x03\x04"), Buffer.alloc(4096, 0x41)])]);
+  const fd4 = new FormData(); fd4.append("file", fake, "fake.xlsx");
+  r = await admin.req("/api/frames/bulk", { method: "POST" }, fd4, true);
+  assert(r.status === 400, "/api/frames/bulk 손상 zip(PK 위장) → 400 (500 아님)", `${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
   // 정리: 팀 배정 원복
   if (teamUser && firstTeam && origTeamId == null) {
     await admin.req("/api/users/" + teamUser.id, { method: "PUT" }, { display_name: teamUser.display_name, role: "team", team_id: null, is_active: 1 });

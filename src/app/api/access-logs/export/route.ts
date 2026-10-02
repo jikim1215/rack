@@ -3,30 +3,8 @@ import { getDb } from "@/lib/db";
 import { getActor, withApi } from "@/lib/api-authz";
 import { assertAdmin } from "@/lib/authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
+import { kstStamp, toCsv } from "@/lib/csv";
 import type { AccessLogRow } from "@/lib/db-types";
-
-function escapeCsvCell(val: unknown): string {
-  if (val === null || val === undefined) return "";
-  let str = String(val);
-  if (/^[=+\-@]/.test(str)) {
-    str = "'" + str;
-  }
-  if (/[",\r\n]/.test(str)) {
-    str = `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
-function getFormattedTimestamp(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const YYYY = kst.getUTCFullYear();
-  const MM = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const DD = String(kst.getUTCDate()).padStart(2, "0");
-  const HH = String(kst.getUTCHours()).padStart(2, "0");
-  const mm = String(kst.getUTCMinutes()).padStart(2, "0");
-  return `${YYYY}${MM}${DD}-${HH}${mm}`;
-}
 
 export const GET = withApi(async (req: NextRequest) => {
   const actor = await getActor();
@@ -78,8 +56,9 @@ export const GET = withApi(async (req: NextRequest) => {
     "생성시각",
   ];
 
-  const csvRows = rows.map((row) =>
-    [
+  const csvContent = toCsv([
+    headers,
+    ...rows.map((row) => [
       row.id,
       row.user_id ?? "",
       row.username,
@@ -89,14 +68,10 @@ export const GET = withApi(async (req: NextRequest) => {
       row.result_code ?? "",
       row.failure_reason,
       row.created_at,
-    ]
-      .map(escapeCsvCell)
-      .join(",")
-  );
+    ]),
+  ]);
 
-  const csvContent = "\uFEFF" + [headers.map(escapeCsvCell).join(","), ...csvRows].join("\r\n");
-
-  const filename = `access-logs-${getFormattedTimestamp()}.csv`;
+  const filename = `access-logs-${kstStamp()}.csv`;
 
   return new NextResponse(csvContent, {
     status: 200,

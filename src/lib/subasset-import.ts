@@ -1,7 +1,7 @@
 // 부속자산 엑셀 파서/직렬화 (import·export·test 공용, 순수 모듈 — DB/프레임워크 의존 없음).
 // 자산(assets)의 대량 업로드/다운로드와 동일한 UX를 부속자산에 제공한다.
 import * as XLSX from "xlsx";
-import { assertRowLimit } from "./validation/upload.ts";
+import { parseUploadBuffer } from "./xlsx-upload.ts";
 
 export interface ParsedSubAsset {
   asset_code: string;
@@ -125,13 +125,9 @@ export function parseSubAssetRows(rows: unknown[][]): { subs: ParsedSubAsset[]; 
 }
 
 /** .xlsx 버퍼 → ParsedSubAsset[] */
+/** .xlsx 버퍼 → 파싱 결과. 매직바이트·압축 폭탄·파싱 실패·행 상한은 공통 입구(parseUploadBuffer)가 ValidationError 로 거른다. */
 export function parseSubAssetWorkbook(buffer: Buffer): { subs: ParsedSubAsset[]; skipped: number } {
-  const wb = XLSX.read(buffer, { cellDates: true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  if (!ws) return { subs: [], skipped: 0 };
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false });
-  assertRowLimit(Math.max(0, rows.length - 1)); // 행 상한(업로드 공통 정책)
-  return parseSubAssetRows(rows);
+  return parseSubAssetRows(parseUploadBuffer(buffer, { cellDates: true, blankrows: false }));
 }
 
 /** 부속자산 레코드 배열 → 엑셀 버퍼(내보내기). 입력은 DB row(parent_name/team_name JOIN 포함). */
