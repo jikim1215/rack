@@ -1,0 +1,92 @@
+============================================================
+ 정보시스템 자산관리 — 폐쇄망 반입/배포            (2026-10-01 판)
+============================================================
+
+[반입할 파일]  두 개를 같은 폴더에 둡니다
+  asset-inventory-offline.tar.gz   ← 앱·Node 런타임·native 모듈·nginx RPM·
+                                      배포 스크립트·매뉴얼 전부 (인터넷 불필요)
+  SHA256SUMS.txt                   ← 무결성 대조용
+
+
+[A] 운영 중인 서버에 바로 적용 — 한 줄  (★ 일반적인 경우)
+
+    반입 파일 두 개가 있는 폴더에서 그대로 복사·붙여넣기:
+
+    sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh
+
+    이 한 줄이 하는 일 (실패하면 그 단계에서 멈춥니다):
+      1) 체크섬 대조 — 전송이 깨졌으면 여기서 중단
+      2) 이전에 풀어둔 번들 폴더 정리 후 새 번들 전개
+      3) deploy.sh 가 기존 설치를 감지 → 업그레이드 경로 자동 선택
+         · data.db 온라인 백업  → /opt/asset-inventory/backups/data.db.preupgrade-<시각>.gz
+         · 이전 앱 트리 보관    → /opt/asset-inventory.rollback-<시각>/
+         · 앱만 교체 (data.db · .env · node · tls · backups 는 그대로)
+         · nginx itam.conf 의 X-Forwarded-For 한 줄 현행화 (nginx -t 통과 시만 reload)
+         · 서비스 재시작 (최초 요청에서 스키마 마이그레이션)
+         · 재기동 유실 값 복구 — 소유 팀·랙 L/R·현행 확인 도장·일괄등록 배치를
+           감사로그에서 되살림 (빈 값만 채움 · 현재 값은 그대로)
+         · 스모크 → 마이그레이션 결과 출력
+      서비스 중단은 3)의 교체~재기동 구간(보통 20초 내외)뿐입니다.
+
+
+[B] 바꾸기 전에 확인만 (아무것도 변경하지 않음)
+
+    sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh --check
+
+    현재 설치 상태, 수행할 작업, 배포 후 각 역할이 쓰게 될 메뉴를 보여줍니다.
+
+
+[C] 신규 설치 (서버에 itam 이 아직 없을 때)
+
+    같은 [A] 한 줄을 쓰면 됩니다 — 기존 설치가 없으면 신규설치로 자동 전환.
+    도메인·인증서가 기본값과 다르면 앞에 지정:
+
+    sudo PUBLIC_FQDN=itam.example.go.kr SSL_CRT=/경로/site.crt SSL_KEY=/경로/site.key \
+      bash asset-inventory/scripts/deploy/deploy.sh
+
+
+[D] 배포가 끝나면 화면에서 확인할 것
+
+    /api/health → 200 (서비스: active)
+    ✓ itam.conf 갱신 + nginx reload   (또는 "이미 최신")
+    [restore] 복구 대상 자산 N건 … 적용 N건   (유실이 없었으면 0건)
+    내부 /login → 200
+    ✓ nonce CSP 적용
+    https(nginx) /login → 200
+    user_version: 2  /  assets · users · … 건수 (배포 전과 같아야 정상)
+
+    DB 로 한 번 더 확인 (읽기 전용 — 운영 중 실행해도 안전):
+
+    sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs summary
+    sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs integrity
+    sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs restored
+
+
+[E] 되돌리기
+
+    스크립트가 끝날 때 롤백 명령을 화면에 그대로 출력합니다. 형식:
+
+    sudo bash /opt/asset-inventory.rollback-<시각>/rollback.sh <시각>             ← 앱(+nginx), DB 유지
+    sudo bash /opt/asset-inventory.rollback-<시각>/rollback.sh <시각> --with-db   ← DB 까지
+
+    ※ 구판으로 되돌리면 "재시작하면 소유 팀 등이 비워지는 결함"도 되돌아옵니다.
+      원인 해결 후 새 판을 다시 적용하면 자동으로 다시 복구됩니다.
+
+
+[이번 판 변경 요약]
+  - ★ 중대 결함 수정: 구판은 서버 재시작마다 자산의 소유 팀·랙 L/R·현행 확인 도장·
+      일괄등록 배치 값을 비웠습니다. 이번 판은 더 이상 지우지 않고, 적용 시 감사로그에서 복구합니다.
+  - 엑셀 일괄등록·배치 되돌리기 500 오류 수정 (구버전 DB 의 import_batch_id 누락)
+  - Next.js 15.5.27 / nodemailer 10 — 보안 취약점(Critical 포함) 해소
+  - 클라이언트 IP 위조 차단 (허용 IP·로그인 잠금·접속기록 정확도)
+  - 10~20MB 엑셀 업로드 정상 처리, 선번장 업로드 상한 적용
+  - 번들 경량화 (빌드 캐시·미사용 이미지 모듈 제외)
+  - 운영 DB 점검 도구 db-query.cjs 추가 (관리자매뉴얼 §7)
+  - 롤백 스크립트 rollback.sh (앱 트리 통째 교체 · nginx · 선택적 DB)
+  - db-seed.mjs 가 사용자 있는 DB 를 거부 (운영 DB 전체 삭제 사고 방지)
+
+
+------------------------------------------------------------
+ 자세한 내용:  asset-inventory/scripts/deploy/README-반입.md
+ 운영 매뉴얼:  asset-inventory/docs/관리자매뉴얼.md
+------------------------------------------------------------

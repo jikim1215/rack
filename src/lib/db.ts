@@ -3,10 +3,14 @@ import path from "path";
 // 상대 경로: node --experimental-strip-types 테스트가 이 파일을 직접 임포트하므로 tsconfig 별칭(@/) 사용 불가
 import { MENUS } from "./menus.ts";
 import { normalizeDate } from "./validation/input.ts";
+import { AUDIT_ENTITY_TYPES } from "./db-types.ts";
 
 // PRAGMA table_info / sqlite_master 행 타입 (마이그레이션 코드 전용)
 type PragmaColumn = { name: string; hidden?: number };
 type DdlRow = { sql: string };
+
+// audit_logs.entity_type CHECK — db-types AUDIT_ENTITY_TYPES 단일 출처에서 생성(타입·API 화이트리스트·DB 제약이 어긋나지 않게).
+const AUDIT_ENTITY_CHECK = `CHECK(entity_type IN (${AUDIT_ENTITY_TYPES.map((t) => `'${t}'`).join(",")}))`;
 
 // DB 파일 경로: ASSET_DB_PATH(절대/상대) 우선, 없으면 cwd/data.db.
 // (Next standalone server.js는 기동 시 자기 디렉터리로 chdir하므로, seed가 쓴 파일과
@@ -41,6 +45,34 @@ function assertNoFkViolations(db: Database.Database, context: string) {
   if (Array.isArray(violations) && violations.length > 0) {
     throw new Error(`[MIGRATION] ${context}: foreign_key_check 위반 ${violations.length}건 — ${JSON.stringify(violations.slice(0, 5))}`);
   }
+}
+
+// 재빌드형 마이그레이션의 행 복사 (old → new). 컬럼 목록을 손으로 적지 않는다.
+//  - 복사 대상 = 양쪽에 모두 있는 비생성 컬럼. overrides 로 특정 컬럼의 SELECT 식을 바꾼다(값 변환·new 전용 컬럼 채움).
+//  - old 에만 있는 컬럼이 남으면 예외 — 재빌드가 나중에 ALTER 로 추가된 컬럼을 조용히 탈락시키는 것을
+//    막는다(과거 token_version·import_batch_id·team_id 유실 사고). 트랜잭션 안에서 호출하므로 기동이 멈추고 DB 는 그대로다.
+//  - drop: 의도적으로 버리는 컬럼(명시해야만 허용).
+// 구버전 assets.status 값 → 현행 enum ('active','maintenance','standby','retired')
+const ASSET_STATUS_MAP = "CASE status WHEN 'inactive' THEN 'standby' WHEN 'decommissioned' THEN 'retired' WHEN 'eos' THEN 'retired' ELSE status END";
+
+function copyRows(
+  db: Database.Database, from: string, to: string,
+  opts: { overrides?: Record<string, string>; source?: string; alias?: string; drop?: string[] } = {},
+) {
+  const cols = (t: string) => (db.prepare(`PRAGMA table_xinfo("${t}")`).all() as PragmaColumn[])
+    .filter((c) => Number(c.hidden ?? 0) === 0).map((c) => c.name);
+  const oldCols = cols(from);
+  const newCols = new Set(cols(to));
+  const overrides = opts.overrides ?? {};
+  const lost = oldCols.filter((c) => !newCols.has(c) && !(opts.drop ?? []).includes(c));
+  if (lost.length) {
+    throw new Error(`[MIGRATION] ${from} 재빌드가 컬럼을 탈락시킵니다: ${lost.join(", ")} — ${to} DDL 에 추가하세요`);
+  }
+  const target = [...new Set([...oldCols.filter((c) => newCols.has(c)), ...Object.keys(overrides)])];
+  for (const c of Object.keys(overrides)) if (!newCols.has(c)) throw new Error(`[MIGRATION] ${to} 에 ${c} 컬럼 없음`);
+  const prefix = opts.alias ? `${opts.alias}.` : "";
+  const select = target.map((c) => overrides[c] ?? `${prefix}${c}`);
+  db.exec(`INSERT INTO ${to} (${target.join(",")}) SELECT ${select.join(",")} FROM ${opts.source ?? from}`);
 }
 
 function initSchema(db: Database.Database) {
@@ -156,7 +188,7 @@ function initSchema(db: Database.Database) {
     -- 감사 로그 (공통) — 데이터 변경 + 관리자 행위(계정/팀/권한)
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      entity_type TEXT NOT NULL DEFAULT 'asset' CHECK(entity_type IN ('asset','rack','location','frame','contract','movement','maintenance','inventory_audit','sub_asset','user','team','permission','feedback')),
+      entity_type TEXT NOT NULL DEFAULT 'asset' ${AUDIT_ENTITY_CHECK},
       entity_id INTEGER,
       entity_name TEXT DEFAULT '',
       action TEXT NOT NULL CHECK(action IN ('create','update','delete')),
@@ -704,17 +736,18 @@ function initSchema(db: Database.Database) {
     })();
   }
 
-  // audit_logs entity_type CHECK 확장: inventory_audit / sub_asset → user / team / permission / feedback(관리자 행위 추적, P4) 편입 (기존 DB 재빌드)
+  // audit_logs entity_type CHECK 확장: AUDIT_ENTITY_TYPES 중 하나라도 기존 DDL 에 없으면 재빌드
+  // (이력: inventory_audit/sub_asset → user/team/permission/feedback(P4) → subnet/vendor/setting(기준정보·설정 변경 추적)).
   // append-only 트리거는 테이블과 함께 드롭되며, initSchema 말미에서 매 부팅 재생성된다.
   {
     const alDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='audit_logs'").get() as { sql: string } | undefined;
-    if (alDdl?.sql && !alDdl.sql.includes("'permission'")) {
+    if (alDdl?.sql && AUDIT_ENTITY_TYPES.some((t) => !alDdl.sql.includes(`'${t}'`))) {
       db.pragma("foreign_keys = OFF");
       db.transaction(() => {
         db.exec(`
           CREATE TABLE audit_logs_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entity_type TEXT NOT NULL DEFAULT 'asset' CHECK(entity_type IN ('asset','rack','location','frame','contract','movement','maintenance','inventory_audit','sub_asset','user','team','permission','feedback')),
+            entity_type TEXT NOT NULL DEFAULT 'asset' ${AUDIT_ENTITY_CHECK},
             entity_id INTEGER,
             entity_name TEXT DEFAULT '',
             action TEXT NOT NULL CHECK(action IN ('create','update','delete')),
@@ -724,8 +757,9 @@ function initSchema(db: Database.Database) {
             new_values TEXT DEFAULT '{}',
             created_at TEXT DEFAULT (datetime('now','localtime'))
           );
-          INSERT INTO audit_logs_new (id, entity_type, entity_id, entity_name, action, changed_by, changed_fields, old_values, new_values, created_at)
-            SELECT id, entity_type, entity_id, entity_name, action, changed_by, changed_fields, old_values, new_values, created_at FROM audit_logs;
+        `);
+        copyRows(db, "audit_logs", "audit_logs_new");
+        db.exec(`
           DROP TABLE audit_logs;
           ALTER TABLE audit_logs_new RENAME TO audit_logs;
           -- 인덱스 4종 전부 재생성 (재빌드 직후 다음 부팅까지 무인덱스 상태가 되던 결함 수정, 비평 반영)
@@ -764,9 +798,13 @@ function initSchema(db: Database.Database) {
             created_by TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime'))
           );
-          INSERT INTO import_issue_new (id, batch_id, source_row, asset_id, issue_type, raw_value, parsed_value, note, status, resolved_by, resolved_at, created_by, created_at)
-            SELECT id, batch_id, source_row, asset_id, issue_type, raw_value, parsed_value, note,
-                   COALESCE(status,'open'), COALESCE(resolved_by,''), COALESCE(resolved_at,''), COALESCE(created_by,''), created_at FROM import_issue;
+        `);
+        // status/resolved_*/created_by 는 앞의 ALTER 로 항상 존재한다 — NULL 만 기본값으로
+        copyRows(db, "import_issue", "import_issue_new", { overrides: {
+          status: "COALESCE(status,'open')", resolved_by: "COALESCE(resolved_by,'')",
+          resolved_at: "COALESCE(resolved_at,'')", created_by: "COALESCE(created_by,'')",
+        } });
+        db.exec(`
           DROP TABLE import_issue;
           ALTER TABLE import_issue_new RENAME TO import_issue;
           CREATE INDEX IF NOT EXISTS idx_import_issue_batch ON import_issue(batch_id);
@@ -798,8 +836,9 @@ function initSchema(db: Database.Database) {
             UNIQUE(audit_id, asset_id),
             UNIQUE(audit_id, sub_asset_id)
           );
-          INSERT INTO inventory_audit_checks_new (id, audit_id, asset_id, sub_asset_id, result, note, checked_by, checked_at)
-            SELECT id, audit_id, asset_id, NULL, result, note, checked_by, checked_at FROM inventory_audit_checks;
+        `);
+        copyRows(db, "inventory_audit_checks", "inventory_audit_checks_new"); // sub_asset_id 는 new 전용 → NULL
+        db.exec(`
           DROP TABLE inventory_audit_checks;
           ALTER TABLE inventory_audit_checks_new RENAME TO inventory_audit_checks;
           CREATE INDEX IF NOT EXISTS idx_audit_checks_audit ON inventory_audit_checks(audit_id);
@@ -812,8 +851,11 @@ function initSchema(db: Database.Database) {
     }
   }
   // assets: 'vm' 유형 + 망구분/CIA 도입 (CHECK 제약 변경 → 테이블 재생성)
-  const assetsDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as DdlRow | undefined;
-  if (assetsDdl?.sql && !assetsDdl.sql.includes("'vm'")) {
+  // 게이트는 컬럼 존재로 판단한다. 과거 게이트(DDL 에 "'vm'" 문자열 없음)는 asset_type CHECK 해제(아래 freeform 재빌드)
+  // 이후 매 기동 참이 되어, 매 재시작마다 assets 를 고정 컬럼 목록으로 재생성 → team_id·rack_side·import_batch_id·
+  // verified_at/by 가 매번 비워졌다(2026-10-01 발견). network_zone·cia_c 는 이 재빌드가 들여오는 컬럼이다.
+  const assetsHas = new Set((db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[]).map((c) => c.name));
+  if (!assetsHas.has("network_zone") || !assetsHas.has("cia_c")) {
     db.pragma("foreign_keys = OFF");
     db.pragma("legacy_alter_table = ON");
     db.transaction(() => {
@@ -838,19 +880,25 @@ function initSchema(db: Database.Database) {
           user_name TEXT DEFAULT '',
           admin_name TEXT DEFAULT '',
           department TEXT DEFAULT '',
+          team_id INTEGER REFERENCES teams(id),
           cia_c INTEGER,
           cia_i INTEGER,
           cia_a INTEGER,
+          import_batch_id TEXT,
           cia_total INTEGER GENERATED ALWAYS AS (CASE WHEN cia_c IS NULL OR cia_i IS NULL OR cia_a IS NULL THEN NULL ELSE cia_c+cia_i+cia_a END) VIRTUAL,
           cia_grade TEXT GENERATED ALWAYS AS (CASE WHEN cia_c IS NULL OR cia_i IS NULL OR cia_a IS NULL THEN '' WHEN cia_c+cia_i+cia_a>=7 THEN 'H' WHEN cia_c+cia_i+cia_a>=5 THEN 'M' ELSE 'L' END) VIRTUAL,
           rack_id INTEGER REFERENCES racks(id) ON DELETE SET NULL,
           rack_unit_start INTEGER,
           rack_unit_size INTEGER DEFAULT 1,
+          rack_side TEXT CHECK(rack_side IN ('L','R')),
+          verified_at TEXT DEFAULT '',
+          verified_by TEXT DEFAULT '',
           created_at TEXT DEFAULT (datetime('now','localtime')),
           updated_at TEXT DEFAULT (datetime('now','localtime'))
         );
-        INSERT INTO assets_new (id,asset_type,asset_name,manufacturer,model,serial_number,ip_address,asset_tag,status,purchase_date,warranty_date,eos_date,description,os,access_ip,user_name,admin_name,department,rack_id,rack_unit_start,rack_unit_size,created_at,updated_at)
-          SELECT id,asset_type,asset_name,manufacturer,model,serial_number,ip_address,asset_tag,CASE status WHEN 'inactive' THEN 'standby' WHEN 'decommissioned' THEN 'retired' WHEN 'eos' THEN 'retired' ELSE status END,purchase_date,warranty_date,eos_date,description,os,access_ip,user_name,admin_name,department,rack_id,rack_unit_start,rack_unit_size,created_at,updated_at FROM assets;
+      `);
+      copyRows(db, "assets", "assets_new", { overrides: { status: ASSET_STATUS_MAP } });
+      db.exec(`
         DROP TABLE assets;
         ALTER TABLE assets_new RENAME TO assets;
         CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
@@ -903,12 +951,20 @@ function initSchema(db: Database.Database) {
             is_active INTEGER DEFAULT 1,
             token_version INTEGER DEFAULT 0,
             created_at TEXT DEFAULT (datetime('now','localtime')),
-            team_id INTEGER REFERENCES teams(id)
+            team_id INTEGER REFERENCES teams(id),
+            allowed_ips TEXT DEFAULT '',
+            must_change_password INTEGER DEFAULT 0,
+            totp_secret TEXT DEFAULT '',
+            totp_enabled INTEGER DEFAULT 0,
+            totp_last_counter INTEGER DEFAULT 0,
+            backup_codes TEXT DEFAULT '[]'
           );
-          INSERT INTO users_new (id,username,password_hash,display_name,role,is_active,token_version,created_at,team_id)
-            SELECT id,username,password_hash,display_name,
-                   CASE role WHEN 'user' THEN 'team' ELSE role END,
-                   is_active,COALESCE(token_version,0),created_at,team_id FROM users;
+        `);
+        copyRows(db, "users", "users_new", { overrides: {
+          role: "CASE role WHEN 'user' THEN 'team' ELSE role END",
+          token_version: "COALESCE(token_version,0)",
+        } });
+        db.exec(`
           DROP TABLE users;
           ALTER TABLE users_new RENAME TO users;
         `);
@@ -917,9 +973,7 @@ function initSchema(db: Database.Database) {
       db.pragma("foreign_keys = ON");
       assertNoFkViolations(db, "migration rebuild");
     }
-    // 2단계 인증(TOTP) 컴럼 — 반드시 **재빌드 이후**에 추가한다.
-    //   위 users_new 재빌드는 고정 컴럼 목록으로 테이블을 다시 만들어서, 앞에서 ALTER 하면 조용히 탈락된다
-    //   (과거 token_version 이 같은 방식으로 사라졌던 사고와 동일 구조 — rack_side 처리 방식을 따른다).
+    // 2단계 인증(TOTP) 컬럼 — 재빌드를 거치지 않은 기존 DB 용. (재빌드는 copyRows 가 컬럼 탈락을 거부한다)
     {
       const uCols2 = new Set((db.prepare("PRAGMA table_info(users)").all() as PragmaColumn[]).map((c) => c.name));
       if (!uCols2.has("totp_secret")) db.exec(`ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT ''`);
@@ -967,18 +1021,21 @@ function initSchema(db: Database.Database) {
             cia_c INTEGER,
             cia_i INTEGER,
             cia_a INTEGER,
+            import_batch_id TEXT,
             cia_total INTEGER GENERATED ALWAYS AS (CASE WHEN cia_c IS NULL OR cia_i IS NULL OR cia_a IS NULL THEN NULL ELSE cia_c+cia_i+cia_a END) VIRTUAL,
             cia_grade TEXT GENERATED ALWAYS AS (CASE WHEN cia_c IS NULL OR cia_i IS NULL OR cia_a IS NULL THEN '' WHEN cia_c+cia_i+cia_a>=7 THEN 'H' WHEN cia_c+cia_i+cia_a>=5 THEN 'M' ELSE 'L' END) VIRTUAL,
             rack_id INTEGER REFERENCES racks(id) ON DELETE SET NULL,
             rack_unit_start INTEGER,
             rack_unit_size INTEGER DEFAULT 1,
+            rack_side TEXT CHECK(rack_side IN ('L','R')),
+            verified_at TEXT DEFAULT '',
+            verified_by TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime')),
             updated_at TEXT DEFAULT (datetime('now','localtime'))
           );
-          INSERT INTO assets_new (id,asset_type,asset_name,manufacturer,model,serial_number,ip_address,asset_tag,status,network_zone,purchase_date,warranty_date,eos_date,description,os,access_ip,user_name,admin_name,department,team_id,cia_c,cia_i,cia_a,rack_id,rack_unit_start,rack_unit_size,created_at,updated_at)
-            SELECT id,asset_type,asset_name,manufacturer,model,serial_number,ip_address,asset_tag,
-                   CASE status WHEN 'inactive' THEN 'standby' WHEN 'decommissioned' THEN 'retired' WHEN 'eos' THEN 'retired' ELSE status END,
-                   network_zone,purchase_date,warranty_date,eos_date,description,os,access_ip,user_name,admin_name,department,team_id,cia_c,cia_i,cia_a,rack_id,rack_unit_start,rack_unit_size,created_at,updated_at FROM assets;
+        `);
+        copyRows(db, "assets", "assets_new", { overrides: { status: ASSET_STATUS_MAP } });
+        db.exec(`
           DROP TABLE assets;
           ALTER TABLE assets_new RENAME TO assets;
           CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);
@@ -991,11 +1048,15 @@ function initSchema(db: Database.Database) {
     }
     // idx_assets_team: team_id 컬럼 보장 후 생성
     db.exec(`CREATE INDEX IF NOT EXISTS idx_assets_team ON assets(team_id)`);
-    // rack_side(반폭 장비 L/R) — 재빌드 이후 시점에 추가해야 재빌드가 컬럼을 탈락시키지 않는다 (R2 token_version 사고 재발 방지)
+    // rack_side·import_batch_id — 재빌드 DDL 에 포함돼 있지만, 과거 고정 컬럼 목록 재빌드로 이미 탈락한 DB
+    //   (2026-10-01 이전 판으로 기동된 운영 DB)는 여기서 다시 생긴다. 값은 복구되지 않는다 — 관리자매뉴얼 §7 참고.
     {
       const aCols2 = new Set((db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[]).map((c) => c.name));
       if (!aCols2.has("rack_side")) {
         db.exec(`ALTER TABLE assets ADD COLUMN rack_side TEXT CHECK(rack_side IN ('L','R'))`);
+      }
+      if (!aCols2.has("import_batch_id")) {
+        db.exec(`ALTER TABLE assets ADD COLUMN import_batch_id TEXT`);
       }
     }
   }
@@ -1089,9 +1150,14 @@ function initSchema(db: Database.Database) {
             notes TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime'))
           );
-          INSERT INTO maintenance_logs_new (id,asset_id,asset_name,log_type,occurred_at,resolved_at,reported_by,handled_by,severity,symptom,action_taken,vendor_id,cost,status,notes,created_at)
-            SELECT ml.id,ml.asset_id,COALESCE(a.asset_name,''),ml.log_type,ml.occurred_at,ml.resolved_at,ml.reported_by,ml.handled_by,ml.severity,ml.symptom,ml.action_taken,ml.vendor_id,ml.cost,ml.status,ml.notes,ml.created_at
-            FROM maintenance_logs ml LEFT JOIN assets a ON ml.asset_id = a.id;
+        `);
+        // asset_name 스냅샷: 기존 값이 있으면 유지, 없으면 현재 자산명으로 채운다
+        const hasSnap = (db.prepare("PRAGMA table_info(maintenance_logs)").all() as PragmaColumn[]).some((c) => c.name === "asset_name");
+        copyRows(db, "maintenance_logs", "maintenance_logs_new", {
+          source: "maintenance_logs ml LEFT JOIN assets a ON ml.asset_id = a.id", alias: "ml",
+          overrides: { asset_name: hasSnap ? "COALESCE(NULLIF(ml.asset_name,''), a.asset_name, '')" : "COALESCE(a.asset_name,'')" },
+        });
+        db.exec(`
           DROP TABLE maintenance_logs;
           ALTER TABLE maintenance_logs_new RENAME TO maintenance_logs;
           CREATE INDEX IF NOT EXISTS idx_maintenance_asset ON maintenance_logs(asset_id);
@@ -1129,8 +1195,9 @@ function initSchema(db: Database.Database) {
             description TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now','localtime'))
           );
-          INSERT INTO asset_ips_new (id,asset_id,ip_address,ip_type,interface_name,subnet_mask,gateway,is_primary,description,created_at)
-            SELECT id,asset_id,ip_address,ip_type,interface_name,subnet_mask,gateway,is_primary,description,created_at FROM asset_ips;
+        `);
+        copyRows(db, "asset_ips", "asset_ips_new");
+        db.exec(`
           DROP TABLE asset_ips;
           ALTER TABLE asset_ips_new RENAME TO asset_ips;
           CREATE INDEX IF NOT EXISTS idx_asset_ips_asset ON asset_ips(asset_id);
@@ -1160,10 +1227,9 @@ function initSchema(db: Database.Database) {
             can_approve INTEGER DEFAULT 0,
             UNIQUE(menu_key, role)
           );
-          INSERT INTO menu_permissions_new (id,menu_key,role,can_access,can_write,can_approve)
-            SELECT id,menu_key,
-                   CASE role WHEN 'user' THEN 'team' ELSE role END,
-                   can_access,can_write,can_approve FROM menu_permissions;
+        `);
+        copyRows(db, "menu_permissions", "menu_permissions_new", { overrides: { role: "CASE role WHEN 'user' THEN 'team' ELSE role END" } });
+        db.exec(`
           DROP TABLE menu_permissions;
           ALTER TABLE menu_permissions_new RENAME TO menu_permissions;
           CREATE INDEX IF NOT EXISTS idx_menu_perms ON menu_permissions(role, menu_key);
@@ -1182,11 +1248,6 @@ function initSchema(db: Database.Database) {
     const aDdl = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='assets'").get() as DdlRow | undefined;
     const ddlSql: string = aDdl?.sql || "";
     if (/CHECK\s*\(\s*asset_type\s+IN/i.test(ddlSql) || /CHECK\s*\(\s*network_zone\s+IN/i.test(ddlSql)) {
-      // 비생성 컬럼만 복사 (cia_total/cia_grade 등 GENERATED 컬럼 제외)
-      const copyCols = (db.prepare("PRAGMA table_xinfo(assets)").all() as PragmaColumn[])
-        .filter((c) => Number(c.hidden) === 0)
-        .map((c) => c.name);
-      const colList = copyCols.join(",");
       // 현재 DDL에서 두 CHECK 절만 제거 + 테이블명을 assets_new 로 치환 (나머지 컬럼/FK/생성컬럼 원형 보존)
       const newDdl = ddlSql
         .replace(/\s*CHECK\s*\(\s*asset_type\s+IN\s*\([^)]*\)\s*\)/i, "")
@@ -1196,7 +1257,7 @@ function initSchema(db: Database.Database) {
       db.pragma("legacy_alter_table = ON");
       db.transaction(() => {
         db.exec(newDdl);
-        db.exec(`INSERT INTO assets_new (${colList}) SELECT ${colList} FROM assets;`);
+        copyRows(db, "assets", "assets_new"); // 비생성 컬럼 전량 (cia_total/cia_grade 등 GENERATED 제외)
         db.exec(`DROP TABLE assets; ALTER TABLE assets_new RENAME TO assets;`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_assets_rack ON assets(rack_id);`);
         db.exec(`CREATE INDEX IF NOT EXISTS idx_assets_type ON assets(asset_type);`);
@@ -1204,14 +1265,14 @@ function initSchema(db: Database.Database) {
       })();
       db.pragma("legacy_alter_table = OFF");
       db.pragma("foreign_keys = ON");
-      assertNoFkViolations(db, "asset_type/network_zone CHECK \ud574\uc81c \uc7ac\ube4c\ub4dc");
+      assertNoFkViolations(db, "asset_type/network_zone CHECK 해제 재빌드");
     }
   }
 
   // 정리 대기열(클린업 큐) 뷰: 보완이 필요한 자산 + 임포트 이슈 건수
   // 현행화 도장(확인 이력) — "값을 바꾸지 않았어도 사람이 봤고 맞다" 를 기록한다. 신선도(에이징)의 근거.
-  //   updated_at 은 값 변경 시에만 움직이므로 "점검했지만 변화 없음" 을 표현하지 못한다 — 별도 컴럼이 필요하다.
-  //   모든 assets 재빌드 마이그레이션 뒤에 ALTER (재빌드는 고정 컴럼 목록으로 테이블을 다시 만든다).
+  //   updated_at 은 값 변경 시에만 움직이므로 "점검했지만 변화 없음" 을 표현하지 못한다 — 별도 컬럼이 필요하다.
+  //   재빌드를 거치지 않은 기존 DB 용 ALTER (재빌드 DDL 에는 이미 포함).
   {
     const aCols = new Set((db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[]).map((c) => c.name));
     if (!aCols.has("verified_at")) db.exec(`ALTER TABLE assets ADD COLUMN verified_at TEXT DEFAULT ''`);

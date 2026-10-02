@@ -382,9 +382,12 @@ export interface SubAssetRow {
   updated_at: string;
 }
 
-export type AuditEntityType =
-  | "asset" | "rack" | "location" | "frame" | "contract" | "movement" | "maintenance"
-  | "inventory_audit" | "sub_asset" | "user" | "team" | "permission" | "feedback";
+// 감사로그 엔터티 종류 — 단일 출처. 조회/내보내기 API 의 필터 화이트리스트도 이 배열을 쓴다.
+export const AUDIT_ENTITY_TYPES = [
+  "asset", "rack", "location", "frame", "contract", "subnet", "vendor", "movement", "maintenance",
+  "inventory_audit", "sub_asset", "user", "team", "permission", "feedback", "setting",
+] as const;
+export type AuditEntityType = (typeof AUDIT_ENTITY_TYPES)[number];
 export type AuditAction = "create" | "update" | "delete";
 
 export interface AuditLogRow {

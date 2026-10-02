@@ -6,6 +6,21 @@ import { scryptSync, randomBytes, createHash } from "crypto";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbPath = process.env.ASSET_DB_PATH ? path.resolve(process.env.ASSET_DB_PATH) : path.join(__dirname, "..", "data.db");
 const db = new Database(dbPath);
+
+// ── 운영 DB 보호: 아래 스키마 단계는 핵심 테이블을 전부 DROP 한다. 사용자가 있는 DB 는 거부 ──
+//    (비밀번호 분실 때 시드를 돌리는 실수 = 운영 데이터 전체 삭제. 재설정은 reset-password-server.cjs)
+//    개발/데모 DB 를 의도적으로 다시 만들 때만 SEED_FORCE=1.
+if (process.env.SEED_FORCE !== "1") {
+  let users = 0;
+  try { users = db.prepare("SELECT COUNT(*) AS c FROM users").get().c; } catch { /* users 테이블 없음 = 빈 DB */ }
+  if (users > 0) {
+    console.error(`[db-seed] 중단: '${dbPath}' 에 사용자 ${users}명이 있습니다. 이 스크립트는 테이블을 DROP 하므로 운영 DB 에 쓸 수 없습니다.`);
+    console.error("          비밀번호 재설정: scripts/deploy/reset-password-server.cjs  ·  개발 DB 재생성: SEED_FORCE=1");
+    db.close();
+    process.exit(2);
+  }
+}
+
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 

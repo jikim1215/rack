@@ -37,6 +37,8 @@ NEXT_TELEMETRY_DISABLED=1 npm run build
 # ── 2. 스테이징 ──
 mkdir -p "$STAGE"
 cp -a .next "$STAGE/.next"
+# .next/cache 는 빌드 증분 캐시(webpack, ~170MB)다. 런타임(standalone/server.js)은 참조하지 않는다 — 번들에서 제외.
+rm -rf "$STAGE/.next/cache"
 cp -a public "$STAGE/public" 2>/dev/null || true
 cp -a src "$STAGE/src"            # 런타임 라이브러리(db/authz/retention/asset-rules…) — retention-runner/import 스크립트가 사용
 cp -a scripts "$STAGE/scripts"
@@ -125,7 +127,11 @@ if [[ -n "${INCLUDE_DB:-}" ]]; then
 fi
 
 # ── 5. 패키징 ──
+#   반입물 = tar.gz + SHA256SUMS.txt + 배포방법.txt (세 파일 모두 dist/ 에 나란히 둔다)
 TARBALL="${DIST}/asset-inventory-offline.tar.gz"
 tar -C "$DIST" -czf "$TARBALL" asset-inventory
-echo "[OK] 릴리스: ${TARBALL}"
-echo "    설치: tar -xzf $(basename "$TARBALL") && sudo bash asset-inventory/scripts/deploy/setup.sh"
+( cd "$DIST" && sha256sum "$(basename "$TARBALL")" > SHA256SUMS.txt )
+cp -f "${ROOT}/scripts/deploy/배포방법.txt" "${DIST}/배포방법.txt"
+echo "[OK] 릴리스: ${TARBALL} ($(du -h "$TARBALL" | cut -f1))"
+echo "[OK] 체크섬: ${DIST}/SHA256SUMS.txt  ·  안내: ${DIST}/배포방법.txt"
+echo "    적용(한 줄): sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf $(basename "$TARBALL") && sudo bash asset-inventory/scripts/deploy/deploy.sh"
