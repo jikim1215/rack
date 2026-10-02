@@ -47,9 +47,9 @@
 
 [D] 배포가 끝나면 화면에서 확인할 것
 
-    버전 : 현재 v1.0.0 → v1.1.0 (커밋)   ← 이 안내문 첫 줄의 버전·커밋과 같아야 정상
+    버전 : 현재 v<이전> → v<새 버전> (커밋)   ← 이 안내문 맨 윗줄의 버전·커밋과 같아야 정상
     /api/health → 200 (서비스: active)
-    ✓ 가동 버전 v1.1.0 (커밋)
+    ✓ 가동 버전 v<새 버전> (커밋)
     ✓ itam.conf 갱신 + nginx reload   (또는 "이미 최신")
     [restore] 복구 대상 자산 N건 … 적용 N건   (유실이 없었으면 0건)
     내부 /login → 200
@@ -63,7 +63,7 @@
     sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs integrity
     sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs restored
 
-    브라우저: 로그인 화면 맨 아래 v1.1.0, 로그인 후 왼쪽 메뉴 맨 아래 v1.1.0 · 커밋
+    브라우저: 로그인 화면 맨 아래 v<버전>, 로그인 후 왼쪽 메뉴 맨 아래 v<버전> · 커밋
 
 
 [E] 되돌리기
@@ -77,7 +77,7 @@
       원인 해결 후 새 판을 다시 적용하면 자동으로 다시 복구됩니다.
 
 
-[v1.1.0 변경 요약]   (전체 이력: asset-inventory/docs/CHANGELOG.md)
+[v1.1.1 변경 요약]   (전체 이력: asset-inventory/docs/CHANGELOG.md)
   - 버전 표기 도입 — 화면·/api/health·번들 VERSION·배포 출력에 버전·커밋 표시
   - ★ 중대 결함 수정: 구판은 서버 재시작마다 자산의 소유 팀·랙 L/R·현행 확인 도장·
       일괄등록 배치 값을 비웠습니다. 이번 판은 더 이상 지우지 않고, 적용 시 감사로그에서 복구합니다.

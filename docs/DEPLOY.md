@@ -95,7 +95,7 @@ sudo NEXT_INTERNAL_PORT=3100 bash …/deploy.sh    # 공존시스템이 3000 을
 ```bash
 curl -s http://127.0.0.1:3100/api/health                              # 앱 직접
 curl -sk -H 'Host: itam.example.go.kr' https://127.0.0.1/api/health   # nginx 경유
-# → {"ok":true,"db":"ok","schema":2,"version":"1.1.0","commit":"<7자리>","builtAt":"<ISO>",...}
+# → {"ok":true,"db":"ok","schema":2,"version":"<버전>","commit":"<7자리>","builtAt":"<ISO>",...}
 ```
 
 **`-H 'Host: ...'` 를 빼면 안 된다** — nginx 는 server_name(SNI)으로 갈라서 IP·localhost 직접 접속은 default 서버(공존시스템)로 간다.

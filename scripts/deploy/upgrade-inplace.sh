@@ -25,19 +25,12 @@ ROLLBACK="/opt/asset-inventory.rollback-${TS}"
 STAGE="/tmp/asset-upgrade-${TS}"
 REPLACE=(.next src scripts docs node_modules package.json package-lock.json next.config.ts VERSION)
 
-# 버전 표기 "v1.1.0 (e2999fd)" — 번들은 VERSION 파일, 가동 중인 앱은 /api/health (둘 다 빌드 때 박힌 값).
-#   버전 표기 도입(v1.1.0) 이전 판은 health 가 항상 1.0.0 만 낸다.
-ver_of_file() {
-  local v c
-  v="$(sed -n 's/^version=//p' "$1" 2>/dev/null)"; c="$(sed -n 's/^commit=//p' "$1" 2>/dev/null)"
-  [[ -n "$v" ]] && echo "v${v}${c:+ (${c})}" || echo "(버전 정보 없음)"
-}
-ver_live() {
-  local j v c
-  j="$(curl -s --max-time 5 -H "Host: ${FQDN}" "http://127.0.0.1:${INTERNAL_PORT}/api/health" || true)"
-  v="$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$j")"; c="$(sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' <<<"$j")"
-  [[ -n "$v" ]] && echo "v${v}${c:+ (${c})}" || echo "(응답 없음)"
-}
+# 버전 표기 — 번들은 VERSION 파일, 가동 중인 앱은 /api/health (둘 다 빌드 때 박힌 값). 형식은 version-label.sh 한 곳.
+#   버전 표기 도입 이전 판은 health 가 항상 1.0.0 만 낸다.
+# shellcheck source=version-label.sh
+source "$(cd "$(dirname "$0")" && pwd)/version-label.sh"
+ver_of_file() { ver_label_kv "$(cat "$1" 2>/dev/null)"; }
+ver_live() { ver_label_json "$(curl -s --max-time 5 -H "Host: ${FQDN}" "http://127.0.0.1:${INTERNAL_PORT}/api/health" || true)"; }
 
 [[ $(id -u) -eq 0 ]] || { echo "[ERROR] root 필요: sudo bash $0"; exit 1; }
 [[ -d "$APP" ]] || { echo "[ERROR] 기존 설치 없음: $APP (신규 설치는 setup-nginx.sh)"; exit 1; }
