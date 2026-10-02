@@ -1,7 +1,7 @@
 # 프로젝트: 정보시스템 자산관리 솔루션 (asset-inventory)
 
 ## 기술 스택
-- Next.js 15 (App Router, Server Components + Client Components)
+- Next.js 15.5 (App Router, Server Components + Client Components)
 - TypeScript strict mode
 - SQLite (better-sqlite3) — 단일 파일 DB, 별도 서버 불필요
 - Tailwind CSS 4 — 빌드 시 번들링, 외부 CDN 미사용
@@ -29,11 +29,11 @@
 npm run dev         # 개발 서버 (http://localhost:3000)
 npm run build       # 프로덕션 빌드
 npm run start       # 프로덕션 서버
-npm run db:seed     # 시드 데이터 생성 (DB 초기화)
-npm test            # 단위 테스트 (288개)
+npm run db:seed     # 시드 데이터 생성 (DB 초기화 — 사용자 있는 DB 는 거부, 재생성은 SEED_FORCE=1)
+npm test            # 단위 테스트 (349개)
 npm run check       # 타입 체크
 npm run smoke       # 스모크 테스트 (핵심 화면·API 불변식)
-npm run verify:api  # E2E 인가·입력검증·CSP·MFA 검증 (시드 DB 전제, 운영 DB 금지)
+npm run verify:api  # E2E 인가·입력검증·CSP·팀 간 격리·MFA 검증 (시드 DB 전제, 운영 DB 금지)
 ```
 
 ## 계정 (시드 기본값, 이메일 기반 로그인)

@@ -23,24 +23,33 @@
 ## 2. 빌드 (스테이징/빌드 머신, Rocky 8.10)
 
 ```bash
-bash scripts/deploy/build-release.sh      # npm ci(오프라인 캐시) → next build → 스테이징 → tar
+bash scripts/deploy/build-release.sh      # npm ci(오프라인 캐시) → next build → 스테이징 → tar + SHA256SUMS.txt + 배포방법.txt
 node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (nonce CSP 양립 — 필수)
-sha256sum dist/asset-inventory-offline.tar.gz > dist/SHA256SUMS.txt
 ```
 
-전제: `vendor/node-linux-x64.tar.xz`(Node 22.6+), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. 첫 빌드는 인터넷 되는 시점에 한 번 `npm ci` 로 캐시를 채워 둔다.
+산출물(`dist/`): `asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`(원본 `scripts/deploy/배포방법.txt`). 세 파일을 그대로 반입한다.
+
+전제: `vendor/node-linux-x64.tar.xz`(Node 22.6+), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. **의존성이 바뀐 릴리스(package-lock 변경)는 인터넷 되는 시점에 빌드 머신에서 `npm ci --build-from-source` 를 한 번 돌려 캐시를 채운 뒤** 오프라인 빌드를 한다(예: 2026-10 next 15.5.27·nodemailer 10 전환, postcss 8.5.28 단일화).
+
+번들에서 제외되는 것: `.next/cache`(빌드 증분 캐시, 런타임 미참조) · sharp/`@img/*`(이미지 최적화 네이티브 — `images.unoptimized` 라 미사용, `next.config.ts` `outputFileTracingExcludes`) · 개발 `.env`/`*.db`.
 
 ## 3. 배포 — 한 줄
 
+반입한 두 파일(`tar.gz` + `SHA256SUMS.txt`)이 있는 폴더에서:
+
 ```bash
-tar -xzf asset-inventory-offline.tar.gz
-sudo bash asset-inventory/scripts/deploy/deploy.sh          # 신규/업그레이드 자동 판별
-sudo bash asset-inventory/scripts/deploy/deploy.sh --check  # 변경 없이 점검만
+# 운영 중인 서비스에 바로 적용 (신규/업그레이드 자동 판별)
+sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh
+
+# 변경 없이 점검만
+sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh --check
 ```
+
+`rm -rf asset-inventory` 는 **현재 폴더에 전에 풀어둔 번들**만 지운다(운영 앱 `/opt/asset-inventory` 와 무관). 체크섬이 틀리면 그 뒤는 실행되지 않는다.
 
 | 판별 | 조건 | 하는 일 |
 |---|---|---|
-| **업그레이드** | `/opt/asset-inventory/data.db` 있음 | `upgrade-inplace.sh` — DB 백업 → 롤백본 보관 → 앱 트리 교체(.next/src/scripts/docs/node_modules) → 재기동 → 스모크. **data.db·.env·node/·tls/·backups/ 보존** |
+| **업그레이드** | `/opt/asset-inventory/data.db` 있음 | `upgrade-inplace.sh` — DB 백업 → 롤백본 보관 → 앱 트리 교체(.next/src/scripts/docs/node_modules) → nginx `itam.conf` X-Forwarded-For 현행화(백업→`nginx -t`→reload, 실패 시 복원) → 재기동(`/api/health` 200 대기) → 재기동 유실 값 복구(`restore-lost-fields.cjs --apply` — 구판이 재시작마다 비운 소유 팀·랙 L/R·현행 확인·배치를 감사로그에서, 빈 값만) → 스모크 → 마이그레이션 결과. **data.db·.env·node/·tls/·backups/ 보존** |
 | **신규설치** | 없음 | `setup-nginx.sh` — 번들 Node 전개 → 서비스 계정 → native smoke → .env 생성(강한 AUTH_SECRET) → nginx RPM 설치·사이트 설정 → systemd·타이머 등록 → 기동 |
 
 `--check` 는 설치 상태, 수행 예정 작업, **현재 메뉴 권한이 어느 화면을 막게 되는지**(`preflight-perms.cjs`)까지 출력한다.
@@ -74,6 +83,8 @@ sudo NEXT_INTERNAL_PORT=3100 bash …/deploy.sh    # 공존시스템이 3000 을
 앱이 DB 를 처음 건드리는 요청에서 `getDb()` 가 스키마를 맞춘다(수동 작업 없음): 메뉴 권한 시드(레지스트리 기본값, 유령 행 정리), 감사로그 `entity_type` 확장, `feedback` 테이블, 날짜 정규화(`user_version` 2), 2단계 인증·현행 확인 컬럼, 인덱스.
 
 해석 불가 날짜가 있으면 로그에 남는다 — `sudo journalctl -u asset-inventory | grep MIGRATION`.
+
+테이블 재생성형 마이그레이션(CHECK 변경)은 한 번만 실행되고, 행 복사는 양쪽에 있는 모든 컬럼을 옮긴다. 새 테이블에 없는 컬럼이 있으면 **기동을 멈추고** `[MIGRATION] … 재빌드가 컬럼을 탈락시킵니다` 를 남긴다(트랜잭션 롤백 — DB 변경 없음). 이 메시지가 보이면 롤백(§7) 후 개발에 보고. 불변식은 `tests/schema-parity.test.ts`(시드→마이그레이션 = 신규 스키마, 재기동 시 테이블 재생성 0, 값 보존)가 지킨다.
 
 ## 6. 배포 후 확인
 
@@ -123,30 +134,38 @@ MFA 게이트 해결은 **둘 중 하나** — 신규 설치 직후라면 앞쪽
 
 `SMOKE_MIN_ASSETS`·`SMOKE_MIN_SUBASSETS` 는 배포처 규모에 맞춘다(빈 DB 로 시작했으면 `0`). 값은 '데이터가 조용히 증발하는' 회귀를 잡는 하한이다.
 
-### 6-3. 스테이징 전용
+### 6-3. DB 확인 (읽기 전용)
 
-`npm run verify:api`(인가·MFA·개선의견 E2E)는 **스테이징 전용** — 테스트 데이터를 쓰고 지운다. 실운영 DB 에 돌리지 말 것.
+서버에는 sqlite3 CLI 가 없다. 번들의 `scripts/deploy/db-query.cjs` 가 better-sqlite3 로 data.db 를 **읽기 전용**(readonly + `query_only`)으로 열어 점검 쿼리를 돌린다 — 쓰기 SQL 은 거부되고, WAL 이라 서비스 기동 중에도 안전하다.
 
-> `verify-mfa.mjs` 는 대상 계정의 2단계 인증을 켡0다가 **마지막에 끔다**. 중간에 실패하면 MFA 가 켜진 채로 남을 수 있으니 `scripts/deploy/disable-mfa.cjs` 로 풀 것.
+```bash
+Q="sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs"
+$Q summary     # 배포 전·후 비교 — user_version + 테이블 건수가 같아야 정상
+$Q integrity   # ok / 외래키 위반 0건 / wal
+$Q             # 전체 점검 목록
+```
+
+점검 항목과 해석은 `docs/관리자매뉴얼.md` §7.
+
+### 6-4. 스테이징 전용
+
+`npm run verify:api`(인가·팀 간 격리·MFA·개선의견 E2E)는 **스테이징 전용** — 테스트 데이터를 쓰고 지운다. 실운영 DB 에 돌리지 말 것.
+
+> `verify-mfa.mjs` 는 대상 계정의 2단계 인증을 켜다가 **마지막에 끈다**. 중간에 실패하면 MFA 가 켜진 채로 남을 수 있으니 `scripts/deploy/disable-mfa.cjs` 로 풀 것.
 
 ## 7. 롤백
 
-`upgrade-inplace.sh` 가 종료 시 복원 명령을 출력한다:
+`upgrade-inplace.sh` 가 롤백본에 `rollback.sh` 를 함께 두고, 종료 시 명령을 출력한다:
 
 ```bash
-sudo systemctl stop asset-inventory
-sudo cp -a /opt/asset-inventory.rollback-<시각>/. /opt/asset-inventory/
-sudo chown -R asset:asset /opt/asset-inventory
-sudo systemctl start asset-inventory
+sudo bash /opt/asset-inventory.rollback-<시각>/rollback.sh <시각>             # 앱 트리(+바뀐 경우 nginx) — DB 유지
+sudo bash /opt/asset-inventory.rollback-<시각>/rollback.sh <시각> --with-db   # DB 도 업그레이드 직전 백업으로
 ```
 
-DB 까지 되돌려야 하면(스키마가 앞선 버전이라 구버전이 못 읽는 경우):
-
-```bash
-sudo systemctl stop asset-inventory
-sudo -u asset sh -c 'gunzip -c /opt/asset-inventory/backups/data.db.preupgrade-<시각>.gz > /opt/asset-inventory/data.db'
-sudo systemctl start asset-inventory
-```
+- 앱 트리(`.next src scripts docs node_modules package*.json next.config.ts`)를 **삭제 후 복사**한다. `cp -a 롤백본/. /opt/...` 덮어쓰기는 새 판에만 있는 파일(예: `.next` 청크, 새 스크립트)을 남겨 구판과 섞이므로 쓰지 않는다.
+- nginx `itam.conf` 는 업그레이드가 바꿨을 때(`itam.conf.bak-<시각>` 존재)만 되돌리고, `nginx -t` 실패면 현재 설정을 유지한다.
+- `--with-db` 는 `backups/data.db.preupgrade-<시각>.gz` 로 data.db 를 덮고 WAL/SHM 을 지운다 — **업그레이드 이후 입력분은 사라진다.** 스키마 마이그레이션은 컬럼 추가 위주라 구판이 새 스키마를 그대로 읽을 수 있으므로 보통 필요 없다.
+- 끝에 `/api/health` 200 을 확인한다. 구판으로 되돌리면 재기동 유실 결함(§3 업그레이드 행)도 되돌아온다 — 원인 해결 후 새 판 재적용.
 
 ## 8. 백업·보존
 
@@ -158,7 +177,7 @@ sudo systemctl start asset-inventory
 
 - 비밀번호 분실: 다른 총괄이 설정 → 사용자 관리 → 초기화. 총괄이 유일하면 `scripts/deploy/reset-password-server.cjs`.
 - 2단계 인증 기기 분실: 다른 총괄이 사용자 관리 → 🛡 해제. 총괄이 유일하면 `scripts/deploy/disable-mfa.cjs`.
-- **`db-seed.mjs` 는 재설정 용도로 쓰지 말 것** — 전체 테이블을 DROP 한다.
+- **`db-seed.mjs` 는 재설정 용도로 쓰지 말 것** — 전체 테이블을 DROP 한다. 사용자가 있는 DB 는 스크립트가 거부(exit 2)하며, `SEED_FORCE=1` 우회는 개발 DB 전용.
 
 ## 10. 문제해결
 

@@ -64,6 +64,16 @@
 
 ![위치관리](docs/images/locations.png)
 
+### 미배정 큐
+소유팀(부서)이 비어 있는 자산을 총괄이 팀에 재배정. 부서별 자동 추천 일괄 배정, 선택 일괄·개별 재배정, 50건 단위 페이지(이관 직후 수천 건도 즉시 표시).
+
+![미배정 큐](docs/images/unassigned.png)
+
+### 통계 리포트
+심의·감사·보고 제출용 집계표 — 유형×상태, 관리부서(팀)별, 위치별 랙 사용률 등. 인쇄 지원.
+
+![통계 리포트](docs/images/reports.png)
+
 ### 설정
 사용자 관리(생성·역할·팀·이메일 변경·비활성·삭제·비밀번호 초기화·허용 IP), 메뉴 권한(역할별 접근/쓰기/승인), 메일 릴레이 설정, 비밀번호 변경.
 
@@ -71,8 +81,6 @@
 
 ### 그 외
 - **부속자산** — 본체 자산에 딸린 구성품(부속) 관리, 엑셀 임포트/익스포트
-- **통계 리포트** — 유형·부서·상태·EoS 등 집계 리포트
-- **미배정 큐** — 소유팀(부서) 공란 자산을 총괄이 재배정
 - **로그/감사** — 변경 감사로그·접속 로그 조회(각 1년 보존)
 - **임포트 이슈** — 엑셀 업로드 검증 결과(형식오류/중복의심/식별자없음/OS미입력) 정리 큐
 - **개선의견** — 직원이 어느 화면에서든 불편·오류·개선 의견을 접수(화면 경로 자동 첨부), 공감 투표로 수요 취합, 총괄이 상태(접수→검토중→반영예정→반영완료/보류)·우선순위·답변 관리
@@ -88,7 +96,7 @@
 
 | 구분 | 기술 | 비고 |
 |------|------|------|
-| 프레임워크 | Next.js 15 (App Router) | 서버 컴포넌트 + standalone 빌드 |
+| 프레임워크 | Next.js 15.5 (App Router) | 서버 컴포넌트 + standalone 빌드 |
 | 런타임 | Node.js 22 (LTS) | 폐쇄망 오프라인 번들에 포함(`node-linux-x64.tar.xz`) |
 | DB | SQLite (better-sqlite3, WAL) | 파일 1개로 운영, 별도 DB 서버 불필요 |
 | UI | Tailwind CSS 4 | 빌드 시 번들링, 외부 CDN 미사용 |
@@ -113,6 +121,11 @@
 - 파일 업로드 매직바이트 검증, 모든 쓰기 API 인증 필수
 - 변경 감사로그(데이터 + 계정·팀·메뉴권한 등 관리자 행위) / 접속 로그 각 1년 보존 및 자동 프루닝
 - 비밀번호 초기화 = 사용자 이메일로 설정 + 강제변경(전달할 비밀 없음)
+
+## 웹 접근성
+
+- KWCAG 2.2 / WCAG 2.1 AA 기준: 모든 입력칸 레이블, 화면별 탭 제목, 마우스 없이 키보드(Tab·Enter·Space·Esc)로 모든 기능 사용(모달은 초점 가두기·닫으면 원래 버튼으로 초점 복귀), 글자 명도 대비 4.5:1 이상
+- 규약과 점검 방법은 `docs/ARCHITECTURE.md` §4.5, 회귀는 `tests/a11y-*.test.ts`·`tests/page-titles.test.ts` 가 막는다
 
 ## 폐쇄망 배포
 
@@ -147,7 +160,7 @@ curl -sk -H 'Host: <PUBLIC_FQDN>' https://127.0.0.1/api/health   # {"ok":true,"d
 
 30개 테이블 (SQLite, `src/lib/db.ts`):
 
-- **자산**: `assets`, `asset_ips`, `sub_assets`, `custom_fields`, `custom_values`, `ports`, `import_batch_assets`
+- **자산**: `assets`, `asset_ips`, `sub_assets`, `custom_fields`, `custom_values`, `ports` (엑셀 일괄등록 배치는 `assets.import_batch_id` — 초기 이관 DB 에 남은 `import_batch_assets` 는 현행 코드가 쓰지 않는 이관 잔재)
 - **물리/배치**: `locations`, `racks`, `dist_frames`, `frame_pairs`, `ip_subnets`
 - **운영**: `asset_movements`, `maintenance_logs`, `maintenance_targets`, `contracts`, `contract_assets`, `vendors`, `inventory_audits`, `inventory_audit_checks`
 - **계정/권한/감사**: `users`, `teams`, `menu_permissions`, `audit_logs`, `access_logs`, `login_attempts`, `import_issue`
@@ -161,6 +174,7 @@ curl -sk -H 'Host: <PUBLIC_FQDN>' https://127.0.0.1/api/health   # {"ok":true,"d
 ```bash
 npm install
 npm run db:seed        # 스키마 + 데모 데이터 + 계정 3종 초기화 (SEED_MINIMAL=1 이면 스키마·계정만)
+                       # 사용자가 있는 DB 는 거부(운영 DB 보호) — 개발 DB 를 다시 만들 때만 SEED_FORCE=1
 npm run dev            # http://localhost:3000
 ```
 
@@ -172,7 +186,7 @@ npm run dev            # http://localhost:3000
 | 팀(team) | `user@example.go.kr` | `user123` |
 | 전체열람(viewer) | `viewer@example.go.kr` | `viewer123` |
 
-기타 스크립트: `npm test`(단위 테스트 288개), `npm run check`(타입 체크), `npm run smoke`(스모크 — 핵심 화면·API 불변식), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견·2단계인증 E2E), `node scripts/bench-scale.mjs 10000`(자산 N건 시나리오 쿼리 벤치 — 운영 DB 복사본에서만).
+기타 스크립트: `npm test`(단위 테스트 349개), `npm run check`(타입 체크), `npm run smoke`(스모크 — 핵심 화면·API 불변식), `npm run verify:api`(기동 중 서버 대상 인가·입력검증·CSP·개선의견·팀 간 격리(IDOR)·2단계인증 E2E), `node scripts/bench-scale.mjs 10000`(자산 N건 시나리오 쿼리 벤치 — 운영 DB 복사본에서만).
 
 > `verify:api`·`verify-hardening.mjs` 는 **시드 계정(`@example.go.kr`) 전제 · 권한과 데이터를 변조**한다.
 > 실데이터가 들어있는 DB(운영·실데이터 스테이징 포함)에는 돌리지 말 것. 그쪽은 `smoke.mjs` 로 확인한다.
@@ -224,5 +238,5 @@ scripts/
 ├── e2e-security.mjs      # 보안 E2E
 └── reset-password.mjs    # 비밀번호 초기화 헬퍼
 docs/                         # 배포/운영/사용자·관리자 매뉴얼, 아키텍처, 보안 체크리스트
-tests/                        # 단위 테스트 288개 (node --test)
+tests/                        # 단위 테스트 349개 (node --test)
 ```
