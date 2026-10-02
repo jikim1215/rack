@@ -27,7 +27,9 @@ bash scripts/deploy/build-release.sh      # npm ci(오프라인 캐시) → next
 node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (nonce CSP 양립 — 필수)
 ```
 
-산출물(`dist/`): `asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`(원본 `scripts/deploy/배포방법.txt`). 세 파일을 그대로 반입한다.
+산출물(`dist/`): `asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`(원본 `scripts/deploy/배포방법.txt`, 첫 줄에 버전·커밋·빌드 시각). 세 파일을 그대로 반입한다.
+
+**버전** — `package.json` 의 `version`(SemVer, 규칙은 `docs/CHANGELOG.md` 머리말)과 커밋·빌드 시각을 `scripts/build-meta.mjs` 가 한 번 계산해 화면 · `/api/health` · 번들 최상위 `VERSION` 에 같은 값으로 박는다. 커밋은 `APP_COMMIT`(지정 시) > git(`APP_GIT_DIR` 또는 이 저장소) 순 — 소스를 복사해 빌드하는 머신은 `APP_GIT_DIR=<원본 저장소>` 를 넘긴다. 미커밋 변경이 있으면 커밋 뒤에 `-dirty` 가 붙고 빌드 로그에 `[WARN]` 이 찍힌다. 정식 릴리스: `npm version <x.y.z> --no-git-tag-version` → `docs/CHANGELOG.md` → 커밋 → `git tag -a v<x.y.z>` → push(태그 포함) → 깨끗한 트리에서 빌드.
 
 전제: `vendor/node-linux-x64.tar.xz`(Node 22.6+), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. **의존성이 바뀐 릴리스(package-lock 변경)는 인터넷 되는 시점에 빌드 머신에서 `npm ci --build-from-source` 를 한 번 돌려 캐시를 채운 뒤** 오프라인 빌드를 한다(예: 2026-10 next 15.5.27·nodemailer 10 전환, postcss 8.5.28 단일화).
 
@@ -93,7 +95,7 @@ sudo NEXT_INTERNAL_PORT=3100 bash …/deploy.sh    # 공존시스템이 3000 을
 ```bash
 curl -s http://127.0.0.1:3100/api/health                              # 앱 직접
 curl -sk -H 'Host: itam.example.go.kr' https://127.0.0.1/api/health   # nginx 경유
-# → {"ok":true,"db":"ok","schema":2,"version":"1.0.0",...}
+# → {"ok":true,"db":"ok","schema":2,"version":"1.1.0","commit":"<7자리>","builtAt":"<ISO>",...}
 ```
 
 **`-H 'Host: ...'` 를 빼면 안 된다** — nginx 는 server_name(SNI)으로 갈라서 IP·localhost 직접 접속은 default 서버(공존시스템)로 간다.

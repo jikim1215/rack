@@ -64,7 +64,7 @@ sudo SSL_CRT=/경로/site.crt SSL_KEY=/경로/site.key PUBLIC_FQDN=itam.example.
 
 ## 4. 배포 후 확인
 
-스크립트 출력에서 `서비스: active` · `내부 /login → 200` · `✓ nonce CSP 적용` · `https(nginx) /login → 200` 을 확인합니다. 이어서 DB 를 직접 확인합니다(**읽기 전용** — 운영 중 실행해도 안전):
+스크립트 출력에서 `버전 : 현재 … → v<새 버전> (커밋)` · `✓ 가동 버전` · `서비스: active` · `내부 /login → 200` · `✓ nonce CSP 적용` · `https(nginx) /login → 200` 을 확인합니다. 새 버전·커밋은 `배포방법.txt` 첫 줄, 번들의 `asset-inventory/VERSION` 과 같아야 합니다(화면에서는 로그인 후 왼쪽 메뉴 맨 아래). 이어서 DB 를 직접 확인합니다(**읽기 전용** — 운영 중 실행해도 안전):
 
 ```bash
 Q="sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs"
@@ -111,7 +111,7 @@ sudo bash /opt/asset-inventory.rollback-<시각>/rollback.sh <시각>
 sudo bash /opt/asset-inventory.rollback-<시각>/rollback.sh <시각> --with-db
 ```
 
-`rollback.sh` 는 앱 트리를 **통째로 교체**합니다(덮어쓰기가 아님 — 새 판에만 있는 파일이 남아 구판과 섞이지 않게), 끝에 `/api/health` 200 을 확인합니다.
+`rollback.sh` 는 앱 트리를 **통째로 교체**합니다(덮어쓰기가 아님 — 새 판에만 있는 파일이 남아 구판과 섞이지 않게), 끝에 `/api/health` 200 과 되돌아간 판의 버전을 출력합니다(버전 표기 이전 판은 `v1.0.0`).
 
 > 구판으로 되돌리면 재기동 유실 결함도 되돌아옵니다(다음 재시작에 소유 팀 등이 다시 비워짐). 원인을 해결한 뒤 가능한 한 빨리 새 판을 다시 적용하세요 — 재적용 시 6단계가 다시 복구합니다.
 

@@ -2,7 +2,7 @@
 # ============================================================
 # 운영 중인 /opt/asset-inventory 를 새 번들로 in-place 업그레이드
 #   보존: data.db(+WAL/SHM) · .env · node/ · tls/ · backups/   ← 운영 데이터·시크릿·런타임은 건드리지 않는다
-#   교체: .next · src · scripts · docs · node_modules · package*.json · next.config.ts
+#   교체: .next · src · scripts · docs · node_modules · package*.json · next.config.ts · VERSION
 #   nginx: itam.conf 의 X-Forwarded-For 한 줄만 현행화(백업 → nginx -t → reload, 실패 시 복원)
 #   롤백: /opt/asset-inventory.rollback-<TS> 에 이전 앱 트리 + rollback.sh 보관 (스크립트 말미에 명령 출력)
 #
@@ -23,7 +23,21 @@ FQDN="$(grep -E '^PUBLIC_FQDN=' "$APP/.env" 2>/dev/null | cut -d= -f2 || hostnam
 TS=$(date +%Y%m%d_%H%M%S)
 ROLLBACK="/opt/asset-inventory.rollback-${TS}"
 STAGE="/tmp/asset-upgrade-${TS}"
-REPLACE=(.next src scripts docs node_modules package.json package-lock.json next.config.ts)
+REPLACE=(.next src scripts docs node_modules package.json package-lock.json next.config.ts VERSION)
+
+# 버전 표기 "v1.1.0 (e2999fd)" — 번들은 VERSION 파일, 가동 중인 앱은 /api/health (둘 다 빌드 때 박힌 값).
+#   버전 표기 도입(v1.1.0) 이전 판은 health 가 항상 1.0.0 만 낸다.
+ver_of_file() {
+  local v c
+  v="$(sed -n 's/^version=//p' "$1" 2>/dev/null)"; c="$(sed -n 's/^commit=//p' "$1" 2>/dev/null)"
+  [[ -n "$v" ]] && echo "v${v}${c:+ (${c})}" || echo "(버전 정보 없음)"
+}
+ver_live() {
+  local j v c
+  j="$(curl -s --max-time 5 -H "Host: ${FQDN}" "http://127.0.0.1:${INTERNAL_PORT}/api/health" || true)"
+  v="$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$j")"; c="$(sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' <<<"$j")"
+  [[ -n "$v" ]] && echo "v${v}${c:+ (${c})}" || echo "(응답 없음)"
+}
 
 [[ $(id -u) -eq 0 ]] || { echo "[ERROR] root 필요: sudo bash $0"; exit 1; }
 [[ -d "$APP" ]] || { echo "[ERROR] 기존 설치 없음: $APP (신규 설치는 setup-nginx.sh)"; exit 1; }
@@ -44,6 +58,8 @@ else
   echo "   번들 : $BUNDLE ($(du -h "$BUNDLE" | cut -f1))"
 fi
 echo "   앱   : $APP (내부포트 ${INTERNAL_PORT}, FQDN ${FQDN})"
+OLD_VER="$(ver_live)"
+echo "   버전 : 현재 ${OLD_VER}"
 
 echo "== 1) DB 백업 (WAL 안전 online backup) =="
 sudo -u "$APP_USER" "$APP/node/bin/node" \
@@ -66,6 +82,8 @@ else
   SRC="$STAGE/asset-inventory"
 fi
 [[ -f "$SRC/.next/standalone/server.js" ]] || { echo "[ERROR] 번들 구조 이상 (standalone/server.js 없음)"; exit 1; }
+NEW_VER="$(ver_of_file "$SRC/VERSION")"
+echo "   버전 : ${OLD_VER} → ${NEW_VER}"
 
 echo "== 3) 서비스 중지 =="
 systemctl stop asset-inventory
@@ -122,6 +140,8 @@ wait_health() {
 echo "== 7) 기동 (첫 요청 = 스키마 마이그레이션) =="
 systemctl start asset-inventory
 wait_health
+RUN_VER="$(ver_live)"
+if [[ "$RUN_VER" == "$NEW_VER" ]]; then echo "   ✓ 가동 버전 ${RUN_VER}"; else echo "   ✗ 가동 버전 ${RUN_VER} ≠ 번들 ${NEW_VER} — 확인 필요"; fi
 
 echo "== 7-1) 재기동 유실 값 복구 (소유 팀·랙 L/R·현행 확인 도장·일괄등록 배치 — 감사로그 재생) =="
 # 2026-10-01 이전 판은 기동할 때마다 위 값을 비웠다. 빈 필드만 감사로그의 마지막 기록값으로 채운다(현재 값 불변).
@@ -163,7 +183,7 @@ sudo -u "$APP_USER" "$APP/node/bin/node" \
 
 rm -rf "$STAGE"
 echo ""
-echo "== 업그레이드 완료 =="
+echo "== 업그레이드 완료: ${OLD_VER} → $(ver_live) =="
 echo "   DB 백업 : $APP/backups/data.db.preupgrade-${TS}.gz"
 echo "   롤백본  : $ROLLBACK"
 echo "   롤백 명령 (앱 트리 + 바뀐 경우 nginx — DB 는 유지):"

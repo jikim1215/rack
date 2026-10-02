@@ -23,6 +23,7 @@
 - 커밋 메시지: conventional commits (feat:, fix:, docs:, refactor:, chore:)
 - 기능 구현 후 반드시 `npm run build` 검증
 - 기존 라우트/기능을 깨뜨리지 말 것
+- 릴리스: `package.json` version(SemVer) 올림 → `docs/CHANGELOG.md` → 커밋 → `git tag -a vX.Y.Z` → 깨끗한 트리에서 빌드 (화면·/api/health 의 커밋 뒤 `-dirty` = 미커밋 빌드)
 
 ## 명령어
 ```
@@ -30,7 +31,7 @@ npm run dev         # 개발 서버 (http://localhost:3000)
 npm run build       # 프로덕션 빌드
 npm run start       # 프로덕션 서버
 npm run db:seed     # 시드 데이터 생성 (DB 초기화 — 사용자 있는 DB 는 거부, 재생성은 SEED_FORCE=1)
-npm test            # 단위 테스트 (349개)
+npm test            # 단위 테스트 (359개)
 npm run check       # 타입 체크
 npm run smoke       # 스모크 테스트 (핵심 화면·API 불변식)
 npm run verify:api  # E2E 인가·입력검증·CSP·팀 간 격리·MFA 검증 (시드 DB 전제, 운영 DB 금지)

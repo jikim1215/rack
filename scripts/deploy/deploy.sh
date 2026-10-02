@@ -39,6 +39,8 @@ for f in .next/standalone/server.js scripts/deploy/setup-nginx.sh scripts/deploy
   [[ -e "${BUNDLE_ROOT}/${f}" ]] || { say "[ERROR] 번들 구성 누락: ${f} — 반입 파일이 손상됐습니다(SHA256 재확인)"; exit 1; }
 done
 say " 번들   : ${BUNDLE_ROOT}"
+BV="$(sed -n 's/^version=//p' "${BUNDLE_ROOT}/VERSION" 2>/dev/null)"; BC="$(sed -n 's/^commit=//p' "${BUNDLE_ROOT}/VERSION" 2>/dev/null)"
+say " 버전   : ${BV:+v${BV}${BC:+ (${BC})}}${BV:-(버전 정보 없음)}"
 say " 대상   : ${APP_DIR}"
 
 # ── 1. 모드 판별 ──
@@ -51,6 +53,9 @@ if [[ "$MODE" == "upgrade" ]]; then
   CUR_FQDN="$(sed -n 's/^PUBLIC_FQDN=//p' "${APP_DIR}/.env" 2>/dev/null | head -1)"
   say " 모드   : 업그레이드 (기존 설치 발견 — 데이터 보존)"
   say "          내부포트 ${CUR_PORT:-?} · 도메인 ${CUR_FQDN:-?}"
+  CJ="$(curl -s --max-time 5 -H "Host: ${CUR_FQDN:-localhost}" "http://127.0.0.1:${CUR_PORT:-3100}/api/health" || true)"
+  CV="$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$CJ")"; CC="$(sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' <<<"$CJ")"
+  say "          가동 중 ${CV:+v${CV}${CC:+ (${CC})}}${CV:-(응답 없음)}"
   say "          DB $(du -h "${APP_DIR}/data.db" 2>/dev/null | cut -f1)"
 else
   say " 모드   : 신규설치 (기존 data.db 없음)"

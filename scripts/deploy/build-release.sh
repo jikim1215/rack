@@ -3,6 +3,9 @@
 # asset-inventory 오프라인 릴리스 번들러 (AC-15/16)
 # 대상 OS: Rocky Linux 8.10 x86_64 (glibc 2.28). 동일 OS에서 재현 빌드해야 native ABI 일치.
 # 산출물: dist/asset-inventory-offline.tar.gz (앱 + 번들 Node + native + 배포 스크립트)
+# 버전: package.json version + 커밋 + 빌드 시각을 화면·/api/health 에 박고, 번들 최상위 VERSION 파일로도 남긴다.
+#   커밋은 APP_COMMIT(지정 시) > git(APP_GIT_DIR 또는 이 저장소). 소스를 복사해 빌드하면(.git 없음)
+#   APP_GIT_DIR=<원본 저장소> 를 넘긴다. 미커밋 변경이 있으면 커밋 뒤에 -dirty 가 붙는다(정식 릴리스는 태그 후 깨끗한 트리).
 # Plan B: better-sqlite3 prebuilt 로드 실패 대비 소스 리빌드 산출물 동봉.
 # ============================================================
 set -euo pipefail
@@ -31,11 +34,20 @@ fi
 cd "$ROOT"
 rm -rf .next dist
 npm ci --no-audit --no-fund
+# 빌드 메타를 한 번만 계산해 env 로 고정 → next build(화면·health)와 아래 VERSION 파일이 같은 값을 쓴다.
+META="$(node scripts/build-meta.mjs)"
+export APP_VERSION="$(sed -n 's/^APP_VERSION=//p' <<<"$META")"
+export APP_COMMIT="$(sed -n 's/^APP_COMMIT=//p' <<<"$META")"
+export APP_BUILT_AT="$(sed -n 's/^APP_BUILT_AT=//p' <<<"$META")"
+[[ -n "$APP_VERSION" && -n "$APP_BUILT_AT" ]] || { echo "[ERROR] 빌드 메타 계산 실패: $META"; exit 1; }
+echo "[INFO] 버전 v${APP_VERSION} · 커밋 ${APP_COMMIT:-(없음)} · 빌드 ${APP_BUILT_AT}"
+[[ "$APP_COMMIT" == *-dirty ]] && echo "[WARN] 미커밋 변경이 있는 소스 — 정식 릴리스는 커밋·태그 후 다시 빌드"
 NEXT_TELEMETRY_DISABLED=1 npm run build
 [[ -f .next/standalone/server.js ]] || { echo "[ERROR] standalone 빌드 산출물 없음 (next.config output:'standalone' 확인)"; exit 1; }
 
 # ── 2. 스테이징 ──
 mkdir -p "$STAGE"
+printf 'version=%s\ncommit=%s\nbuilt_at=%s\n' "$APP_VERSION" "$APP_COMMIT" "$APP_BUILT_AT" > "$STAGE/VERSION"
 cp -a .next "$STAGE/.next"
 # .next/cache 는 빌드 증분 캐시(webpack, ~170MB)다. 런타임(standalone/server.js)은 참조하지 않는다 — 번들에서 제외.
 rm -rf "$STAGE/.next/cache"
@@ -131,7 +143,8 @@ fi
 TARBALL="${DIST}/asset-inventory-offline.tar.gz"
 tar -C "$DIST" -czf "$TARBALL" asset-inventory
 ( cd "$DIST" && sha256sum "$(basename "$TARBALL")" > SHA256SUMS.txt )
-cp -f "${ROOT}/scripts/deploy/배포방법.txt" "${DIST}/배포방법.txt"
-echo "[OK] 릴리스: ${TARBALL} ($(du -h "$TARBALL" | cut -f1))"
+# 반입자가 번들을 풀기 전에도 어느 판인지 알 수 있게 안내문 맨 위에 버전을 적는다.
+{ printf '[버전] v%s · 커밋 %s · 빌드 %s\n\n' "$APP_VERSION" "${APP_COMMIT:-(없음)}" "$APP_BUILT_AT"; cat "${ROOT}/scripts/deploy/배포방법.txt"; } > "${DIST}/배포방법.txt"
+echo "[OK] 릴리스: ${TARBALL} ($(du -h "$TARBALL" | cut -f1)) — v${APP_VERSION} (${APP_COMMIT:-커밋 없음})"
 echo "[OK] 체크섬: ${DIST}/SHA256SUMS.txt  ·  안내: ${DIST}/배포방법.txt"
 echo "    적용(한 줄): sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf $(basename "$TARBALL") && sudo bash asset-inventory/scripts/deploy/deploy.sh"

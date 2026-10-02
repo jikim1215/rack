@@ -15,7 +15,7 @@ APP=/opt/asset-inventory
 APP_USER=asset
 RB="/opt/asset-inventory.rollback-${TS}"
 NGX_CONF=/etc/nginx/conf.d/itam.conf
-REPLACE=(.next src scripts docs node_modules package.json package-lock.json next.config.ts)
+REPLACE=(.next src scripts docs node_modules package.json package-lock.json next.config.ts VERSION)
 
 [[ $(id -u) -eq 0 ]] || { echo "[ERROR] root 필요: sudo bash $0 <시각> [--with-db]"; exit 1; }
 [[ -n "$TS" && -d "$RB" ]] || { echo "[ERROR] 롤백본 없음: ${RB:-<시각 미지정>}"; ls -d /opt/asset-inventory.rollback-* 2>/dev/null | sed 's/^/   후보: /'; exit 1; }
@@ -66,4 +66,7 @@ for _ in $(seq 1 30); do
 done
 echo "   /api/health → ${CODE} (서비스: $(systemctl is-active asset-inventory))"
 [[ "$CODE" == "200" ]] || { echo "[ERROR] 기동 확인 실패 — journalctl -u asset-inventory -n 50"; exit 1; }
-echo "== 롤백 완료 ($RB) =="
+# 되돌린 판의 버전 (버전 표기 도입 v1.1.0 이전 판은 1.0.0 만 보인다)
+J="$(curl -s --max-time 5 -H "Host: ${FQDN}" "http://127.0.0.1:${INTERNAL_PORT}/api/health" || true)"
+V="$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' <<<"$J")"; C="$(sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' <<<"$J")"
+echo "== 롤백 완료 ($RB) — 가동 버전 v${V:-?}${C:+ (${C})} =="
