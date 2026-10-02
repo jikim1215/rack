@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertAdmin } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { asBody, str, oneOf, int, flag } from "@/lib/validation/input";
 import type { CustomFieldRow, CustomFieldType } from "@/lib/db-types";
@@ -51,5 +52,6 @@ export const POST = withApi(async (req: NextRequest) => {
   });
 
   const field = db.prepare("SELECT * FROM custom_fields WHERE id = ?").get(result.lastInsertRowid) as CustomFieldRow;
+  logAudit(db, { entityType: "setting", entityId: field.id, entityName: `사용자 정의 필드: ${field_label} (${field_key})`, action: "create", changedBy: actor.username, newData: field });
   return NextResponse.json(field, { status: 201 });
 });

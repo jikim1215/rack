@@ -12,8 +12,9 @@ export const POST = withApi(async (req: NextRequest) => {
   assertAdmin(actor);
 
   let to = actor.username;
-  // 본문이 없을 수도 있다(관리자 본인 주소로 발송) — 파싱 실패는 빈 객체로 취급
-  const body = (await readJson(req).catch(() => ({}))) as { to?: unknown };
+  // 본문이 없을 수도 있다(관리자 본인 주소로 발송) — 파싱 실패·null·배열은 빈 객체로 취급
+  const parsed = await readJson(req).catch(() => null);
+  const body = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as { to?: unknown };
   if (typeof body.to === 'string' && body.to.trim()) to = body.to.trim();
 
   const emailErr = validateEmail(to);

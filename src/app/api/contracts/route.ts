@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, scopeWhere } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { asBody, str, oneOf, dateStr, flag, idOrNull, ValidationError } from "@/lib/validation/input";
 import { NextRequest, NextResponse } from "next/server";
 import type { ContractRow } from "@/lib/db-types";
@@ -58,5 +59,6 @@ export const POST = withApi(async (req: NextRequest) => {
     SELECT c.*, v.vendor_name, t.team_name AS owner_team_name FROM contracts c
     LEFT JOIN vendors v ON c.vendor_id = v.id LEFT JOIN teams t ON c.team_id = t.id WHERE c.id = ?
   `).get(result.lastInsertRowid) as ContractRow & { vendor_name: string | null; owner_team_name: string | null };
+  logAudit(db, { entityType: "contract", entityId: Number(result.lastInsertRowid), entityName: values.contract_name, action: "create", changedBy: actor.username, newData: values });
   return NextResponse.json(contract, { status: 201 });
 });

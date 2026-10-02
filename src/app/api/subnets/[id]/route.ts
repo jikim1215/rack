@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
-import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { getActor, withApi, readJson, assertUsableLocation } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertCanDelete, scopeWhere } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { asBody, str, idOrNull, pathId, ValidationError } from "@/lib/validation/input";
 import { isValidIpv4 } from "@/lib/validation/asset-rules";
@@ -84,6 +85,7 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   if (gateway && !isValidIpv4(gateway)) throw new ValidationError("게이트웨이는 IPv4 형식이어야 합니다.");
   const vlan_id = str(b, "vlan_id", { max: 20 });
   const location_id = idOrNull(b, "location_id", "위치");
+  if (location_id != null && location_id !== existing.location_id) assertUsableLocation(actor, location_id);
   const description = str(b, "description");
 
   let ownerTeamId: number | null = existing.team_id ?? null;
@@ -102,6 +104,7 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   ).run({ id, subnet_name, network_address, subnet_mask, gateway, vlan_id, location_id, description, team_id: ownerTeamId });
 
   const updated = db.prepare("SELECT * FROM ip_subnets WHERE id = ?").get(id) as SubnetRow;
+  logAudit(db, { entityType: "subnet", entityId: id, entityName: `${subnet_name} (${network_address})`, action: "update", changedBy: actor.username, oldData: existing, newData: updated });
   return NextResponse.json(updated);
 });
 
@@ -147,5 +150,6 @@ export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
   }
 
   db.prepare("DELETE FROM ip_subnets WHERE id = ?").run(id);
+  logAudit(db, { entityType: "subnet", entityId: id, entityName: `${subnet.subnet_name} (${subnet.network_address})`, action: "delete", changedBy: actor.username, oldData: subnet });
   return NextResponse.json({ ok: true });
 });

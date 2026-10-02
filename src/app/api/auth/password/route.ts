@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db';
 import { getSession, hashPassword, verifyPassword, createSessionToken, sessionCookieOptions } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { withApi, readJson } from "@/lib/api-authz";
+import { logAudit } from "@/lib/audit";
 import { asBody, str } from '@/lib/validation/input';
 import type { UserRow } from '@/lib/db-types';
 
@@ -29,6 +30,10 @@ export const PUT = withApi(async (req: NextRequest) => {
   db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, token_version = COALESCE(token_version, 0) + 1 WHERE id = ?')
     .run(hashPassword(newPassword), session.userId);
   const newTv = (db.prepare('SELECT token_version FROM users WHERE id = ?').get(session.userId) as Pick<UserRow, "token_version">).token_version;
+  logAudit(db, {
+    entityType: "user", entityId: session.userId, entityName: user.username, action: "update", changedBy: session.username,
+    oldData: { password_changed: 0, must_change_password: user.must_change_password }, newData: { password_changed: 1, must_change_password: 0 },
+  });
 
   // 현재 세션은 새 버전으로 재발급해 로그인 상태 유지
   const token = createSessionToken({

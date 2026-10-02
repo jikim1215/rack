@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, scopeWhere } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { asBody, pathId, idOrNull, ValidationError } from "@/lib/validation/input";
 import { NextRequest, NextResponse } from "next/server";
 import type { AssetRow, ContractRow } from "@/lib/db-types";
@@ -35,10 +36,10 @@ export const POST = withApi(async (req: NextRequest, { params }: Ctx) => {
 
   const db = getDb();
   // 계약 소유 팀 + 연결 자산 소유 팀 모두 기준으로 쓰기 권한 검사 (팀은 자기 계약·자산만)
-  const contract = db.prepare("SELECT team_id FROM contracts WHERE id = ?").get(id) as Pick<ContractRow, "team_id"> | undefined;
+  const contract = db.prepare("SELECT team_id, contract_name FROM contracts WHERE id = ?").get(id) as Pick<ContractRow, "team_id" | "contract_name"> | undefined;
   if (!contract) return NextResponse.json({ error: "계약을 찾을 수 없습니다." }, { status: 404 });
   assertCanWrite(actor, contract.team_id);
-  const asset = db.prepare("SELECT team_id FROM assets WHERE id = ?").get(assetId) as Pick<AssetRow, "team_id"> | undefined;
+  const asset = db.prepare("SELECT team_id, asset_name FROM assets WHERE id = ?").get(assetId) as Pick<AssetRow, "team_id" | "asset_name"> | undefined;
   if (!asset) return NextResponse.json({ error: "자산을 찾을 수 없습니다." }, { status: 404 });
   assertCanWrite(actor, asset.team_id);
 
@@ -47,6 +48,10 @@ export const POST = withApi(async (req: NextRequest, { params }: Ctx) => {
   } catch {
     return NextResponse.json({ error: "이미 연결된 자산입니다." }, { status: 409 });
   }
+  logAudit(db, {
+    entityType: "contract", entityId: id, entityName: contract.contract_name, action: "update", changedBy: actor.username,
+    oldData: { linked_asset: "" }, newData: { linked_asset: `+ #${assetId} ${asset.asset_name}` },
+  });
   return NextResponse.json({ ok: true }, { status: 201 });
 });
 
@@ -61,13 +66,19 @@ export const DELETE = withApi(async (req: NextRequest, { params }: Ctx) => {
 
   const db = getDb();
   // 계약 소유 팀 + 해제 자산 소유 팀 모두 기준으로 쓰기 권한 검사 (팀은 자기 계약·자산만)
-  const contract = db.prepare("SELECT team_id FROM contracts WHERE id = ?").get(id) as Pick<ContractRow, "team_id"> | undefined;
+  const contract = db.prepare("SELECT team_id, contract_name FROM contracts WHERE id = ?").get(id) as Pick<ContractRow, "team_id" | "contract_name"> | undefined;
   if (!contract) return NextResponse.json({ error: "계약을 찾을 수 없습니다." }, { status: 404 });
   assertCanWrite(actor, contract.team_id);
-  const asset = db.prepare("SELECT team_id FROM assets WHERE id = ?").get(assetId) as Pick<AssetRow, "team_id"> | undefined;
+  const asset = db.prepare("SELECT team_id, asset_name FROM assets WHERE id = ?").get(assetId) as Pick<AssetRow, "team_id" | "asset_name"> | undefined;
   if (!asset) return NextResponse.json({ error: "자산을 찾을 수 없습니다." }, { status: 404 });
   assertCanWrite(actor, asset.team_id);
 
-  db.prepare("DELETE FROM contract_assets WHERE contract_id = ? AND asset_id = ?").run(id, assetId);
+  const removed = db.prepare("DELETE FROM contract_assets WHERE contract_id = ? AND asset_id = ?").run(id, assetId).changes;
+  if (removed) {
+    logAudit(db, {
+      entityType: "contract", entityId: id, entityName: contract.contract_name, action: "update", changedBy: actor.username,
+      oldData: { linked_asset: `#${assetId} ${asset.asset_name}` }, newData: { linked_asset: `- #${assetId} ${asset.asset_name}` },
+    });
+  }
   return NextResponse.json({ ok: true });
 });

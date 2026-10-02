@@ -231,6 +231,43 @@ export function assertCanPlaceInRack(
   deny(actor, "Forbidden");
 }
 
+/**
+ * 위치 사용(그 위치에 랙·대역·배선반을 두거나 옮기기) 권한. 팀은 자기 소유 또는 공유(team_id NULL) 위치만.
+ * 타팀 전용 위치에 자기 리소스를 만들면 그 위치가 파생 가시성(locationScopeWhere)으로 노출된다(격리 우회).
+ * admin: 무제한. viewer: 불가. 규칙은 assertCanPlaceInRack 과 동일한 모양.
+ * @param locationOwnerTeamId 대상 위치의 team_id (NULL=공유)
+ */
+export function assertCanUseLocation(
+  actor: Actor | null,
+  locationOwnerTeamId: number | null,
+): asserts actor is Actor {
+  if (!actor) deny(actor, "Forbidden");
+  if (actor.role === "admin") return;
+  if (actor.role === "viewer") deny(actor, "열람 전용 계정은 쓰기 권한이 없습니다.");
+  if (actor.role === "team") {
+    if (actor.teamId == null) deny(actor, "팀이 배정되지 않은 계정은 쓰기 권한이 없습니다.");
+    if (locationOwnerTeamId != null && locationOwnerTeamId !== actor.teamId) {
+      deny(actor, "다른 팀 전용 위치에는 등록할 수 없습니다.");
+    }
+    return;
+  }
+  deny(actor, "Forbidden");
+}
+
+/**
+ * 다른 행이 자산을 참조(부모 장비 연결 등)할 권한. 팀은 자기 팀 자산만 참조할 수 있다 —
+ * 타팀 자산 id 로 연결하면 그 자산의 존재·이름이 연결 행을 통해 노출된다. admin: 무제한.
+ */
+export function assertCanReferenceAsset(
+  actor: Actor | null,
+  assetOwnerTeamId: number | null,
+): asserts actor is Actor {
+  if (!actor) deny(actor, "Forbidden");
+  if (actor.role === "admin") return;
+  if (actor.role === "team" && actor.teamId != null && assetOwnerTeamId === actor.teamId) return;
+  deny(actor, "자기 팀 자산만 연결할 수 있습니다.");
+}
+
 /** 인증된 유효 역할이면 읽기 허용(행 제한은 scopeWhere가 담당). 아니면 deny. */
 export function assertCanRead(actor: Actor | null): asserts actor is Actor {
   if (!actor) deny(actor, "Forbidden");

@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, scopeWhere } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { asBody, str, oneOf, idOrNull, dateStr, ValidationError } from "@/lib/validation/input";
 import type { MovementRow, AssetRow } from "@/lib/db-types";
 
@@ -95,6 +96,12 @@ export const POST = withApi(async (req: NextRequest) => {
     LEFT JOIN assets a ON m.asset_id = a.id
     WHERE m.id = ?
   `).get(result.lastInsertRowid) as (MovementRow & { asset_name: string | null }) | undefined;
+  logAudit(db, {
+    entityType: "movement", entityId: Number(result.lastInsertRowid),
+    entityName: equipment_desc || movement?.asset_name || `반출입 #${result.lastInsertRowid}`,
+    action: "create", changedBy: actor.username,
+    newData: { movement_type, movement_date, asset_id, requester, department, purpose, destination, serial_number, status: "requested" },
+  });
 
   return NextResponse.json(movement, { status: 201 });
 });

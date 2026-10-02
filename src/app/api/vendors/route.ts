@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { asBody, str, oneOf, flag } from "@/lib/validation/input";
 import { NextRequest, NextResponse } from "next/server";
 import type { VendorRow } from "@/lib/db-types";
@@ -35,5 +36,6 @@ export const POST = withApi(async (req: NextRequest) => {
     VALUES (@vendor_name, @contact_person, @phone, @email, @address, @business_number, @vendor_type, @is_active, @notes)
   `).run(values);
   const vendor = db.prepare("SELECT * FROM vendors WHERE id = ?").get(result.lastInsertRowid) as VendorRow;
+  logAudit(db, { entityType: "vendor", entityId: vendor.id, entityName: values.vendor_name, action: "create", changedBy: actor.username, newData: values });
   return NextResponse.json(vendor, { status: 201 });
 });

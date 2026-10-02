@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuWrite, assertCanWrite, assertCanDelete } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { asBody, str, int, pathId, ValidationError } from "@/lib/validation/input";
 import type { LocationRow } from "@/lib/db-types";
@@ -40,6 +41,10 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   db.prepare(
     "UPDATE locations SET location_name = @location_name, building = @building, floor = @floor, room = @room, sort_order = @sort_order, team_id = @team_id WHERE id = @id"
   ).run({ id, location_name, building, floor, room, sort_order, team_id: ownerTeamId });
+  logAudit(db, {
+    entityType: "location", entityId: id, entityName: location_name, action: "update", changedBy: actor.username,
+    oldData: existing, newData: { location_name, building, floor, room, sort_order, team_id: ownerTeamId },
+  });
   const loc = db.prepare(`
     SELECT l.*, t.team_name AS owner_team_name
     FROM locations l LEFT JOIN teams t ON l.team_id = t.id WHERE l.id = ?
@@ -56,5 +61,6 @@ export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
   if (!existing) return NextResponse.json({ error: "위치를 찾을 수 없습니다." }, { status: 404 });
   assertCanDelete(actor, existing.team_id ?? null);
   db.prepare("DELETE FROM locations WHERE id = ?").run(id);
+  logAudit(db, { entityType: "location", entityId: id, entityName: existing.location_name, action: "delete", changedBy: actor.username, oldData: existing });
   return NextResponse.json({ ok: true });
 });

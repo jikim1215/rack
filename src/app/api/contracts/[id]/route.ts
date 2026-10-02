@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuWrite, assertCanWrite, assertCanDelete } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { asBody, str, oneOf, flag, idOrNull, pathId, ValidationError, dateStrKeep } from "@/lib/validation/input";
 import { NextRequest, NextResponse } from "next/server";
 import type { ContractRow } from "@/lib/db-types";
@@ -28,13 +29,7 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   if (vendorId != null && !db.prepare("SELECT id FROM vendors WHERE id = ?").get(vendorId)) {
     throw new ValidationError("존재하지 않는 업체입니다.");
   }
-  db.prepare(`
-    UPDATE contracts SET vendor_id = @vendor_id, contract_name = @contract_name,
-      contract_type = @contract_type, start_date = @start_date, end_date = @end_date,
-      amount = @amount, auto_renew = @auto_renew, status = @status, notes = @notes, team_id = @team_id
-    WHERE id = @id
-  `).run({
-    id,
+  const values = {
     vendor_id: vendorId,
     contract_name: str(b, "contract_name", { required: true, max: 200, label: "계약명" }),
     contract_type: oneOf(b, "contract_type", ["maintenance", "purchase", "lease", "other"] as const, { default: "maintenance", label: "계약 유형" }),
@@ -46,7 +41,14 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
     status: oneOf(b, "status", ["active", "expired", "cancelled"] as const, { default: "active", label: "상태" }),
     notes: str(b, "notes", { max: 2000, label: "비고" }),
     team_id: ownerTeamId,
-  });
+  };
+  db.prepare(`
+    UPDATE contracts SET vendor_id = @vendor_id, contract_name = @contract_name,
+      contract_type = @contract_type, start_date = @start_date, end_date = @end_date,
+      amount = @amount, auto_renew = @auto_renew, status = @status, notes = @notes, team_id = @team_id
+    WHERE id = @id
+  `).run({ id, ...values });
+  logAudit(db, { entityType: "contract", entityId: id, entityName: values.contract_name, action: "update", changedBy: actor.username, oldData: existing, newData: values });
   const contract = db.prepare(`
     SELECT c.*, v.vendor_name, t.team_name AS owner_team_name FROM contracts c
     LEFT JOIN vendors v ON c.vendor_id = v.id LEFT JOIN teams t ON c.team_id = t.id WHERE c.id = ?
@@ -63,5 +65,6 @@ export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
   if (!existing) return NextResponse.json({ error: "계약을 찾을 수 없습니다." }, { status: 404 });
   assertCanDelete(actor, existing.team_id ?? null);
   db.prepare("DELETE FROM contracts WHERE id = ?").run(id);
+  logAudit(db, { entityType: "contract", entityId: id, entityName: existing.contract_name, action: "delete", changedBy: actor.username, oldData: existing });
   return NextResponse.json({ success: true });
 });

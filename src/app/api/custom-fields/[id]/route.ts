@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuWrite, assertAdmin } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { asBody, str, oneOf, int, flag, pathId } from "@/lib/validation/input";
 import type { CustomFieldRow, CustomFieldType } from "@/lib/db-types";
@@ -24,6 +25,8 @@ export const PUT = withApi(async (req: NextRequest, { params }: { params: Promis
   const is_required = flag(body, "is_required", 0);
   const show_in_table = flag(body, "show_in_table", 0);
   const show_in_detail = flag(body, "show_in_detail", 1);
+  const existing = db.prepare("SELECT * FROM custom_fields WHERE id = ?").get(id) as CustomFieldRow | undefined;
+  if (!existing) return NextResponse.json({ error: "필드를 찾을 수 없습니다." }, { status: 404 });
 
   db.prepare(`
     UPDATE custom_fields SET
@@ -44,7 +47,8 @@ export const PUT = withApi(async (req: NextRequest, { params }: { params: Promis
     show_in_detail,
   });
 
-  const field = db.prepare("SELECT * FROM custom_fields WHERE id = ?").get(id) as CustomFieldRow | undefined;
+  const field = db.prepare("SELECT * FROM custom_fields WHERE id = ?").get(id) as CustomFieldRow;
+  logAudit(db, { entityType: "setting", entityId: id, entityName: `사용자 정의 필드: ${field.field_label} (${field.field_key})`, action: "update", changedBy: actor.username, oldData: existing, newData: field });
   return NextResponse.json(field);
 });
 
@@ -54,6 +58,9 @@ export const DELETE = withApi(async (_req: NextRequest, { params }: { params: Pr
   assertMenuWrite(actor, "assets");
   const id = pathId((await params).id);
   const db = getDb();
+  const existing = db.prepare("SELECT * FROM custom_fields WHERE id = ?").get(id) as CustomFieldRow | undefined;
+  if (!existing) return NextResponse.json({ error: "필드를 찾을 수 없습니다." }, { status: 404 });
   db.prepare("UPDATE custom_fields SET is_active = 0 WHERE id = ?").run(id);
+  logAudit(db, { entityType: "setting", entityId: id, entityName: `사용자 정의 필드: ${existing.field_label} (${existing.field_key})`, action: "update", changedBy: actor.username, oldData: { is_active: existing.is_active }, newData: { is_active: 0 } });
   return NextResponse.json({ ok: true });
 });

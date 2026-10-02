@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuWrite, assertCanWrite } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { asBody, idOrNull, pathId } from "@/lib/validation/input";
 import type { PortRow } from "@/lib/db-types";
 
@@ -15,7 +16,7 @@ export const PUT = withApi(async (req: NextRequest, { params }: { params: Promis
   if (!port) return NextResponse.json({ error: "포트를 찾을 수 없습니다." }, { status: 404 });
 
   // 소유 권위는 포트가 속한 자산의 team_id (ports.asset_id 는 NOT NULL).
-  const portAsset = db.prepare("SELECT team_id FROM assets WHERE id = ?").get(port.asset_id) as { team_id: number | null } | undefined;
+  const portAsset = db.prepare("SELECT team_id, asset_name FROM assets WHERE id = ?").get(port.asset_id) as { team_id: number | null; asset_name: string } | undefined;
   const ownerTeamId: number | null = portAsset ? portAsset.team_id : null;
   assertCanWrite(actor, ownerTeamId);
 
@@ -54,6 +55,17 @@ export const PUT = withApi(async (req: NextRequest, { params }: { params: Promis
     }
   });
   applyLink();
+
+  const portLabel = (pid: number | null | undefined) => {
+    if (!pid) return "";
+    const r = db.prepare("SELECT p.port_name, a.asset_name FROM ports p LEFT JOIN assets a ON a.id = p.asset_id WHERE p.id = ?").get(pid) as { port_name: string; asset_name: string | null } | undefined;
+    return r ? `${r.asset_name ?? "?"}:${r.port_name}` : `#${pid}`;
+  };
+  logAudit(db, {
+    entityType: "asset", entityId: port.asset_id, entityName: portAsset?.asset_name ?? `자산 #${port.asset_id}`, action: "update", changedBy: actor.username,
+    oldData: { [`port:${port.port_name}`]: portLabel(port.connected_to_port_id) },
+    newData: { [`port:${port.port_name}`]: portLabel(targetPortId) },
+  });
 
   return NextResponse.json({ ok: true });
 });

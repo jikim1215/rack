@@ -7,6 +7,8 @@ import {
   rackScopeWhere,
   locationScopeWhere,
   assertCanPlaceInRack,
+  assertCanUseLocation,
+  assertCanReferenceAsset,
   scopeWhere,
   AuthzError,
   type Actor,
@@ -96,4 +98,32 @@ test("assertCanPlaceInRack: 미인증은 401", () => {
 
 test("assertCanPlaceInRack: 팀미배정 team은 배치 불가", () => {
   assert.throws(() => assertCanPlaceInRack(teamNoTeam, null), AuthzError);
+});
+
+// ── 참조 대상 인가 (격리 우회 방지: 타팀 위치에 랙/대역/배선반, 타팀 자산을 부모로 연결) ──
+const is403 = (e: unknown) => e instanceof AuthzError && (e as AuthzError).status === 403;
+const is401 = (e: unknown) => e instanceof AuthzError && (e as AuthzError).status === 401;
+
+test("assertCanUseLocation: team은 자기 소유·공유 위치만, 타팀 전용 위치 403", () => {
+  assert.doesNotThrow(() => assertCanUseLocation(teamA, 10));
+  assert.doesNotThrow(() => assertCanUseLocation(teamA, null));
+  assert.throws(() => assertCanUseLocation(teamA, 20), is403);
+});
+
+test("assertCanUseLocation: admin 무제한, viewer·팀미배정 403, 미인증 401", () => {
+  assert.doesNotThrow(() => assertCanUseLocation(admin, 20));
+  assert.throws(() => assertCanUseLocation(viewer, null), is403);
+  assert.throws(() => assertCanUseLocation(teamNoTeam, null), is403);
+  assert.throws(() => assertCanUseLocation(null, null), is401);
+});
+
+test("assertCanReferenceAsset: team은 자기 팀 자산만 참조(미배정·타팀 403), admin 무제한", () => {
+  assert.doesNotThrow(() => assertCanReferenceAsset(teamA, 10));
+  assert.throws(() => assertCanReferenceAsset(teamA, 20), is403);
+  assert.throws(() => assertCanReferenceAsset(teamA, null), is403);
+  assert.throws(() => assertCanReferenceAsset(teamNoTeam, null), is403);
+  assert.throws(() => assertCanReferenceAsset(viewer, 10), is403);
+  assert.throws(() => assertCanReferenceAsset(null, 10), is401);
+  assert.doesNotThrow(() => assertCanReferenceAsset(admin, null));
+  assert.doesNotThrow(() => assertCanReferenceAsset(admin, 20));
 });

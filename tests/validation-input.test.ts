@@ -1,7 +1,7 @@
 // tests/validation-input.test.ts — 쓰기 API 입력 검증 헬퍼(P2) + 자산 본문 파서
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { asBody, str, oneOf, int, idOrNull, flag, dateStr, normalizeDate, pathId, ValidationError } from "../src/lib/validation/input.ts";
+import { asBody, str, oneOf, int, idOrNull, flag, dateStr, normalizeDate, pathId, pageParams, ValidationError } from "../src/lib/validation/input.ts";
 import { parseAssetBody } from "../src/lib/validation/asset-input.ts";
 import { validateAssetRow } from "../src/lib/validation/asset-rules.ts";
 
@@ -138,3 +138,19 @@ test("validateAssetRow(임포트): 레거시 날짜는 정규화, 해석 불가�
   assert.ok(iss && iss.raw_value === "미상" && /보증만료일/.test(iss.note), JSON.stringify(bad.issues));
 });
 
+
+test("pageParams: 목록 limit/offset 은 항상 SQLite 정수 범위 (비숫자·소수·음수·거대값 → 500 아님)", () => {
+  const sp = (q: string) => new URLSearchParams(q);
+  const o = { defaultLimit: 50, maxLimit: 200 };
+  assert.deepEqual(pageParams(sp(""), o), { limit: 50, offset: 0 });
+  assert.deepEqual(pageParams(sp("limit=20&offset=40"), o), { limit: 20, offset: 40 });
+  assert.deepEqual(pageParams(sp("limit=abc&offset=xyz"), o), { limit: 50, offset: 0 });
+  assert.deepEqual(pageParams(sp("limit=1.9&offset=2.7"), o), { limit: 1, offset: 2 });
+  assert.deepEqual(pageParams(sp("limit=-5&offset=-5"), o), { limit: 50, offset: 0 });
+  assert.deepEqual(pageParams(sp("limit=0"), o), { limit: 50, offset: 0 });
+  assert.deepEqual(pageParams(sp("limit=99999"), o), { limit: 200, offset: 0 });
+  assert.deepEqual(pageParams(sp("limit=1e400&offset=1e400"), o), { limit: 50, offset: 0 });
+  assert.deepEqual(pageParams(sp("limit=%20&offset=%20"), o), { limit: 50, offset: 0 });
+  const big = pageParams(sp("offset=1e300"), o);
+  assert.ok(Number.isSafeInteger(big.limit) && Number.isSafeInteger(big.offset), "항상 safe integer");
+});

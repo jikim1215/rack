@@ -1,9 +1,9 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { getActor, withApi, readJson, assertReferableAsset } from "@/lib/api-authz";
 import { assertMenuWrite, assertCanWrite, assertCanDelete, scopeWhere, type Actor } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { asBody, idOrNull, pathId, ValidationError } from "@/lib/validation/input";
+import { asBody, idOrNull, pathId } from "@/lib/validation/input";
 import { parseSubAssetBody } from "@/lib/validation/subasset-input";
 import type { SubAssetRow } from "@/lib/db-types";
 
@@ -34,10 +34,7 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
 
   // 부모 장비 유효성 검사 (POST 와 동일 규칙)
   const parentAssetId = idOrNull(b, "parent_asset_id", "부모 장비");
-  if (parentAssetId != null) {
-    const parent = db.prepare("SELECT id FROM assets WHERE id = ?").get(parentAssetId);
-    if (!parent) throw new ValidationError("부모 장비를 찾을 수 없습니다.");
-  }
+  if (parentAssetId != null && parentAssetId !== existing.parent_asset_id) assertReferableAsset(actor, parentAssetId);
 
   // 소유 팀 변경은 admin 만 가능. team 은 자기 팀 소유 유지.
   const nextTeamId = actor.role === "admin" && "team_id" in b ? idOrNull(b, "team_id", "소유 팀") : existing.team_id;

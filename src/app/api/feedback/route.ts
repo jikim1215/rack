@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite } from "@/lib/authz";
 import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES, validateFeedbackInput } from "@/lib/feedback";
-import { ValidationError } from "@/lib/validation/input";
+import { ValidationError, pageParams } from "@/lib/validation/input";
 import type { FeedbackRow, UserRow } from "@/lib/db-types";
 
 // ── 개선의견/불편사항 목록·접수 ──
@@ -26,8 +26,7 @@ export const GET = withApi(async (req: NextRequest) => {
   const mine = sp.get("mine") === "1";
   const q = (sp.get("q") || "").trim();
   const sort = sp.get("sort") === "votes" ? "votes" : "recent";
-  const limit = Math.min(Math.max(Number(sp.get("limit") || 30), 1), 100);
-  const offset = Math.max(Number(sp.get("offset")) || 0, 0);
+  const { limit, offset } = pageParams(sp, { defaultLimit: 30, maxLimit: 100 });
 
   const where: string[] = [];
   const params: unknown[] = [];

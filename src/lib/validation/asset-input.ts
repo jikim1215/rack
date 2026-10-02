@@ -12,7 +12,7 @@ type DateField = "purchase_date" | "warranty_date" | "eos_date";
 const DATE_LABELS: Record<DateField, string> = { purchase_date: "구매일", warranty_date: "보증만료일", eos_date: "EoS" };
 
 /**
- * POST/PUT 공통 본문 정규화 — enum·정수·날짜·길이를 검증하고 컴럼 값으로 만든다.
+ * POST/PUT 공통 본문 정규화 — enum·정수·날짜·길이를 검증하고 컬럼 값으로 만든다.
  * @param existing PUT 시 기존 행. 날짜 필드가 기존 저장값과 동일하면(사용자가 건드리지 않음) 형식 검사 없이 그대로 보존한다 —
  *   정규화되지 않은 레거시 날짜 때문에 다른 필드 편집까지 막히지 않게 (비평 반영).
  */

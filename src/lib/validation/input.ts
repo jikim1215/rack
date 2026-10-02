@@ -131,6 +131,28 @@ export function dateStrKeep(body: Body, key: string, existing: string | null | u
   return dateStr(body, key, opts);
 }
 
+/**
+ * 목록 페이지네이션 쿼리(?limit=&offset=) → SQLite LIMIT/OFFSET 에 바로 넣을 수 있는 정수.
+ * 비숫자·소수·음수·거대값은 기본값/범위로 보정한다(거부하지 않음 — 북마크·수기 URL 관용).
+ * Number("abc") → NaN 이나 1.5 를 그대로 바인딩하면 SQLITE_MISMATCH(500)가 난다.
+ */
+export function pageParams(
+  sp: { get(name: string): string | null },
+  opts: { defaultLimit: number; maxLimit: number },
+): { limit: number; offset: number } {
+  const toInt = (raw: string | null): number | null => {
+    if (raw == null || raw.trim() === "") return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
+  const l = toInt(sp.get("limit"));
+  const o = toInt(sp.get("offset"));
+  return {
+    limit: l == null || l < 1 ? opts.defaultLimit : Math.min(l, opts.maxLimit),
+    offset: o == null || o < 0 ? 0 : Math.min(o, Number.MAX_SAFE_INTEGER),
+  };
+}
+
 /** 경로 파라미터 id. 양의 정수가 아니면 400. */
 export function pathId(raw: string, label = "id"): number {
   const n = Number(raw);

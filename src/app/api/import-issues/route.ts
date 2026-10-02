@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertAdmin } from "@/lib/authz";
-import { asBody, oneOf, int, ValidationError } from "@/lib/validation/input";
+import { asBody, oneOf, int, ValidationError, pageParams } from "@/lib/validation/input";
 import type { ImportIssueRow, CountRow } from "@/lib/db-types";
 
 // ── 정리큐(import_issue) 목록/처리 — 총괄(admin) 전용 ──
@@ -16,8 +16,7 @@ export const GET = withApi(async (req: NextRequest) => {
   const status = req.nextUrl.searchParams.get("status") || "open";
   const issueType = req.nextUrl.searchParams.get("issue_type") || "";
   const batch = req.nextUrl.searchParams.get("batch") || "";
-  const limit = Math.min(Math.max(Number(req.nextUrl.searchParams.get("limit") || 50), 1), 200);
-  const offset = Math.max(Number(req.nextUrl.searchParams.get("offset")) || 0, 0);
+  const { limit, offset } = pageParams(req.nextUrl.searchParams, { defaultLimit: 50, maxLimit: 200 });
 
   const where: string[] = [];
   const params: unknown[] = [];

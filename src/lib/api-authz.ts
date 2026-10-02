@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { actorFromSession, AuthzError, type Actor, type MenuPerm } from "@/lib/authz";
+import { actorFromSession, AuthzError, assertCanUseLocation, assertCanPlaceInRack, assertCanReferenceAsset, type Actor, type MenuPerm } from "@/lib/authz";
 import { ValidationError } from "@/lib/validation/input";
 import { UPLOAD_MAX_BYTES } from "@/lib/validation/upload";
 
@@ -27,6 +27,31 @@ export async function getActor(): Promise<Actor | null> {
   return actorFromSession(session, session.role === "admin" ? {} : loadMenuPerms(session.role));
 }
 
+// ── 참조 대상 인가 (격리 우회 방지) ──
+// 팀이 타팀 전용 위치·랙에 자기 리소스를 두거나 타팀 자산을 부모로 연결하면, 하이브리드 가시성(파생)과
+// 조인 결과로 그 위치·랙·자산이 노출된다. 만들거나 옮길 때만 호출한다(이미 있는 값은 그대로 둠).
+
+/** 위치가 존재하고 이 주체가 그 위치를 쓸 수 있는지(자기 소유 또는 공유). */
+export function assertUsableLocation(actor: Actor | null, locationId: number): void {
+  const loc = getDb().prepare("SELECT team_id FROM locations WHERE id = ?").get(locationId) as { team_id: number | null } | undefined;
+  if (!loc) throw new ValidationError("존재하지 않는 위치입니다.");
+  assertCanUseLocation(actor, loc.team_id ?? null);
+}
+
+/** 랙이 존재하고 이 주체가 그 랙에 놓을 수 있는지(자기 소유 또는 공유). */
+export function assertUsableRack(actor: Actor | null, rackId: number): void {
+  const rack = getDb().prepare("SELECT team_id FROM racks WHERE id = ?").get(rackId) as { team_id: number | null } | undefined;
+  if (!rack) throw new ValidationError("존재하지 않는 랙입니다.");
+  assertCanPlaceInRack(actor, rack.team_id ?? null);
+}
+
+/** 자산이 존재하고 이 주체가 그 자산을 참조(부모 장비 등)할 수 있는지(팀은 자기 팀 자산만). */
+export function assertReferableAsset(actor: Actor | null, assetId: number, label = "부모 장비"): void {
+  const asset = getDb().prepare("SELECT team_id FROM assets WHERE id = ?").get(assetId) as { team_id: number | null } | undefined;
+  if (!asset) throw new ValidationError(`${label}를 찾을 수 없습니다.`);
+  assertCanReferenceAsset(actor, asset.team_id ?? null);
+}
+
 // SQLite 제약 위반 → 사용자 메시지. 검증을 통과했더라도 동시성/FK 등으로 DB가 거부할 수 있다.
 const SQLITE_CONSTRAINT_MESSAGES: Record<string, { status: number; message: string }> = {
   SQLITE_CONSTRAINT_UNIQUE: { status: 409, message: "이미 존재하는 값입니다(중복)." },
@@ -42,7 +67,7 @@ const SQLITE_CONSTRAINT_MESSAGES: Record<string, { status: number; message: stri
  * SQLite 제약(400/409) · 그 외 500(메시지 미노출, 서버 로그만).
  */
 export function apiErrorResponse(e: unknown): NextResponse {
-  // AuthzError 는 401/403 만 그대로 노출. 5xx 인 AuthzError(예: 안전하지 않은 scope 컴럼)는 개발자 오류이므로 일반 500 경로로(메시지 비노출).
+  // AuthzError 는 401/403 만 그대로 노출. 5xx 인 AuthzError(예: 안전하지 않은 scope 컬럼)는 개발자 오류이므로 일반 500 경로로(메시지 비노출).
   if (e instanceof AuthzError && e.status < 500) return NextResponse.json({ error: e.message }, { status: e.status });
   if (e instanceof ValidationError) return NextResponse.json({ error: e.message }, { status: 400 });
   const code = (e as { code?: unknown })?.code;

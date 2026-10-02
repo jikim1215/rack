@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi } from "@/lib/api-authz";
 import { assertMenuAccess } from "@/lib/authz";
-import { pathId } from "@/lib/validation/input";
+import { pathId, pageParams } from "@/lib/validation/input";
 import type { AssetRow, AuditLogRow, CountRow } from "@/lib/db-types";
 
 export const GET = withApi(async (
@@ -25,8 +25,7 @@ export const GET = withApi(async (
   if (!visible) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // 페이지네이션 (외부 검토 R4-1 합의): 오래된 변경 맥락도 '더 보기'로 추적 가능하게
-  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit")) || 20, 100);
-  const offset = Math.max(Number(req.nextUrl.searchParams.get("offset")) || 0, 0);
+  const { limit, offset } = pageParams(req.nextUrl.searchParams, { defaultLimit: 20, maxLimit: 100 });
   const total = (
     db.prepare("SELECT COUNT(*) AS c FROM audit_logs WHERE entity_type = 'asset' AND entity_id = ?").get(id) as CountRow
   ).c;

@@ -1,9 +1,9 @@
 import { getDb } from "@/lib/db";
-import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { getActor, withApi, readJson, assertUsableLocation, assertUsableRack } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, assertCanDelete } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { asBody, str, oneOf, int, idOrNull, pathId, ValidationError } from "@/lib/validation/input";
-import type { DistFrameRow, FramePairRow, LocationRow, TeamRow } from "@/lib/db-types";
+import type { DistFrameRow, FramePairRow, TeamRow } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -59,9 +59,8 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   const rackUnitSize = "rack_unit_size" in b ? (int(b, "rack_unit_size", { min: 1, default: 2, label: "U 크기" }) as number) : existing.rack_unit_size;
   const description = str(b, "description", { max: 2000 });
 
-  if (!(db.prepare("SELECT id FROM locations WHERE id = ?").get(locationId) as LocationRow | undefined)) {
-    throw new ValidationError("존재하지 않는 위치입니다.");
-  }
+  if (locationId !== existing.location_id) assertUsableLocation(actor, locationId);
+  if (rackId != null && rackId !== existing.rack_id) assertUsableRack(actor, rackId);
 
   const newData = {
     location_id: locationId,

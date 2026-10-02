@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertAdmin } from '@/lib/authz';
+import { logAudit } from "@/lib/audit";
 import { validateMailConfig, emailChannelActive } from '@/lib/mail-config';
 
 interface MailRelayConfigRow {
@@ -49,8 +50,10 @@ export const PUT = withApi(async (req: NextRequest) => {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
   const c = parsed.value;
+  const db = getDb();
+  const before = db.prepare('SELECT host, port, security, from_address, from_name, base_url, enabled FROM mail_relay_config WHERE id = 1').get() as Omit<MailRelayConfigRow, 'updated_at'> | undefined;
 
-  getDb().prepare(
+  db.prepare(
     `INSERT INTO mail_relay_config (id, host, port, security, from_address, from_name, base_url, enabled, updated_at)
      VALUES (1, @host, @port, @security, @fromAddress, @fromName, @baseUrl, @enabled, datetime('now','localtime'))
      ON CONFLICT(id) DO UPDATE SET
@@ -65,6 +68,11 @@ export const PUT = withApi(async (req: NextRequest) => {
     fromName: c.fromName,
     baseUrl: c.baseUrl,
     enabled: c.enabled ? 1 : 0,
+  });
+  const after = { host: c.host, port: c.port, security: c.security, from_address: c.fromAddress, from_name: c.fromName, base_url: c.baseUrl, enabled: c.enabled ? 1 : 0 };
+  logAudit(db, {
+    entityType: "setting", entityId: 1, entityName: "메일 릴레이", action: before ? "update" : "create", changedBy: actor.username,
+    oldData: before ?? {}, newData: after,
   });
 
   return NextResponse.json({ ok: true });

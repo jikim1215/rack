@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi, readJson } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, locationScopeWhere } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { asBody, str, int, ValidationError } from "@/lib/validation/input";
 import type { LocationRow } from "@/lib/db-types";
@@ -54,5 +55,9 @@ export const POST = withApi(async (req: NextRequest) => {
     SELECT l.*, t.team_name AS owner_team_name, 0 as rack_count, 0 as asset_count
     FROM locations l LEFT JOIN teams t ON l.team_id = t.id WHERE l.id = ?
   `).get(result.lastInsertRowid) as LocationRow & { owner_team_name: string | null; rack_count: number; asset_count: number };
+  logAudit(db, {
+    entityType: "location", entityId: Number(result.lastInsertRowid), entityName: location_name, action: "create", changedBy: actor.username,
+    newData: { location_name, building, floor, room, sort_order, team_id: ownerTeamId },
+  });
   return NextResponse.json(loc, { status: 201 });
 });

@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
-import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { getActor, withApi, readJson, assertUsableLocation } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, scopeWhere } from "@/lib/authz";
+import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { asBody, str, idOrNull, ValidationError } from "@/lib/validation/input";
 import { isValidIpv4 } from "@/lib/validation/asset-rules";
@@ -43,6 +44,7 @@ export const POST = withApi(async (req: NextRequest) => {
   if (gateway && !isValidIpv4(gateway)) throw new ValidationError("게이트웨이는 IPv4 형식이어야 합니다.");
   const vlan_id = str(b, "vlan_id", { max: 20 });
   const location_id = idOrNull(b, "location_id", "위치");
+  if (location_id != null) assertUsableLocation(actor, location_id);
   const description = str(b, "description");
 
   const db = getDb();
@@ -55,5 +57,6 @@ export const POST = withApi(async (req: NextRequest) => {
   ).run({ subnet_name, network_address, subnet_mask, gateway, vlan_id, location_id, description, team_id: ownerTeamId });
 
   const created = db.prepare("SELECT * FROM ip_subnets WHERE id = ?").get(result.lastInsertRowid) as SubnetRow;
+  logAudit(db, { entityType: "subnet", entityId: created.id, entityName: `${subnet_name} (${network_address})`, action: "create", changedBy: actor.username, newData: created });
   return NextResponse.json(created, { status: 201 });
 });

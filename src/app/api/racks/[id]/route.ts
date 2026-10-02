@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { getActor, withApi, readJson, assertUsableLocation } from "@/lib/api-authz";
 import { assertMenuWrite, assertCanWrite, assertCanDelete, scopeWhere } from "@/lib/authz";
 import { validateRackResize } from "@/lib/rack-validation";
 import { logAudit } from "@/lib/audit";
@@ -44,10 +44,7 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
 
   // 위치 존재 확인
   const locationId = idOrNull(b, "location_id", "위치") ?? existing.location_id;
-  if ("location_id" in b) {
-    const loc = db.prepare("SELECT id FROM locations WHERE id = ?").get(locationId);
-    if (!loc) throw new ValidationError("존재하지 않는 위치입니다.");
-  }
+  if ("location_id" in b && locationId !== existing.location_id) assertUsableLocation(actor, locationId);
 
   const description = "description" in b ? str(b, "description", { max: 500 }) : existing.description;
 

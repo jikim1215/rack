@@ -156,7 +156,7 @@ export function validateAssetRow(raw: Record<string, unknown>): ValidatedRow {
     return Number.isInteger(n) && n >= 1 && n <= 3 ? n : null;
   };
 
-  // 날짜는 normalizeDate 로 'YYYY-MM-DD' 정규화(엑셀 일련번호·점/슬래시 구분·시각 꼬리 허용). 해석 불가 값은 운영 컴럼에 넣지 않고('')
+  // 날짜는 normalizeDate 로 'YYYY-MM-DD' 정규화(엑셀 일련번호·점/슬래시 구분·시각 꼬리 허용). 해석 불가 값은 운영 컬럼에 넣지 않고('')
   // 원본을 date_format 이슈로 보존한다 — 오염된 날짜는 대시보드 EoS/보증 문자열 비교를 깨고 수정 검증(400)을 불러 편집을 막는다 (비평 반영).
   const date = (key: "purchase_date" | "warranty_date" | "eos_date", label: string): string => {
     const rawV = s(raw[key]);

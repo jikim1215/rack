@@ -1,6 +1,8 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
+import { AUDIT_ENTITY_TYPES } from "@/lib/db-types";
 import { getActor, withApi } from "@/lib/api-authz";
+import { pageParams } from "@/lib/validation/input";
 import { assertAdmin } from "@/lib/authz";
 import type { AuditLogRow, CountRow } from "@/lib/db-types";
 
@@ -12,11 +14,9 @@ export const GET = withApi(async (req: NextRequest) => {
   const entityType = req.nextUrl.searchParams.get("entity_type");
   const entityId = req.nextUrl.searchParams.get("entity_id");
   // 1년 보존 규모(수만 행) 대비: 서버측 페이지네이션 — 한 화면 최대 200, 기본 50
-  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit")) || 50, 200);
-  const offset = Math.max(Number(req.nextUrl.searchParams.get("offset")) || 0, 0);
+  const { limit, offset } = pageParams(req.nextUrl.searchParams, { defaultLimit: 50, maxLimit: 200 });
 
-  // db-types AuditEntityType 과 동일 (관리자 행위 user/team/permission/feedback 포함, P4)
-  const VALID_ENTITY_TYPES = ["asset", "rack", "location", "frame", "contract", "movement", "maintenance", "inventory_audit", "sub_asset", "user", "team", "permission", "feedback"];
+  const VALID_ENTITY_TYPES: readonly string[] = AUDIT_ENTITY_TYPES;
 
   const conditions: string[] = [];
   const params: unknown[] = [];

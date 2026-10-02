@@ -1,9 +1,9 @@
 import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { getActor, withApi, readJson, assertReferableAsset } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, scopeWhere } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
-import { asBody, idOrNull, ValidationError } from "@/lib/validation/input";
+import { asBody, idOrNull } from "@/lib/validation/input";
 import { parseSubAssetBody } from "@/lib/validation/subasset-input";
 import type { SubAssetRow } from "@/lib/db-types";
 
@@ -39,10 +39,7 @@ export const POST = withApi(async (req: NextRequest) => {
 
   // 부모 장비 유효성 검사 — 존재하지 않는 assets.id 연결 금지 (FK SET NULL 이지만 입력 시점에 차단).
   const parentAssetId = idOrNull(b, "parent_asset_id", "부모 장비");
-  if (parentAssetId != null) {
-    const parent = db.prepare("SELECT id FROM assets WHERE id = ?").get(parentAssetId);
-    if (!parent) throw new ValidationError("부모 장비를 찾을 수 없습니다.");
-  }
+  if (parentAssetId != null) assertReferableAsset(actor, parentAssetId);
 
   const result = db.prepare(`
     INSERT INTO sub_assets (asset_code, category_major, category_mid, category_minor, sub_name,

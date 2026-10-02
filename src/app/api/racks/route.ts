@@ -1,10 +1,10 @@
 import { getDb } from "@/lib/db";
-import { getActor, withApi, readJson } from "@/lib/api-authz";
+import { getActor, withApi, readJson, assertUsableLocation } from "@/lib/api-authz";
 import { assertMenuAccess, assertMenuWrite, assertCanWrite, scopeWhere, rackScopeWhere } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { asBody, str, int, idOrNull, ValidationError } from "@/lib/validation/input";
 import { NextRequest, NextResponse } from "next/server";
-import type { RackRow, LocationRow } from "@/lib/db-types";
+import type { RackRow } from "@/lib/db-types";
 
 export const GET = withApi(async (_req: NextRequest) => {
   const actor = await getActor();
@@ -47,8 +47,7 @@ export const POST = withApi(async (req: NextRequest) => {
   const description = str(b, "description", { max: 500 });
   const locId = int(b, "location_id", { required: true, min: 1, label: "위치" });
 
-  const loc = db.prepare("SELECT id FROM locations WHERE id = ?").get(locId) as Pick<LocationRow, "id"> | undefined;
-  if (!loc) throw new ValidationError("존재하지 않는 위치입니다.");
+  assertUsableLocation(actor, locId as number);
 
   if (ownerTeamId != null && !db.prepare("SELECT id FROM teams WHERE id = ?").get(ownerTeamId)) {
     throw new ValidationError("존재하지 않는 팀입니다.");

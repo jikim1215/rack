@@ -156,6 +156,28 @@ async function main() {
   assert(teamLog && teamLog.action === "create" && teamLog.entity_name === "E2E-감사팀", "팀 생성 감사로그", JSON.stringify(teamLog));
   if (teamId) await fetch(`${BASE}/api/teams/${teamId}`, { method: "DELETE", headers: admin });
 
+  // ── 업무 기준정보 변경 감사로그 (위치·계약·IP 대역·업체 — 예전엔 기록 누락) ──
+  const auditOf = async (type, id) => {
+    const x = await j(await fetch(`${BASE}/api/audit?entity_type=${type}&limit=50`, { headers: admin }));
+    return (x.body?.logs ?? x.body?.rows ?? []).filter((l) => l.entity_id === id).map((l) => l.action);
+  };
+  const crud = [
+    ["location", "/api/locations", { location_name: "E2E-감사위치" }, { location_name: "E2E-감사위치2" }],
+    ["contract", "/api/contracts", { contract_name: "E2E-감사계약", start_date: "2026-01-01", end_date: "2026-12-31" }, { contract_name: "E2E-감사계약2", start_date: "2026-01-01", end_date: "2026-12-31" }],
+    ["subnet", "/api/subnets", { subnet_name: "E2E-감사대역", network_address: "10.251.0.0" }, { subnet_name: "E2E-감사대역2", network_address: "10.251.0.0" }],
+    ["vendor", "/api/vendors", { vendor_name: "E2E-감사업체" }, { vendor_name: "E2E-감사업체2" }],
+  ];
+  for (const [type, path, createBody, updateBody] of crud) {
+    const c = await j(await fetch(`${BASE}${path}`, { method: "POST", headers: admin, body: JSON.stringify(createBody) }));
+    const id = c.body?.id;
+    const u = id ? await j(await fetch(`${BASE}${path}/${id}`, { method: "PUT", headers: admin, body: JSON.stringify(updateBody) })) : { status: 0 };
+    const d = id ? await j(await fetch(`${BASE}${path}/${id}`, { method: "DELETE", headers: admin })) : { status: 0 };
+    const actions = id ? await auditOf(type, id) : [];
+    const expectDelete = type === "vendor" ? "update" : "delete"; // 업체 삭제는 비활성화(소프트) → is_active 변경
+    assert(c.status === 201 && u.status === 200 && d.status === 200 && actions.includes("create") && actions.filter((x) => x === "update").length >= 1 && actions.includes(expectDelete),
+      `${type} 생성·수정·삭제가 감사로그에 기록`, `${c.status}/${u.status}/${d.status} ${JSON.stringify(actions)}`);
+  }
+
   // ── P4: CSP nonce + 세션 TTL ──
   const home = await fetch(`${BASE}/`, { headers: { Cookie: admin.Cookie } });
   const csp = home.headers.get("content-security-policy") || "";
