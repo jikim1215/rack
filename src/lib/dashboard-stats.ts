@@ -5,6 +5,7 @@ import type { ScopeClause, Actor } from "./authz.ts";
 import { scopeWhere, rackScopeWhere, locationScopeWhere } from "./authz.ts";
 import type { CountRow, MovementRow, MaintenanceLogRow, ContractRow, AssetStatus } from "./db-types";
 import { freshnessCaseSql } from "./freshness.ts";
+import { findRackConflicts } from "./rack-overlap.ts";
 
 export interface DupGroup {
   asset_name: string;
@@ -299,25 +300,22 @@ export function computeCleanupStats(
   //  1) U 구간 겹침: a.start <= b.end AND b.start <= a.end (end = start + size - 1)
   //  2) 반폭(side) 규칙: a.rack_side IS NULL OR b.rack_side IS NULL OR a.rack_side = b.rack_side
   //     → 전폭(null)은 모두와 충돌, 반폭(L/R)끼리는 같은 방향만 충돌.
-  // scope: 쌍의 어느 한쪽이라도 actor 범위 내 자산이면 노출(EXISTS 서브쿼리 — scope.sql의
-  // 비별칭 team_id가 서브쿼리 s에 바인딩된다). a.id < b.id로 쌍 중복 제거.
-  const conflictRows = db.prepare(`
-    SELECT r.rack_name,
-      MAX(a.rack_unit_start, b.rack_unit_start) AS ov_start,
-      MIN(a.rack_unit_start + COALESCE(a.rack_unit_size, 1) - 1,
-          b.rack_unit_start + COALESCE(b.rack_unit_size, 1) - 1) AS ov_end,
-      a.asset_name AS a_name, b.asset_name AS b_name
-    FROM assets a
-    JOIN assets b ON b.rack_id = a.rack_id AND a.id < b.id
-    JOIN racks r ON r.id = a.rack_id
-    WHERE a.rack_unit_start IS NOT NULL AND b.rack_unit_start IS NOT NULL
-      AND a.rack_unit_start <= b.rack_unit_start + COALESCE(b.rack_unit_size, 1) - 1
-      AND b.rack_unit_start <= a.rack_unit_start + COALESCE(a.rack_unit_size, 1) - 1
-      AND (a.rack_side IS NULL OR b.rack_side IS NULL OR a.rack_side = b.rack_side)
-      AND EXISTS (SELECT 1 FROM assets s WHERE s.id IN (a.id, b.id) AND ${scope.sql})
-    ORDER BY r.rack_name, ov_start
-    LIMIT 20
-  `).all(...scope.params) as { rack_name: string; ov_start: number; ov_end: number; a_name: string; b_name: string }[];
+  // scope: 쌍의 어느 한쪽이라도 actor 범위 내 자산이면 노출. 판정·정렬은 rack-overlap.ts findRackConflicts().
+  // 범위 자산이 하나라도 있는 랙의 배치를 모두 읽고(상대편이 범위 밖이어도 충돌은 보여야 한다) 랙별 스윕으로 쌍을 찾는다.
+  const placements = db.prepare(`
+    SELECT a.id, a.asset_name, a.rack_id, r.rack_name, a.rack_unit_start, COALESCE(a.rack_unit_size, 1) AS rack_unit_size,
+           a.rack_side, CASE WHEN ${scopeA.sql} THEN 1 ELSE 0 END AS in_scope
+    FROM assets a JOIN racks r ON r.id = a.rack_id
+    WHERE a.rack_unit_start IS NOT NULL
+      AND a.rack_id IN (SELECT s.rack_id FROM assets s WHERE s.rack_id IS NOT NULL AND s.rack_unit_start IS NOT NULL AND ${scope.sql})
+  `).all(...scopeA.params, ...scope.params) as {
+    id: number; asset_name: string; rack_id: number; rack_name: string;
+    rack_unit_start: number; rack_unit_size: number; rack_side: "L" | "R" | null; in_scope: number;
+  }[];
+  const conflictRows = findRackConflicts(placements.map((p) => ({
+    rackId: p.rack_id, rackName: p.rack_name, id: p.id, name: p.asset_name,
+    start: p.rack_unit_start, size: p.rack_unit_size, side: p.rack_side, inScope: p.in_scope === 1,
+  })), 20);
 
   // 범위초과: 배치 끝(start + size - 1)이 랙 용량(total_units)을 넘는 자산.
   const overflowRows = db.prepare(`
@@ -336,10 +334,10 @@ export function computeCleanupStats(
   const fmtRange = (s: number, e: number) => (s === e ? `${s}U` : `${s}~${e}U`);
   const rackConflicts = {
     conflicts: conflictRows.map((c) => ({
-      rack_name: c.rack_name,
-      unit_range: fmtRange(c.ov_start, c.ov_end),
-      a_name: c.a_name,
-      b_name: c.b_name,
+      rack_name: c.rackName,
+      unit_range: fmtRange(c.ovStart, c.ovEnd),
+      a_name: c.aName,
+      b_name: c.bName,
     })),
     overflows: overflowRows.map((o) => ({
       rack_name: o.rack_name,

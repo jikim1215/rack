@@ -1,6 +1,6 @@
 // ── 확장성 벤치마크: 자산 1만 건 시나리오 ──
 // 운영 DB 를 스크래치로 복사해 자산을 N건까지 증식시킨 뒤, 앱이 실제로 쓰는 쿼리를 측정한다.
-// 원본 DB 는 열지 않는다(복사본만 수정). 사용: node scripts/bench-scale.mjs [목표건수] [원본DB]
+// 원본 DB 는 열지 않는다(복사본만 수정). 사용: node scripts/bench-scale.mjs [목표건수] [원본DB]  (BENCH_KEEP=out.db 로 증식 DB 보존)
 import Database from "better-sqlite3";
 import { copyFileSync, rmSync, statSync, existsSync } from "fs";
 
@@ -123,4 +123,10 @@ console.log("─".repeat(92));
 console.log(`전량 응답 JSON: ${(Buffer.byteLength(json) / 1048576).toFixed(1)}MB (${rows.length}행)`);
 
 db.close();
+// BENCH_KEEP=경로 면 증식한 DB 를 남긴다 — 이 DB 로 서버를 띄워 화면(SSR)·API 응답 크기와 시간을 잴 때 쓴다.
+if (process.env.BENCH_KEEP) {
+  const d = new Database(WORK); d.pragma("wal_checkpoint(TRUNCATE)"); d.close();
+  copyFileSync(WORK, process.env.BENCH_KEEP);
+  console.log(`증식 DB 보존: ${process.env.BENCH_KEEP}`);
+}
 for (const s of ["", "-wal", "-shm"]) rmSync(WORK + s, { force: true });
