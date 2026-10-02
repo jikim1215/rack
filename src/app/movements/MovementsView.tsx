@@ -325,7 +325,7 @@ export default function MovementsView({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               유형
             </label>
-            <select
+            <select aria-label="유형"
               className="form-input"
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
@@ -339,7 +339,7 @@ export default function MovementsView({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               상태
             </label>
-            <select
+            <select aria-label="상태"
               className="form-input"
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
@@ -355,7 +355,7 @@ export default function MovementsView({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               시작일
             </label>
-            <input
+            <input aria-label="시작일"
               type="date"
               className="form-input"
               value={filterFrom}
@@ -366,7 +366,7 @@ export default function MovementsView({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               종료일
             </label>
-            <input
+            <input aria-label="종료일"
               type="date"
               className="form-input"
               value={filterTo}
@@ -405,7 +405,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 유형 *
               </label>
-              <select
+              <select aria-label="유형"
                 className="form-input"
                 value={formType}
                 onChange={(e) => setFormType(e.target.value)}
@@ -420,7 +420,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 자산 선택
               </label>
-              <select
+              <select aria-label="자산 선택"
                 className="form-input"
                 value={formAssetId}
                 onChange={(e) => handleAssetChange(e.target.value)}
@@ -440,7 +440,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 품목/장비명{isManualEntry ? " *" : ""}
               </label>
-              <input
+              <input aria-label="품목/장비명"
                 type="text"
                 className="form-input"
                 value={formEquipDesc}
@@ -453,7 +453,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 품목(SN)
               </label>
-              <input
+              <input aria-label="품목(SN)"
                 type="text"
                 className="form-input"
                 value={formSerial}
@@ -466,14 +466,14 @@ export default function MovementsView({
                 모델(크기 U)
               </label>
               <div className="flex gap-2">
-                <input
+                <input aria-label="모델명"
                   type="text"
                   className="form-input flex-1"
                   value={formModel}
                   onChange={(e) => setFormModel(e.target.value)}
                   placeholder="모델명"
                 />
-                <input
+                <input aria-label="크기(U)"
                   type="text"
                   className="form-input w-20"
                   value={formSizeU}
@@ -487,14 +487,14 @@ export default function MovementsView({
                 제조사(랙상면 위치)
               </label>
               <div className="flex gap-2">
-                <input
+                <input aria-label="제조사"
                   type="text"
                   className="form-input flex-1"
                   value={formManufacturer}
                   onChange={(e) => setFormManufacturer(e.target.value)}
                   placeholder="제조사"
                 />
-                <input
+                <input aria-label="랙상면 위치"
                   type="text"
                   className="form-input w-28"
                   value={formRackPos}
@@ -507,7 +507,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 소비전력
               </label>
-              <input
+              <input aria-label="소비전력"
                 type="text"
                 className="form-input"
                 value={formPowerWatts}
@@ -519,7 +519,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 전원 이중화 여부
               </label>
-              <select
+              <select aria-label="전원 이중화 여부"
                 className="form-input"
                 value={formPowerRedundant}
                 onChange={(e) => setFormPowerRedundant(e.target.value)}
@@ -534,7 +534,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 일자 *
               </label>
-              <input
+              <input aria-label="일자"
                 type="date"
                 className="form-input"
                 value={formDate}
@@ -547,7 +547,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 신청자
               </label>
-              <input
+              <input aria-label="신청자"
                 type="text"
                 className="form-input"
                 value={formRequester}
@@ -559,7 +559,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 부서
               </label>
-              <input
+              <input aria-label="부서"
                 type="text"
                 className="form-input"
                 value={formDept}
@@ -571,7 +571,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 사유
               </label>
-              <input
+              <input aria-label="사유"
                 type="text"
                 className="form-input"
                 value={formPurpose}
@@ -584,7 +584,7 @@ export default function MovementsView({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 비고
               </label>
-              <textarea
+              <textarea aria-label="비고"
                 className="form-input"
                 rows={2}
                 value={formNotes}

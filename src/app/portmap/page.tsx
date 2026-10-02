@@ -4,6 +4,7 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { PortMapView } from "./PortMapView";
 import { scopeWhere } from "@/lib/authz";
 import type { AssetRow, PortRow } from "@/lib/db-types";
+export const metadata = { title: "포트맵" };
 
 export default async function PortMapPage() {
   const db = getDb();

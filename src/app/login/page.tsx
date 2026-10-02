@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 import { Suspense } from "react";
 import { LoginForm } from "./LoginForm";
+export const metadata = { title: "로그인" };
 
 export default function LoginPage() {
   return (
@@ -21,7 +22,7 @@ export default function LoginPage() {
             </Suspense>
           </div>
         </div>
-        <p className="text-center eyebrow mt-4 text-slate-500" style={{ textTransform: "none" }}>접속 계정이 필요하면 <span className="text-slate-400 font-medium">운영팀</span>에 문의하세요.</p>
+        <p className="text-center eyebrow normal-case mt-4 text-slate-400">접속 계정이 필요하면 <span className="text-slate-200 font-medium">운영팀</span>에 문의하세요.</p>
       </div>
     </div>
   );

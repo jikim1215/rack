@@ -5,6 +5,8 @@ import { scopeWhere, locationScopeWhere } from "@/lib/authz";
 import { IpamView } from "./IpamView";
 import { splitAccessIps } from "@/lib/access-ip";
 import type { SubnetRow, LocationRow, TeamRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("ipam");
 
 export default async function IpamPage() {
   const db = getDb();

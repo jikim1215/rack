@@ -96,7 +96,7 @@ export function PermissionsTab({ active }: Props) {
 
       <div className="mb-4">
         <label className="block text-sm font-medium text-ink-2 mb-1">역할 선택</label>
-        <select
+        <select aria-label="역할 선택"
           value={selectedRole}
           onChange={(e) => setSelectedRole(e.target.value)}
           className="form-input w-48"

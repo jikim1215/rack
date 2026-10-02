@@ -24,7 +24,7 @@ export function TargetForm({ form, editing, onPatch, assets, onSubmit, onCancel 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div>
           <label className="block eyebrow mb-1">연결 자산(선택)</label>
-          <select className="form-input w-full px-2 py-1.5 text-sm" value={form.asset_id} onChange={(e) => onPatch({ asset_id: e.target.value })}>
+          <select aria-label="연결 자산(선택)" className="form-input w-full px-2 py-1.5 text-sm" value={form.asset_id} onChange={(e) => onPatch({ asset_id: e.target.value })}>
             <option value="">없음(수기 입력)</option>
             {assets.map((a) => (
               <option key={a.id} value={a.id}>{a.asset_name}</option>
@@ -33,63 +33,63 @@ export function TargetForm({ form, editing, onPatch, assets, onSubmit, onCancel 
         </div>
         <div>
           <label className="block eyebrow mb-1">정보시스템명</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.system_name} onChange={(e) => onPatch({ system_name: e.target.value })} />
+          <input aria-label="정보시스템명" className="form-input w-full px-2 py-1.5 text-sm" value={form.system_name} onChange={(e) => onPatch({ system_name: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">구분</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" placeholder="서버/네트워크/저장장치" value={form.category} onChange={(e) => onPatch({ category: e.target.value })} />
+          <input aria-label="구분" className="form-input w-full px-2 py-1.5 text-sm" placeholder="서버/네트워크/저장장치" value={form.category} onChange={(e) => onPatch({ category: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">유형</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.asset_type_label} onChange={(e) => onPatch({ asset_type_label: e.target.value })} />
+          <input aria-label="유형" className="form-input w-full px-2 py-1.5 text-sm" value={form.asset_type_label} onChange={(e) => onPatch({ asset_type_label: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">정보자원명</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.resource_name} onChange={(e) => onPatch({ resource_name: e.target.value })} />
+          <input aria-label="정보자원명" className="form-input w-full px-2 py-1.5 text-sm" value={form.resource_name} onChange={(e) => onPatch({ resource_name: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">수량</label>
-          <input type="number" min={1} className="form-input w-full px-2 py-1.5 text-sm" value={form.quantity} onChange={(e) => onPatch({ quantity: e.target.value })} />
+          <input aria-label="수량" type="number" min={1} className="form-input w-full px-2 py-1.5 text-sm" value={form.quantity} onChange={(e) => onPatch({ quantity: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">제조사</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.manufacturer} onChange={(e) => onPatch({ manufacturer: e.target.value })} />
+          <input aria-label="제조사" className="form-input w-full px-2 py-1.5 text-sm" value={form.manufacturer} onChange={(e) => onPatch({ manufacturer: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">호스트명</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.host_name} onChange={(e) => onPatch({ host_name: e.target.value })} />
+          <input aria-label="호스트명" className="form-input w-full px-2 py-1.5 text-sm" value={form.host_name} onChange={(e) => onPatch({ host_name: e.target.value })} />
         </div>
         <div className="col-span-2">
           <label className="block eyebrow mb-1">용도</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.purpose} onChange={(e) => onPatch({ purpose: e.target.value })} />
+          <input aria-label="용도" className="form-input w-full px-2 py-1.5 text-sm" value={form.purpose} onChange={(e) => onPatch({ purpose: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">위치</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" placeholder="지역/건물/층" value={form.location_text} onChange={(e) => onPatch({ location_text: e.target.value })} />
+          <input aria-label="위치" className="form-input w-full px-2 py-1.5 text-sm" placeholder="지역/건물/층" value={form.location_text} onChange={(e) => onPatch({ location_text: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">랙위치</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.rack_position} onChange={(e) => onPatch({ rack_position: e.target.value })} />
+          <input aria-label="랙위치" className="form-input w-full px-2 py-1.5 text-sm" value={form.rack_position} onChange={(e) => onPatch({ rack_position: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">자산코드</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.asset_code} onChange={(e) => onPatch({ asset_code: e.target.value })} />
+          <input aria-label="자산코드" className="form-input w-full px-2 py-1.5 text-sm" value={form.asset_code} onChange={(e) => onPatch({ asset_code: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">자산사용부서</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.owner_department} onChange={(e) => onPatch({ owner_department: e.target.value })} />
+          <input aria-label="자산사용부서" className="form-input w-full px-2 py-1.5 text-sm" value={form.owner_department} onChange={(e) => onPatch({ owner_department: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">자산사용자</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.owner_user} onChange={(e) => onPatch({ owner_user: e.target.value })} />
+          <input aria-label="자산사용자" className="form-input w-full px-2 py-1.5 text-sm" value={form.owner_user} onChange={(e) => onPatch({ owner_user: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">취득일자</label>
-          <input type="date" className="form-input w-full px-2 py-1.5 text-sm" value={form.acquisition_date} onChange={(e) => onPatch({ acquisition_date: e.target.value })} />
+          <input aria-label="취득일자" type="date" className="form-input w-full px-2 py-1.5 text-sm" value={form.acquisition_date} onChange={(e) => onPatch({ acquisition_date: e.target.value })} />
         </div>
         <div>
           <label className="block eyebrow mb-1">도입금액</label>
-          <input className="form-input w-full px-2 py-1.5 text-sm" value={form.acquisition_amount} onChange={(e) => onPatch({ acquisition_amount: e.target.value })} />
+          <input aria-label="도입금액" className="form-input w-full px-2 py-1.5 text-sm" value={form.acquisition_amount} onChange={(e) => onPatch({ acquisition_amount: e.target.value })} />
         </div>
       </div>
 
@@ -98,70 +98,70 @@ export function TargetForm({ form, editing, onPatch, assets, onSubmit, onCancel 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <label className="block eyebrow mb-1">유지보수 시작</label>
-            <input type="date" className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_start} onChange={(e) => onPatch({ maintenance_start: e.target.value })} />
+            <input aria-label="유지보수 시작" type="date" className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_start} onChange={(e) => onPatch({ maintenance_start: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">유지보수 종료</label>
-            <input type="date" className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_end} onChange={(e) => onPatch({ maintenance_end: e.target.value })} />
+            <input aria-label="유지보수 종료" type="date" className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_end} onChange={(e) => onPatch({ maintenance_end: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">기간(개월)</label>
-            <input type="number" min={0} className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_months} onChange={(e) => onPatch({ maintenance_months: e.target.value })} />
+            <input aria-label="기간(개월)" type="number" min={0} className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_months} onChange={(e) => onPatch({ maintenance_months: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">업무영향범위</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.business_impact} onChange={(e) => onPatch({ business_impact: e.target.value })} />
+            <input aria-label="업무영향범위" className="form-input w-full px-2 py-1.5 text-sm" value={form.business_impact} onChange={(e) => onPatch({ business_impact: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">데이터중요도</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.data_importance} onChange={(e) => onPatch({ data_importance: e.target.value })} />
+            <input aria-label="데이터중요도" className="form-input w-full px-2 py-1.5 text-sm" value={form.data_importance} onChange={(e) => onPatch({ data_importance: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">이용자수/처리건수</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.user_traffic} onChange={(e) => onPatch({ user_traffic: e.target.value })} />
+            <input aria-label="이용자수/처리건수" className="form-input w-full px-2 py-1.5 text-sm" value={form.user_traffic} onChange={(e) => onPatch({ user_traffic: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">H/W</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.hardware_score} onChange={(e) => onPatch({ hardware_score: e.target.value })} />
+            <input aria-label="H/W" className="form-input w-full px-2 py-1.5 text-sm" value={form.hardware_score} onChange={(e) => onPatch({ hardware_score: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">유지보수난이도</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_difficulty} onChange={(e) => onPatch({ maintenance_difficulty: e.target.value })} />
+            <input aria-label="유지보수난이도" className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_difficulty} onChange={(e) => onPatch({ maintenance_difficulty: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">유지보수항목</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_scope} onChange={(e) => onPatch({ maintenance_scope: e.target.value })} />
+            <input aria-label="유지보수항목" className="form-input w-full px-2 py-1.5 text-sm" value={form.maintenance_scope} onChange={(e) => onPatch({ maintenance_scope: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">측정점수</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.score_total} onChange={(e) => onPatch({ score_total: e.target.value })} />
+            <input aria-label="측정점수" className="form-input w-full px-2 py-1.5 text-sm" value={form.score_total} onChange={(e) => onPatch({ score_total: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">유지관리등급</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.grade} onChange={(e) => onPatch({ grade: e.target.value })} />
+            <input aria-label="유지관리등급" className="form-input w-full px-2 py-1.5 text-sm" value={form.grade} onChange={(e) => onPatch({ grade: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">유지관리요율</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.rate} onChange={(e) => onPatch({ rate: e.target.value })} />
+            <input aria-label="유지관리요율" className="form-input w-full px-2 py-1.5 text-sm" value={form.rate} onChange={(e) => onPatch({ rate: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">추정금액(계산)</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.estimated_amount_calc} onChange={(e) => onPatch({ estimated_amount_calc: e.target.value })} />
+            <input aria-label="추정금액(계산)" className="form-input w-full px-2 py-1.5 text-sm" value={form.estimated_amount_calc} onChange={(e) => onPatch({ estimated_amount_calc: e.target.value })} />
           </div>
           <div>
             <label className="block eyebrow mb-1">추정금액(입력)</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.estimated_amount_input} onChange={(e) => onPatch({ estimated_amount_input: e.target.value })} />
+            <input aria-label="추정금액(입력)" className="form-input w-full px-2 py-1.5 text-sm" value={form.estimated_amount_input} onChange={(e) => onPatch({ estimated_amount_input: e.target.value })} />
           </div>
           <div className="col-span-2">
             <label className="block eyebrow mb-1">근거자료</label>
-            <input className="form-input w-full px-2 py-1.5 text-sm" value={form.evidence_note} onChange={(e) => onPatch({ evidence_note: e.target.value })} />
+            <input aria-label="근거자료" className="form-input w-full px-2 py-1.5 text-sm" value={form.evidence_note} onChange={(e) => onPatch({ evidence_note: e.target.value })} />
           </div>
         </div>
       </div>
 
       <div>
         <label className="block eyebrow mb-1">비고</label>
-        <input className="form-input w-full px-2 py-1.5 text-sm" value={form.notes} onChange={(e) => onPatch({ notes: e.target.value })} />
+        <input aria-label="비고" className="form-input w-full px-2 py-1.5 text-sm" value={form.notes} onChange={(e) => onPatch({ notes: e.target.value })} />
       </div>
 
       <div className="flex justify-end gap-2">

@@ -105,7 +105,7 @@ export function RackCanvas({
                     전용 · {rack.owner_team_name}
                   </span>
                 ) : (
-                  <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">공유</span>
+                  <span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-ink-3">공유</span>
                 )}
               </p>
               <p className="text-xs text-ink-2 mt-1">
@@ -131,12 +131,12 @@ export function RackCanvas({
                   </div>
                 )}
                 {overflowing.length > 0 && (
-                  <div className="text-xs text-warning bg-orange-50/10 rounded px-2 py-1">
+                  <div className="text-xs text-warn bg-amber-50 rounded px-2 py-1">
                     <span className="led led-warn" />
                     <strong>경고</strong> · 범위 초과 <span className="num">{overflowing.length}</span>건
                     <a
                       href={`/assets?rack_id=${rack.id}`}
-                      className="block text-warning/70 hover:text-warning mt-0.5 underline"
+                      className="block text-warn hover:text-ink mt-0.5 underline"
                     >
                       → 자산관리에서 유닛 위치 확인
                     </a>
@@ -236,7 +236,7 @@ export function RackCanvas({
                       >
                         {unit === blockAnchorUnit(a, rack.total_units) && (
                           <span className="text-[10px] text-white font-medium truncate px-1">
-                            <span className="text-white/50 mr-0.5">{typeAbbr[a.asset_type] || "?"}</span>
+                            <span className="text-white font-normal mr-0.5">{typeAbbr[a.asset_type] || "?"}</span>
                             {a.asset_name}
                           </span>
                         )}
@@ -251,7 +251,7 @@ export function RackCanvas({
                       style={{ height: 24, marginBottom: 1, ...pvStyle }}
                       {...dndProps}
                     >
-                      <span className="num text-[10px] text-slate-500 w-7 text-center shrink-0 self-center">
+                      <span className="num text-[10px] text-slate-400 w-7 text-center shrink-0 self-center">
                         {unit}U
                       </span>
                       {renderHalf(leftA)}
@@ -295,11 +295,11 @@ export function RackCanvas({
                       }}
                       onMouseLeave={() => setHoveredAsset(null)}
                     >
-                      <span className="num text-[10px] text-white/60 w-7 text-center shrink-0">
+                      <span className="num text-[10px] text-white w-7 text-center shrink-0">
                         {startU}U
                       </span>
                       <span className="text-xs text-white font-medium truncate px-1">
-                        <span className="text-white/50 mr-0.5">{typeAbbr[asset.asset_type] || "?"}</span>
+                        <span className="text-white font-normal mr-0.5">{typeAbbr[asset.asset_type] || "?"}</span>
                         {asset.asset_name}
                       </span>
                       {/* FDF 어포던스 (외부 검토 R2-4 합의): 배선반 연결 장비는 선번장 진입 가능함을 블록에서 바로 보이게 */}
@@ -308,7 +308,7 @@ export function RackCanvas({
                           선번장
                         </span>
                       )}
-                      <span className="num text-[10px] text-white/60 ml-auto pr-1 shrink-0">
+                      <span className="num text-[10px] text-white ml-auto pr-1 shrink-0">
                         {asset.rack_unit_size}U
                       </span>
                     </div>
@@ -327,7 +327,7 @@ export function RackCanvas({
                     }}
                     {...dndProps}
                   >
-                    <span className="num text-[10px] text-slate-500 w-7 text-center">{unit}U</span>
+                    <span className="num text-[10px] text-slate-400 w-7 text-center">{unit}U</span>
                   </div>
                 );
               })}
@@ -345,7 +345,7 @@ export function RackCanvas({
           style={{ left: tooltipPos.x, top: tooltipPos.y }}
         >
           <div className="font-bold mb-1">{hoveredAsset.asset_name}</div>
-          <div className="space-y-0.5 text-white/70">
+          <div className="space-y-0.5 text-white/85">
             <div>유형: {typeLabels[hoveredAsset.asset_type] || hoveredAsset.asset_type}</div>
             <div>
               제조사: {hoveredAsset.manufacturer} {hoveredAsset.model}
@@ -366,7 +366,7 @@ export function RackCanvas({
           </div>
           {/* 숨은 상호작용 상시 노출 (외부 검토 R2-2 합의): 우클릭 발견성 */}
           {canWrite && (
-            <div className="mt-1.5 pt-1.5 border-t border-white/20 text-white/60">
+            <div className="mt-1.5 pt-1.5 border-t border-white/20 text-white/85">
               드래그: 이동 · 우클릭: 실장 해제{frameOfAsset(hoveredAsset, distFrames) ? " / 선번장 열기" : ""}
             </div>
           )}

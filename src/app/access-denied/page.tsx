@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { ShieldOff } from "lucide-react";
 import { menuByKey } from "@/lib/menus";
+export const metadata = { title: "접근 권한 없음" };
 
 // 메뉴 접근 권한이 없는 사용자가 URL 로 직접 진입했을 때 (requireMenuPage 가 리다이렉트).
 export default async function AccessDeniedPage({ searchParams }: { searchParams: Promise<{ menu?: string }> }) {

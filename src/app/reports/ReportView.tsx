@@ -68,6 +68,7 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
         {/* 1. 유형 × 상태 */}
         <section>
           <h3 className="font-semibold mb-2 text-ink">1. 자산 유형 × 상태</h3>
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="border-collapse w-full max-w-2xl">
             <thead><tr>
               <th className={th}>유형</th>
@@ -89,11 +90,13 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
               </tr>
             </tbody>
           </table>
+          </div>
         </section>
 
         {/* 2. 팀별 */}
         <section>
           <h3 className="font-semibold mb-2 text-ink">2. 관리부서(팀)별 현황</h3>
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="border-collapse w-full max-w-2xl">
             <thead><tr>
               <th className={th}>팀</th><th className={th}>장비</th><th className={th}>랙 실장</th><th className={th}>IP 보유</th><th className={th}>부속자산</th>
@@ -110,11 +113,13 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
               ))}
             </tbody>
           </table>
+          </div>
         </section>
 
         {/* 3. 위치·랙 */}
         <section>
           <h3 className="font-semibold mb-2 text-ink">3. 위치별 랙 사용률</h3>
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="border-collapse w-full max-w-2xl">
             <thead><tr>
               <th className={th}>위치</th><th className={th}>랙 수</th><th className={th}>총 용량(U)</th><th className={th}>사용(U)</th><th className={th}>사용률</th>
@@ -131,12 +136,14 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
               ))}
             </tbody>
           </table>
+          </div>
         </section>
 
         {/* 4+5. 등급/연도 — 나란히 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
           <section>
             <h3 className="font-semibold mb-2 text-ink">4. 중요도(CIA) 등급 분포</h3>
+            <div className="overflow-x-auto print:overflow-visible">
             <table className="border-collapse w-full">
               <thead><tr><th className={th}>등급</th><th className={th}>대수</th></tr></thead>
               <tbody>
@@ -146,9 +153,11 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
                 })}
               </tbody>
             </table>
+            </div>
           </section>
           <section>
             <h3 className="font-semibold mb-2 text-ink">5. 도입 연도별 (구매일 기준)</h3>
+            <div className="overflow-x-auto print:overflow-visible">
             <table className="border-collapse w-full">
               <thead><tr><th className={th}>연도</th><th className={th}>대수</th></tr></thead>
               <tbody>
@@ -163,6 +172,7 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
                 })}
               </tbody>
             </table>
+            </div>
           </section>
         </div>
 
@@ -172,6 +182,7 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
           <p className="text-xs text-ink-3 mb-2">
             현행 확인 = 값을 바꾸지 않았어도 담당자가 &lsquo;봤고 맞다&rsquo;를 기록한 것. 90일 이내 확인을 현행으로 본다. 현행화율 = 90일 내 확인 / 전체(폐기 제외).
           </p>
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="border-collapse w-full mb-3">
             <thead><tr><th className={th}>90일 내 확인</th><th className={th}>90~180일</th><th className={th}>180일 초과</th><th className={th}>확인 이력 없음</th><th className={th}>현행화율</th></tr></thead>
             <tbody>
@@ -190,6 +201,8 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
               })()}
             </tbody>
           </table>
+          </div>
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="border-collapse w-full">
             <thead><tr><th className={th}>팀</th><th className={th}>전체</th><th className={th}>90일 내 확인</th><th className={th}>미확인/경과</th><th className={th}>현행화율</th></tr></thead>
             <tbody>
@@ -205,6 +218,7 @@ export function ReportView({ byTypeStatus, byTeam, byLocation, byCia, byYear, to
               {byTeamFreshness.length === 0 && <tr><td className={`${td} text-ink-3`} colSpan={5}>자산 없음</td></tr>}
             </tbody>
           </table>
+          </div>
         </section>
       </div>
     </div>

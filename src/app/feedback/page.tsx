@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
 import { requireMenuPage } from "@/lib/page-authz";
 import { FeedbackView } from "./FeedbackView";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("feedback");
 
 // 개선의견·불편사항 — 전 역할 열람/작성(메뉴 권한 'feedback'), 처리(상태·답변)는 총괄.
 export default async function FeedbackPage() {

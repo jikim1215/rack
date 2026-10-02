@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { Link2, X, ChevronDown, ChevronRight } from "lucide-react";
+import { useDialog } from "@/lib/use-dialog";
 
 const portStatusColors: Record<string, string> = {
   used: "bg-signal",
-  unused: "bg-slate-300",
+  unused: "bg-slate-500",
   reserved: "bg-warn",
   disabled: "bg-fault",
 };
@@ -63,6 +64,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
   const [statusFilter, setStatusFilter] = useState("");
   const [hoveredPort, setHoveredPort] = useState<Port | null>(null);
   const [connectingPort, setConnectingPort] = useState<Port | null>(null);
+  const connectDialogRef = useDialog(connectingPort !== null, () => setConnectingPort(null));
   const [connectSearch, setConnectSearch] = useState("");
   const [allPorts, setAllPorts] = useState(ports);
 
@@ -143,9 +145,9 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
   }
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col md:flex-row gap-6">
       {/* 장비 목록 */}
-      <div className="w-64 shrink-0">
+      <div className="w-full md:w-64 md:shrink-0">
         <div className="panel p-3">
           <h3 className="font-semibold text-sm mb-3">장비 선택</h3>
           <div className="space-y-1">
@@ -155,6 +157,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
                 <div key={groupKey}>
                   <button
                     onClick={() => toggleGroup(groupKey)}
+                    aria-expanded={open}
                     className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm font-medium text-ink hover:bg-slate-100"
                   >
                     {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -176,7 +179,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
                           >
                             <div className="font-medium">{a.asset_name}</div>
 
-                            <div className={`text-xs ${selectedAsset === a.id ? "text-white/70" : "text-ink-3"}`}>
+                            <div className={`text-xs ${selectedAsset === a.id ? "text-white/85" : "text-ink-3"}`}>
                               <span className="num">{a.ip_address}</span> · <span className="num">{usedCount}/{aPorts.length}</span> 포트
                             </div>
                           </button>
@@ -192,7 +195,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
       </div>
 
       {/* 포트맵 영역 */}
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         {selectedDevice && (
           <>
             {/* 장비 정보 */}
@@ -267,14 +270,14 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
                       className={`w-10 h-10 rounded flex flex-col items-center justify-center cursor-pointer hover-cell ${portStatusColors[port.status]}`}
                     >
                       <span className="text-[9px] font-bold text-white num">{port.port_number}</span>
-                      <span className="text-[7px] text-white/70">{portTypeLabels[port.port_type]?.slice(0, 3) || ""}</span>
+                      <span className="text-[8px] text-white">{portTypeLabels[port.port_type]?.slice(0, 3) || ""}</span>
                     </div>
 
                     {/* 포트 툴팁 */}
                     {hoveredPort?.id === port.id && (
                       <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 bg-ink text-white p-2.5 rounded-lg shadow-xl text-xs whitespace-nowrap pointer-events-none">
                         <div className="font-bold">{port.port_name || `Port ${port.port_number}`}</div>
-                        <div className="text-white/70 mt-1 space-y-0.5">
+                        <div className="text-white/85 mt-1 space-y-0.5">
                           <div>유형: {portTypeLabels[port.port_type] || port.port_type}</div>
                           <div>속도: <span className="num">{port.speed || "-"}</span></div>
                           <div>상태: {portStatusLabels[port.status]}</div>
@@ -294,10 +297,10 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
             </div>
 
             {/* 포트 상세 테이블 */}
-            <div className="panel overflow-hidden">
+            <div className="panel overflow-x-auto">
               <table className="w-full text-sm" style={{ minWidth: 600 }}>
                 <thead>
-                  <tr className="panel-head text-left text-ink-2">
+                  <tr className="bg-surface border-b border-line text-left text-ink-2 whitespace-nowrap">
                     <th className="p-3 w-16">포트</th>
                     <th className="p-3 w-28">이름</th>
                     <th className="p-3 w-20">유형</th>
@@ -316,7 +319,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
                       <td className="p-3 text-ink-2 num">{port.speed || "-"}</td>
                       <td className="p-3 num text-xs">{port.vlan || "-"}</td>
                       <td className="p-3">
-                        <span className={`inline-flex items-center gap-1 text-xs`}>
+                        <span className="inline-flex items-center gap-1 text-xs whitespace-nowrap">
                           <span className={`led ${port.status === "used" ? "led-up" : port.status === "reserved" ? "led-warn" : port.status === "disabled" ? "led-fault" : "led-idle"}`} />
                           {portStatusLabels[port.status]}
                         </span>
@@ -348,7 +351,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
       {/* 포트 연결 설정 모달 */}
       {connectingPort && (
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={() => setConnectingPort(null)}>
-          <div className="bg-panel border border-line rounded-xl shadow-xl p-6 max-w-md w-full max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div ref={connectDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="포트 연결 설정" className="focus:outline-none bg-panel border border-line rounded-xl shadow-xl p-6 max-w-md w-full max-h-[70vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="font-semibold">포트 연결 설정</h3>
@@ -356,7 +359,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
                   {networkAssets.find((a) => a.id === connectingPort.asset_id)?.asset_name} — {connectingPort.port_name || `Port ${connectingPort.port_number}`}
                 </p>
               </div>
-              <button onClick={() => setConnectingPort(null)} className="text-ink-2 hover:text-ink"><X size={18} /></button>
+              <button onClick={() => setConnectingPort(null)} aria-label="닫기" className="text-ink-2 hover:text-ink"><X size={18} /></button>
             </div>
 
             {/* 현재 연결 해제 */}
@@ -374,7 +377,7 @@ export function PortMapView({ networkAssets, ports }: { networkAssets: NetworkAs
             )}
 
             {/* 대상 포트 검색 + 선택 */}
-            <input
+            <input aria-label="장비 또는 포트 검색"
               type="text"
               placeholder="장비 또는 포트 검색..."
               value={connectSearch}

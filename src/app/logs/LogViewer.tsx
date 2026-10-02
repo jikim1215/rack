@@ -49,6 +49,8 @@ const entityTypeLabels: Record<string, string> = {
   location: "위치",
   frame: "배선반",
   contract: "계약",
+  subnet: "IP 대역",
+  vendor: "업체",
   movement: "반입/반출",
   maintenance: "유지보수",
   inventory_audit: "자산실사",
@@ -58,6 +60,7 @@ const entityTypeLabels: Record<string, string> = {
   team: "팀",
   permission: "메뉴 권한",
   feedback: "개선의견",
+  setting: "시스템 설정",
 };
 
 const PAGE_SIZE = 50;
@@ -70,7 +73,7 @@ function Pager({ page, total, onChange }: { page: number; total: number; onChang
     <span className="inline-flex items-center gap-2 text-sm text-slate-600">
       <button className="btn px-2 py-1 disabled:opacity-40" disabled={page <= 0} onClick={() => onChange(page - 1)}>이전</button>
       <span className="num">{page + 1} / {pages}</span>
-      <span className="text-xs text-slate-400">{PAGE_SIZE}건씩</span>
+      <span className="text-xs text-ink-3">{PAGE_SIZE}건씩</span>
       <button className="btn px-2 py-1 disabled:opacity-40" disabled={page >= pages - 1} onClick={() => onChange(page + 1)}>다음</button>
     </span>
   );
@@ -191,7 +194,7 @@ export function LogViewer() {
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <ScrollText size={22} /> 로그/감사
           </h2>
-          <p className="text-sm text-slate-500 mt-1">사용자 접속기록과 데이터 변경 감사로그를 총괄이 조회합니다.</p>
+          <p className="text-sm text-ink-3 mt-1">사용자 접속기록과 데이터 변경 감사로그를 총괄이 조회합니다.</p>
         </div>
       </div>
 
@@ -200,7 +203,7 @@ export function LogViewer() {
         <button
           onClick={() => setTab("access")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === "access" ? "border-signal text-signal" : "border-transparent text-slate-500 hover:text-slate-700"
+            tab === "access" ? "border-signal text-signal" : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           접속기록
@@ -208,7 +211,7 @@ export function LogViewer() {
         <button
           onClick={() => setTab("audit")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            tab === "audit" ? "border-signal text-signal" : "border-transparent text-slate-500 hover:text-slate-700"
+            tab === "audit" ? "border-signal text-signal" : "border-transparent text-ink-3 hover:text-ink"
           }`}
         >
           감사로그
@@ -219,7 +222,7 @@ export function LogViewer() {
         <div className="card p-5">
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <label className="text-sm text-slate-600">동작</label>
-            <select
+            <select aria-label="동작"
               value={accessAction}
               onChange={(e) => { setAccessAction(e.target.value); setAccessPage(0); }}
               className="form-input !w-auto"
@@ -229,7 +232,7 @@ export function LogViewer() {
               <option value="logout">로그아웃</option>
               <option value="fail">실패</option>
             </select>
-            <input
+            <input aria-label="사용자 검색"
               value={accessUser}
               onChange={(e) => { setAccessUser(e.target.value); setAccessPage(0); }}
               placeholder="사용자 검색"
@@ -249,39 +252,39 @@ export function LogViewer() {
             >
               <Download size={14} /> CSV 내보내기
             </button>
-            <span className="text-sm text-slate-500">총 <span className="num">{accessTotal}</span>건</span>
+            <span className="text-sm text-ink-3">총 <span className="num">{accessTotal}</span>건</span>
             {accessError && <span className="text-sm text-fault">{accessError}</span>}
             <span className="ml-auto"><Pager page={accessPage} total={accessTotal} onChange={setAccessPage} /></span>
           </div>
 
           {accessLoading ? (
-            <p className="text-sm text-slate-500 py-8 text-center">불러오는 중…</p>
+            <p className="text-sm text-ink-3 py-8 text-center">불러오는 중…</p>
           ) : accessRows.length === 0 ? (
-            <p className="text-sm text-slate-500 py-8 text-center">기록 없음</p>
+            <p className="text-sm text-ink-3 py-8 text-center">기록 없음</p>
           ) : (<>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-slate-500 border-b">
-                    <th className="py-2 whitespace-nowrap">시각</th>
-                    <th className="py-2">사용자</th>
-                    <th className="py-2">IP</th>
-                    <th className="py-2">동작</th>
-                    <th className="py-2">결과</th>
-                    <th className="py-2">사유</th>
-                    <th className="py-2">User-Agent</th>
+                  <tr className="text-left text-ink-3 border-b">
+                    <th className="py-2 pr-4 whitespace-nowrap">시각</th>
+                    <th className="py-2 pr-4">사용자</th>
+                    <th className="py-2 pr-4">IP</th>
+                    <th className="py-2 pr-4">동작</th>
+                    <th className="py-2 pr-4">결과</th>
+                    <th className="py-2 pr-4">사유</th>
+                    <th className="py-2 pr-4">User-Agent</th>
                   </tr>
                 </thead>
                 <tbody>
                   {accessRows.map((r) => (
                     <tr key={r.id} className={`border-b last:border-0 ${r.action === "fail" ? "text-fault" : ""}`}>
-                      <td className="py-2 whitespace-nowrap">{fmtTime(r.created_at)}</td>
-                      <td className="py-2 font-medium">{r.username || "-"}</td>
-                      <td className="py-2">{r.ip || "-"}</td>
-                      <td className="py-2">{accessActionLabels[r.action] || r.action}</td>
-                      <td className="py-2">{r.result_code ?? "-"}</td>
-                      <td className="py-2">{r.failure_reason || "-"}</td>
-                      <td className="py-2 max-w-[220px] truncate" title={r.user_agent || ""}>{r.user_agent || "-"}</td>
+                      <td className="py-2 pr-4 whitespace-nowrap">{fmtTime(r.created_at)}</td>
+                      <td className="py-2 pr-4 font-medium">{r.username || "-"}</td>
+                      <td className="py-2 pr-4">{r.ip || "-"}</td>
+                      <td className="py-2 pr-4">{accessActionLabels[r.action] || r.action}</td>
+                      <td className="py-2 pr-4">{r.result_code ?? "-"}</td>
+                      <td className="py-2 pr-4">{r.failure_reason || "-"}</td>
+                      <td className="py-2 pr-4 max-w-[220px] truncate" title={r.user_agent || ""}>{r.user_agent || "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -294,7 +297,7 @@ export function LogViewer() {
         <div className="card p-5">
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <label className="text-sm text-slate-600">엔터티</label>
-            <select
+            <select aria-label="엔터티"
               value={entityType}
               onChange={(e) => { setEntityType(e.target.value); setAuditPage(0); }}
               className="form-input !w-auto"
@@ -318,7 +321,7 @@ export function LogViewer() {
             >
               <Download size={14} /> CSV 내보내기
             </button>
-            <span className="text-sm text-slate-500">총 <span className="num">{auditTotal}</span>건</span>
+            <span className="text-sm text-ink-3">총 <span className="num">{auditTotal}</span>건</span>
             {auditError && <span className="text-sm text-fault">{auditError}</span>}
             <span className="ml-auto"><Pager page={auditPage} total={auditTotal} onChange={setAuditPage} /></span>
           </div>
@@ -328,20 +331,20 @@ export function LogViewer() {
           </p>
 
           {auditLoading ? (
-            <p className="text-sm text-slate-500 py-8 text-center">불러오는 중…</p>
+            <p className="text-sm text-ink-3 py-8 text-center">불러오는 중…</p>
           ) : auditRows.length === 0 ? (
-            <p className="text-sm text-slate-500 py-8 text-center">기록 없음</p>
+            <p className="text-sm text-ink-3 py-8 text-center">기록 없음</p>
           ) : (<>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-slate-500 border-b">
-                    <th className="py-2 whitespace-nowrap">시각</th>
-                    <th className="py-2">엔터티</th>
-                    <th className="py-2">동작</th>
-                    <th className="py-2">수행자</th>
-                    <th className="py-2">변경필드</th>
-                    <th className="py-2">변경내용</th>
+                  <tr className="text-left text-ink-3 border-b">
+                    <th className="py-2 pr-4 whitespace-nowrap">시각</th>
+                    <th className="py-2 pr-4">엔터티</th>
+                    <th className="py-2 pr-4">동작</th>
+                    <th className="py-2 pr-4">수행자</th>
+                    <th className="py-2 pr-4">변경필드</th>
+                    <th className="py-2 pr-4">변경내용</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -356,19 +359,19 @@ export function LogViewer() {
                       .join("\n");
                     return (
                       <tr key={r.id} className="border-b last:border-0 align-top">
-                        <td className="py-2 whitespace-nowrap">{fmtTime(r.created_at)}</td>
-                        <td className="py-2">
-                          <span className="text-slate-500">{entityTypeLabels[r.entity_type] || r.entity_type}</span>
+                        <td className="py-2 pr-4 whitespace-nowrap">{fmtTime(r.created_at)}</td>
+                        <td className="py-2 pr-4">
+                          <span className="text-ink-3">{entityTypeLabels[r.entity_type] || r.entity_type}</span>
                           {r.entity_name ? <span className="ml-1 font-medium">{r.entity_name}</span> : null}
                         </td>
-                        <td className="py-2">
+                        <td className="py-2 pr-4">
                           <span className={r.action === "delete" ? "text-fault" : r.action === "create" ? "text-signal" : ""}>
                             {auditActionLabels[r.action] || r.action}
                           </span>
                         </td>
-                        <td className="py-2">{r.changed_by || "-"}</td>
-                        <td className="py-2">{fields.length ? fields.join(", ") : "-"}</td>
-                        <td className="py-2 max-w-[280px] truncate" title={diff}>
+                        <td className="py-2 pr-4">{r.changed_by || "-"}</td>
+                        <td className="py-2 pr-4">{fields.length ? fields.join(", ") : "-"}</td>
+                        <td className="py-2 pr-4 max-w-[280px] truncate" title={diff}>
                           {diff ? diff.replace(/\n/g, " | ") : "-"}
                         </td>
                       </tr>

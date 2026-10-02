@@ -3,8 +3,10 @@ import { headers } from "next/headers";
 import "./globals.css";
 import { LayoutShell } from "@/components/LayoutShell";
 
+// 탭 제목을 화면마다 다르게 ("자산관리 · 정보시스템 자산관리") — KWCAG 2.2 "제목 제공", 브라우저 탭·기록에서 화면 구분.
+// 각 page.tsx 는 menuTitle(키) 또는 고정 문자열로 title 만 내보낸다.
 export const metadata: Metadata = {
-  title: "정보시스템 자산관리",
+  title: { default: "정보시스템 자산관리", template: "%s · 정보시스템 자산관리" },
   description: "서버/네트워크/보안 장비 자산관리 및 랙실장도, 포트맵 관리 시스템",
 };
 

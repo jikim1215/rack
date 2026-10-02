@@ -13,6 +13,9 @@ import QualityPanel from "@/components/dashboard/QualityPanel";
 import CleanupPanel from "@/components/dashboard/CleanupPanel";
 import FreshnessPanel from "@/components/dashboard/FreshnessPanel";
 import { MovementsPanel, MaintenancePanel, ContractsPanel, RecentAssetsPanel } from "@/components/dashboard/ActivityPanels";
+import { menuTitle } from "@/lib/menus";
+// 루트 레이아웃과 같은 세그먼트라 title.template 이 적용되지 않는다 → 전체 제목을 absolute 로 직접 둔다.
+export const metadata = { title: { absolute: `${menuTitle("dashboard").title} · 정보시스템 자산관리` } };
 
 export default async function DashboardPage() {
   // 대시보드는 고정 접근 메뉴이지만 perms 를 실은 actor 를 써서 다른 페이지와 같은 경로로 인가한다(비평 반영)
@@ -36,7 +39,7 @@ export default async function DashboardPage() {
           <div className="px-5 py-4 flex-1 min-w-[240px] border-b lg:border-b-0 lg:border-r border-line">
             <div className="flex items-center gap-2">
               <span className="led led-up led-live" />
-              <span className="eyebrow">FACILITY STATUS · {today} <span className="normal-case">{asOf} 기준 — 새로고침 시 갱신</span></span>
+              <span className="eyebrow">FACILITY STATUS · <span className="whitespace-nowrap">{today}</span> <span className="normal-case">{asOf} 기준 — 새로고침 시 갱신</span></span>
             </div>
             <h2 className="mt-1.5 text-xl font-bold tracking-tight">운영 대시보드</h2>
             <p className="text-sm text-ink-2 mt-0.5">

@@ -111,7 +111,7 @@ export function LoginForm() {
           인증 앱에 표시된 <strong className="text-ink-2">6자리 코드</strong>를 입력하세요. 앱을 쓸 수 없으면 백업 코드(XXXX-XXXX)도 됩니다.
         </p>
         <div>
-          <input
+          <input aria-label="2단계 인증 코드 또는 백업 코드"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             className="form-input num text-center text-lg tracking-[0.4em]"
@@ -144,7 +144,7 @@ export function LoginForm() {
       )}
       <div>
         <label className="block text-sm font-medium text-ink-2 mb-1">이메일</label>
-        <input
+        <input aria-label="이메일"
           type="email"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -156,7 +156,7 @@ export function LoginForm() {
       </div>
       <div>
         <label className="block text-sm font-medium text-ink-2 mb-1">비밀번호</label>
-        <input
+        <input aria-label="비밀번호"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

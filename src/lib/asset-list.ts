@@ -10,6 +10,8 @@ import type { AssetRow, CustomValueRow } from "./db-types.ts";
 
 export const ASSET_PAGE_DEFAULT = 100;
 export const ASSET_PAGE_MAX = 500;
+/** 미배정 큐(/unassigned) 한 페이지 — 이관 직후 미배정이 수천 건이어도 화면은 이만큼만 그린다. */
+export const UNASSIGNED_PAGE_SIZE = 50;
 /** limit=0(전량) 안전 상한 — 엑셀 내보내기 등. 이보다 크면 내보내기 쪽에서 나눠 가져가야 한다. */
 export const ASSET_ALL_CAP = 20_000;
 

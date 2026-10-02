@@ -64,7 +64,7 @@ export function FeedbackForm({
         <label className="block text-xs font-medium text-ink-2 mb-1">
           제목 <span className="text-ink-3 font-normal num">{title.length}/{TITLE_MAX}</span>
         </label>
-        <input
+        <input aria-label="제목"
           className="form-input" value={title} maxLength={TITLE_MAX} autoFocus
           placeholder="예) 자산관리 엑셀 업로드 후 어떤 행이 실패했는지 알기 어려움"
           onChange={(e) => setTitle(e.target.value)}
@@ -75,7 +75,7 @@ export function FeedbackForm({
         <label className="block text-xs font-medium text-ink-2 mb-1">
           내용 <span className="text-ink-3 font-normal num">{content.length}/{CONTENT_MAX}</span>
         </label>
-        <textarea
+        <textarea aria-label="내용"
           className="form-input min-h-[140px]" value={content} maxLength={CONTENT_MAX}
           placeholder={"어떤 상황에서 무엇이 불편했는지, 어떻게 되면 좋겠는지 적어 주세요.\n오류라면: 어떤 화면에서 → 무엇을 눌렀더니 → 어떻게 됐는지"}
           onChange={(e) => setContent(e.target.value)}
@@ -84,7 +84,7 @@ export function FeedbackForm({
 
       <div>
         <label className="block text-xs font-medium text-ink-2 mb-1">관련 화면 <span className="text-ink-3 font-normal">(자동 첨부 · 필요 시 수정)</span></label>
-        <input
+        <input aria-label="관련 화면"
           className="form-input num text-xs" value={pagePath} placeholder="/assets"
           onChange={(e) => setPagePath(e.target.value)}
         />

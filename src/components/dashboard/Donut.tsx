@@ -27,7 +27,7 @@ export default function Donut({ items, unit = "대" }: { items: { label: string;
           return el;
         })}
         <text x="21" y="20.5" textAnchor="middle" style={{ font: "bold 7px var(--font-num, sans-serif)", fill: "currentColor" }}>{total}</text>
-        <text x="21" y="27" textAnchor="middle" style={{ font: "3.5px sans-serif", fill: "#94a3b8" }}>총 {unit === "대" ? "자산" : unit}</text>
+        <text x="21" y="27" textAnchor="middle" style={{ font: "3.5px sans-serif", fill: "#5e6a7d" }}>총 {unit === "대" ? "자산" : unit}</text>
       </svg>
       <div className="space-y-1.5 min-w-0 flex-1">
         {slices.map((s, i) => {

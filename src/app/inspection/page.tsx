@@ -6,6 +6,8 @@ import { getDb } from "@/lib/db";
 import { scopeWhere } from "@/lib/authz";
 import InspectionView from "./InspectionView";
 import type { InventoryAuditRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("inspection");
 
 // GET /api/inventory-audits/[id]/checks 와 동일 모양(장비+부속 UNION) — InspectionView 의 CheckRow 와 일치.
 interface AuditCheckRow {

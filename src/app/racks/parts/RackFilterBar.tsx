@@ -66,8 +66,8 @@ export function RackFilterBar({
         )}
         {kpi.warning > 0 && (
           <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-warning" />
-            <span className="text-xs text-ink-3">범위초과 <span className="num text-warning">{kpi.warning}</span></span>
+            <span className="w-2 h-2 rounded-full bg-warn" />
+            <span className="text-xs text-ink-3">범위초과 <span className="num text-warn">{kpi.warning}</span></span>
           </div>
         )}
         {kpi.caution > 0 && (
@@ -99,7 +99,7 @@ export function RackFilterBar({
       {/* 위치 필터 */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <span className="text-sm text-ink-3">위치:</span>
-        <select
+        <select aria-label="위치"
           value={selectedLocation}
           onChange={(e) => setSelectedLocation(e.target.value ? Number(e.target.value) : "")}
           className="form-input text-sm"
@@ -109,7 +109,7 @@ export function RackFilterBar({
             <option key={l.id} value={l.id}>{l.location_name}</option>
           ))}
         </select>
-        <input
+        <input aria-label="랙 이름 검색"
           type="text"
           placeholder="랙 이름 검색..."
           value={rackSearch}

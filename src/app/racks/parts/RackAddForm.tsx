@@ -53,7 +53,7 @@ export function RackAddForm({
       </p>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="text-xs text-slate-500">위치</span>
+          <span className="text-xs text-ink-3">위치</span>
           <select
             value={addForm.location_id}
             onChange={(e) => setAddForm({ ...addForm, location_id: Number(e.target.value) })}
@@ -67,7 +67,7 @@ export function RackAddForm({
           </select>
         </label>
         <label className="block">
-          <span className="text-xs text-slate-500">이름</span>
+          <span className="text-xs text-ink-3">이름</span>
           <input
             ref={addNameRef}
             value={addForm.rack_name}
@@ -82,7 +82,7 @@ export function RackAddForm({
           />
         </label>
         <label className="block">
-          <span className="text-xs text-slate-500">총 유닛 수</span>
+          <span className="text-xs text-ink-3">총 유닛 수</span>
           <select
             value={addForm.total_units}
             onChange={(e) => setAddForm({ ...addForm, total_units: Number(e.target.value) })}
@@ -105,7 +105,7 @@ export function RackAddForm({
           </select>
         </label>
         <label className="block">
-          <span className="text-xs text-slate-500">설명</span>
+          <span className="text-xs text-ink-3">설명</span>
           <input
             value={addForm.description}
             onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
@@ -114,7 +114,7 @@ export function RackAddForm({
         </label>
         {isAdmin && (
           <label className="block">
-            <span className="text-xs text-slate-500">소유 팀</span>
+            <span className="text-xs text-ink-3">소유 팀</span>
             <select
               value={addForm.team_id}
               onChange={(e) =>

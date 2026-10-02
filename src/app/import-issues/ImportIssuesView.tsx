@@ -109,16 +109,16 @@ export function ImportIssuesView() {
       />
       {/* 필터바 + 우측 페이저 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select className="form-input !w-auto text-sm" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
+        <select aria-label="조치 상태 필터" className="form-input !w-auto text-sm" value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
           <option value="open">미조치</option>
           <option value="resolved">조치완료</option>
           <option value="ignored">무시</option>
         </select>
-        <select className="form-input !w-auto text-sm" value={issueType} onChange={(e) => { setIssueType(e.target.value); setPage(0); }}>
+        <select aria-label="이슈 유형 필터" className="form-input !w-auto text-sm" value={issueType} onChange={(e) => { setIssueType(e.target.value); setPage(0); }}>
           <option value="">전체 유형</option>
           {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-        <select className="form-input !w-auto text-sm num" value={batch} onChange={(e) => { setBatch(e.target.value); setPage(0); }}>
+        <select aria-label="가져오기 배치 필터" className="form-input !w-auto text-sm num" value={batch} onChange={(e) => { setBatch(e.target.value); setPage(0); }}>
           <option value="">전체 배치</option>
           {batches.map((b) => (
             <option key={b.batch_id} value={b.batch_id}>

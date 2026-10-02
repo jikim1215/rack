@@ -198,7 +198,7 @@ export function TargetsTab({ targets, onTargetsChange, assets }: Props) {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-ink-3" />
-          <input
+          <input aria-label="자산명, 시스템, 정보자원명, 자산코드 검색"
             className="form-input w-full pl-8 pr-3 py-2 text-sm"
             placeholder="자산명, 시스템, 정보자원명, 자산코드 검색..."
             value={search}

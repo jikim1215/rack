@@ -59,6 +59,12 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+/** 표시용 상태 — 저장값이 '유효'여도 종료일이 지났으면 '만료'. (계약 상태는 자동 갱신되지 않으므로
+ *  KPI·라벨이 종료일과 어긋나지 않게 화면에서 판정한다. 해지는 그대로.) */
+function effectiveStatus(c: { status: string; end_date: string }): string {
+  return c.status === "active" && daysUntil(c.end_date) <= 0 ? "expired" : c.status;
+}
+
 const emptyContract = {
   vendor_id: "",
   contract_name: "",
@@ -108,10 +114,10 @@ export default function ContractsView({
 
   // --- Contracts ---
   const totalContracts = contracts.length;
-  const activeContracts = contracts.filter((c) => c.status === "active").length;
-  const expiredContracts = contracts.filter((c) => c.status === "expired").length;
+  const activeContracts = contracts.filter((c) => effectiveStatus(c) === "active").length;
+  const expiredContracts = contracts.filter((c) => effectiveStatus(c) === "expired").length;
   const expiringSoon = contracts.filter(
-    (c) => c.status === "active" && daysUntil(c.end_date) <= 30 && daysUntil(c.end_date) > 0
+    (c) => effectiveStatus(c) === "active" && daysUntil(c.end_date) <= 30
   ).length;
 
   async function handleAddContract(e: React.FormEvent) {
@@ -190,8 +196,9 @@ export default function ContractsView({
   }
 
   function contractRowClass(c: Contract) {
-    if (c.status === "expired" || daysUntil(c.end_date) <= 0) return "bg-red-50";
-    if (c.status === "active" && daysUntil(c.end_date) <= 30) return "bg-yellow-50";
+    const st = effectiveStatus(c);
+    if (st === "expired") return "bg-red-50";
+    if (st === "active" && daysUntil(c.end_date) <= 30) return "bg-yellow-50";
     return "";
   }
 
@@ -239,7 +246,7 @@ export default function ContractsView({
       {tab === "contracts" && (
         <div>
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             {[
               { label: "전체", value: totalContracts, led: "led-idle", valCls: "" },
               { label: "유효", value: activeContracts, led: "led-up", valCls: "text-signal" },
@@ -267,7 +274,7 @@ export default function ContractsView({
             <form onSubmit={handleAddContract} className="panel p-4 mb-6 grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">업체</label>
-                <select
+                <select aria-label="업체"
                   value={cForm.vendor_id}
                   onChange={(e) => setCForm({ ...cForm, vendor_id: e.target.value })}
                   className={inputCls}
@@ -280,7 +287,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">계약명 *</label>
-                <input
+                <input aria-label="계약명"
                   required
                   value={cForm.contract_name}
                   onChange={(e) => setCForm({ ...cForm, contract_name: e.target.value })}
@@ -289,7 +296,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">유형</label>
-                <select
+                <select aria-label="유형"
                   value={cForm.contract_type}
                   onChange={(e) => setCForm({ ...cForm, contract_type: e.target.value })}
                   className={inputCls}
@@ -302,7 +309,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">시작일</label>
-                <input
+                <input aria-label="시작일"
                   type="date"
                   value={cForm.start_date}
                   onChange={(e) => setCForm({ ...cForm, start_date: e.target.value })}
@@ -311,7 +318,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">종료일</label>
-                <input
+                <input aria-label="종료일"
                   type="date"
                   value={cForm.end_date}
                   onChange={(e) => setCForm({ ...cForm, end_date: e.target.value })}
@@ -320,7 +327,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">금액</label>
-                <input
+                <input aria-label="금액"
                   value={cForm.amount}
                   onChange={(e) => setCForm({ ...cForm, amount: e.target.value })}
                   placeholder="예: 12,000,000"
@@ -339,7 +346,7 @@ export default function ContractsView({
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium mb-1">비고</label>
-                <input
+                <input aria-label="비고"
                   value={cForm.notes}
                   onChange={(e) => setCForm({ ...cForm, notes: e.target.value })}
                   className={inputCls}
@@ -348,7 +355,7 @@ export default function ContractsView({
               {isAdmin && (
                 <div className="col-span-2">
                   <label className="block text-sm font-medium mb-1">소유 팀</label>
-                  <select
+                  <select aria-label="소유 팀"
                     value={cForm.team_id}
                     onChange={(e) => setCForm({ ...cForm, team_id: e.target.value === "" ? "" : Number(e.target.value) })}
                     className={inputCls}
@@ -370,9 +377,9 @@ export default function ContractsView({
           )}
 
           {/* Contract Table */}
-          <div className="panel overflow-hidden">
+          <div className="panel overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="panel-head border-b border-line">
+              <thead className="bg-surface border-b border-line text-ink-2 whitespace-nowrap">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">계약명</th>
                   <th className="text-left px-4 py-2 font-medium">업체명</th>
@@ -391,7 +398,8 @@ export default function ContractsView({
                   contracts.map((c) => {
                     const badge = contractTypeBadge[c.contract_type] || contractTypeBadge.other;
                     const d = daysUntil(c.end_date);
-                    const ddayFault = c.status === "expired" || d <= 30;
+                    const st = effectiveStatus(c);
+                    const ddayFault = d <= 30;
                     return (
                       <tr key={c.id} className={`border-b border-line hover:bg-slate-100 ${contractRowClass(c)}`}>
                         <td className="px-4 py-2 font-medium">{c.contract_name}
@@ -399,24 +407,24 @@ export default function ContractsView({
                         </td>
                         <td className="px-4 py-2">{c.vendor_name || "-"}</td>
                         <td className="px-4 py-2">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                          <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${badge.cls}`}>{badge.label}</span>
                         </td>
-                        <td className="px-4 py-2 text-xs num">{c.start_date} ~ {c.end_date}</td>
-                        <td className="px-4 py-2 num">{c.amount || "-"}</td>
-                        <td className="px-4 py-2">
+                        <td className="px-4 py-2 text-xs num whitespace-nowrap">{c.start_date} ~ {c.end_date}</td>
+                        <td className="px-4 py-2 num whitespace-nowrap">{c.amount || "-"}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">
                           <span className={`text-xs font-medium inline-flex items-center gap-1.5 ${
-                            c.status === "active" ? "text-signal" : c.status === "expired" ? "text-fault" : "text-fault"
+                            st === "active" ? "text-signal" : st === "expired" ? "text-fault" : "text-ink-3"
                           }`}>
                             <span className={`led ${
-                              c.status === "active" ? "led-up" : "led-fault"
+                              st === "active" ? "led-up" : st === "expired" ? "led-fault" : "led-idle"
                             }`} />
-                            {statusLabels[c.status] || c.status}
+                            {statusLabels[st] || st}
                           </span>
-                          {c.status === "active" && d <= 60 && (
+                          {st === "active" && d <= 60 && (
                             <span className={`ml-2 px-1.5 py-0.5 rounded text-xs num ${
                               ddayFault ? "bg-red-50 text-fault" : "bg-amber-50 text-warn"
                             }`}>
-                              {d <= 0 ? "만료" : `D-${d}`}
+                              {`D-${d}`}
                             </span>
                           )}
                         </td>
@@ -457,7 +465,7 @@ export default function ContractsView({
             <form onSubmit={handleAddVendor} className="panel p-4 mb-6 grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">업체명 *</label>
-                <input
+                <input aria-label="업체명"
                   required
                   value={vForm.vendor_name}
                   onChange={(e) => setVForm({ ...vForm, vendor_name: e.target.value })}
@@ -466,7 +474,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">담당자</label>
-                <input
+                <input aria-label="담당자"
                   value={vForm.contact_person}
                   onChange={(e) => setVForm({ ...vForm, contact_person: e.target.value })}
                   className={inputCls}
@@ -474,7 +482,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">전화</label>
-                <input
+                <input aria-label="전화"
                   value={vForm.phone}
                   onChange={(e) => setVForm({ ...vForm, phone: e.target.value })}
                   className={inputCls}
@@ -482,7 +490,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">이메일</label>
-                <input
+                <input aria-label="이메일"
                   type="email"
                   value={vForm.email}
                   onChange={(e) => setVForm({ ...vForm, email: e.target.value })}
@@ -491,7 +499,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">주소</label>
-                <input
+                <input aria-label="주소"
                   value={vForm.address}
                   onChange={(e) => setVForm({ ...vForm, address: e.target.value })}
                   className={inputCls}
@@ -499,7 +507,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">사업자번호</label>
-                <input
+                <input aria-label="사업자번호"
                   value={vForm.business_number}
                   onChange={(e) => setVForm({ ...vForm, business_number: e.target.value })}
                   className={inputCls}
@@ -507,7 +515,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">유형</label>
-                <select
+                <select aria-label="유형"
                   value={vForm.vendor_type}
                   onChange={(e) => setVForm({ ...vForm, vendor_type: e.target.value })}
                   className={inputCls}
@@ -519,7 +527,7 @@ export default function ContractsView({
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">비고</label>
-                <input
+                <input aria-label="비고"
                   value={vForm.notes}
                   onChange={(e) => setVForm({ ...vForm, notes: e.target.value })}
                   className={inputCls}
@@ -541,9 +549,9 @@ export default function ContractsView({
           )}
 
           {/* Vendor Table */}
-          <div className="panel overflow-hidden">
+          <div className="panel overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="panel-head border-b border-line">
+              <thead className="bg-surface border-b border-line text-ink-2 whitespace-nowrap">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium">업체명</th>
                   <th className="text-left px-4 py-2 font-medium">담당자</th>

@@ -4,6 +4,8 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { scopeWhere } from "@/lib/authz";
 import MovementsView from "./MovementsView";
 import type { MovementRow, AssetRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("movements");
 
 export default async function MovementsPage() {
   const db = getDb();

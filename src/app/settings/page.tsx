@@ -3,6 +3,8 @@ import { getDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { SettingsView } from './SettingsView';
 import type { User, Team } from './tabs/types';
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("settings");
 
 export default async function SettingsPage() {
   const session = await getSession();

@@ -2,10 +2,11 @@ import { overlaps, type RackSpan } from "@/lib/rack-overlap";
 import type { Asset, DistFrame, DragAsset, DropTarget, Severity } from "./types";
 
 export const typeColors: Record<string, string> = {
+  // 블록 위에 흰 글자(장비명·U 번호)를 얹으므로 모두 흰 글자 대비 4.5:1 이상인 색 (KWCAG 명도 대비)
   server: "#334155",
-  network: "#16a34a",
+  network: "#15803d",
   security: "#dc2626",
-  telecom: "#d97706",
+  telecom: "#b45309",
   other: "#6b7280",
 };
 

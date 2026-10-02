@@ -4,6 +4,8 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { DistributionView } from "./DistributionView";
 import { scopeWhere } from "@/lib/authz";
 import type { DistFrameRow, FramePairRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("distribution");
 
 export default async function DistributionPage({ searchParams }: { searchParams: Promise<{ frame?: string }> }) {
   const db = getDb();

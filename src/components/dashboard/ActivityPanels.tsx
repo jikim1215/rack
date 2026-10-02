@@ -28,7 +28,7 @@ export function MovementsPanel({
                 </span>
                 <span className="truncate">{m.asset_name || '-'}</span>
               </div>
-              <span className="eyebrow shrink-0 ml-2 !text-[0.625rem]">{m.status}</span>
+              <span className="eyebrow shrink-0 ml-2 text-[0.625rem]">{m.status}</span>
             </div>
           ))}
         </div>
@@ -63,7 +63,7 @@ export function MaintenancePanel({
                 </span>
                 <span className="truncate">{ml.asset_name || '-'}</span>
               </div>
-              <span className="eyebrow shrink-0 ml-2 !text-[0.625rem]">{ml.status}</span>
+              <span className="eyebrow shrink-0 ml-2 text-[0.625rem]">{ml.status}</span>
             </div>
           ))}
         </div>

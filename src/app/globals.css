@@ -11,17 +11,17 @@
   --color-rail-2: #0b1220;     /* 더 짙은 잉크 */
   --color-ink: #0b1220;        /* 본문 텍스트 / 버튼 */
   --color-ink-2: #475569;      /* 보조 텍스트 */
-  --color-ink-3: #8b97a8;      /* 캡션 */
+  --color-ink-3: #5e6a7d;      /* 캡션 — 흰·표면·slate-100·자기색 15% 틴트 위 4.5:1 이상 (KWCAG 명도 대비) */
   --color-surface: #f4f6fb;    /* 앱 배경 */
   --color-panel: #ffffff;      /* 패널 */
   --color-line: #dce3ee;       /* 헤어라인 */
   --color-line-strong: #c3cddd;
 
   /* 신호 (운영 상태 = 유일한 채도색) */
-  --color-signal: #0e9f6e;     /* link-up / 운용중 */
-  --color-warn: #d97706;       /* 점검 / 경고 */
-  --color-fault: #dc2626;      /* 장애 / 만료 */
-  --color-idle: #94a3b8;       /* 미사용 / 유휴 */
+  --color-signal: #0a7652;     /* link-up / 운용중 — 글자·흰 글자 배경 모두 4.5:1 이상 */
+  --color-warn: #9d5604;       /* 점검 / 경고 — 〃 */
+  --color-fault: #b91c1c;      /* 장애 / 만료 — 〃 */
+  --color-idle: #64748b;       /* 미사용 / 유휴 — 큰 숫자·LED(3:1), 흰 글자 배경 4.5:1 */
 
   /* KRDS(디지털정부 디자인시스템) 팔레트 — 사이드바 LNB 가독성 기준.
      https://github.com/KRDS-uiux/krds-uiux (primary #256ef4, gray scale 명도대비 WCAG AA) */
@@ -46,17 +46,6 @@
      이게 없으면 다크모드에서 <select> 드롭다운·입력창·스크롤바 등 네이티브 컨트롤이
      어둡게 렌더돼 메뉴/옵션이 겹쳐 안 보인다. (앱은 라이트 테마 고정 디자인) */
   color-scheme: light;
-  /* 레거시 변수 호환 (기존 컴포넌트가 참조) */
-  --bg: #f4f6fb;
-  --bg-card: #ffffff;
-  --text-primary: #0b1220;
-  --text-secondary: #475569;
-  --border: #dce3ee;
-  --accent: #0b1220;
-  --accent-hover: #0e1626;
-  --success: #0e9f6e;
-  --warning: #d97706;
-  --danger: #dc2626;
 }
 
 /* ── 네이티브 폼 컨트롤: 브라우저 다크테마에서도 항상 라이트로 (드롭다운 메뉴 가독성) ── */
@@ -81,7 +70,15 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "맑은 고딕",
     system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* 한글은 기본값(normal)이면 음절마다 줄바꿈 후보가 돼, 좁은 칸에서 "정/보/운/영/과" 처럼 한 글자씩 세로로 쌓인다.
+     keep-all 은 어절 단위로만 끊고, 공백 없는 긴 값(시리얼·URL)만 break-word 로 넘친 곳에서 자른다.
+     표는 칸이 최소폭 이하로 줄지 않으므로 넓어지고, 감싸는 overflow-x-auto 가 가로 스크롤을 준다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
+
+/* 표 머리글은 한 줄 — 좁은 화면에서 "미배정 건수" 같은 라벨이 세로로 깨지는 것 방지 */
+th { white-space: nowrap; }
 
 /* ── 타이포그래피 시그니처 ──────────────────────────────────── */
 
@@ -93,14 +90,18 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* 섹션 라벨 / 계기 캡션 (eyebrow) */
-.eyebrow {
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--color-ink-3);
+/* 섹션 라벨 / 계기 캡션 (eyebrow)
+   components 레이어: 무계층이면 Tailwind 유틸리티보다 우선해 'eyebrow text-slate-400'(어두운 배경 위 안내)·
+   'eyebrow font-normal'·'eyebrow text-[10px]' 의 덧붙인 유틸리티가 조용히 무시됐다(로그인 하단 안내 3.3:1 의 원인). */
+@layer components {
+  .eyebrow {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--color-ink-3);
+  }
 }
 
 /* ── 계기 패널 ──────────────────────────────────────────────── */
@@ -128,9 +129,9 @@ body {
   background: var(--color-idle);
   flex: none;
 }
-.led-up    { background: var(--color-signal); box-shadow: 0 0 0 3px rgba(14, 159, 110, 0.16); }
-.led-warn  { background: var(--color-warn);   box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.16); }
-.led-fault { background: var(--color-fault);  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16); }
+.led-up    { background: var(--color-signal); box-shadow: 0 0 0 3px rgba(10, 118, 82, 0.16); }
+.led-warn  { background: var(--color-warn);   box-shadow: 0 0 0 3px rgba(157, 86, 4, 0.16); }
+.led-fault { background: var(--color-fault);  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.16); }
 .led-idle  { background: var(--color-idle);   box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16); }
 
 /* 라이브 펄스 (헤더 상태등) */
@@ -211,7 +212,7 @@ body {
     transition: box-shadow 0.15s, border-color 0.15s;
   }
   .form-input:focus {
-    box-shadow: 0 0 0 3px rgba(14, 159, 110, 0.22);
+    box-shadow: 0 0 0 3px rgba(10, 118, 82, 0.22);
     border-color: var(--color-signal);
   }
 }

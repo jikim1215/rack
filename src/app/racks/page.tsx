@@ -6,6 +6,8 @@ import type { Asset as RackAsset } from "./parts/types";
 import Link from "next/link";
 import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
 import type { LocationRow, RackRow, AssetRow, DistFrameRow, TeamRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("racks");
 
 export default async function RacksPage() {
   const db = getDb();

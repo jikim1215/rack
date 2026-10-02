@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { MessageSquarePlus, X } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { FeedbackForm, type FeedbackFormValue } from "@/components/FeedbackForm";
+import { useDialog } from "@/lib/use-dialog";
 
 export const FEEDBACK_OPEN_EVENT = "asset:feedback-open";
 export const FEEDBACK_CHANGED_EVENT = "asset:feedback-changed";
@@ -34,12 +35,7 @@ export function FeedbackModal() {
     return () => window.removeEventListener(FEEDBACK_OPEN_EVENT, onOpen);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  const dialogRef = useDialog(open, () => setOpen(false));
 
   async function submit(value: FeedbackFormValue) {
     setSaving(true);
@@ -63,13 +59,13 @@ export function FeedbackModal() {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title" className="panel w-full max-w-lg shadow-xl">
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="feedback-modal-title" className="focus:outline-none panel w-full max-w-lg shadow-xl">
         <div className="panel-head justify-between">
           <div className="flex items-center gap-2">
             <MessageSquarePlus size={16} className="text-krds-primary-strong" />
             <h3 id="feedback-modal-title" className="text-sm font-semibold">불편사항 · 개선의견 보내기</h3>
           </div>
-          <button onClick={() => setOpen(false)} className="text-ink-3 hover:text-ink" title="닫기"><X size={16} /></button>
+          <button onClick={() => setOpen(false)} className="text-ink-3 hover:text-ink" title="닫기" aria-label="닫기"><X size={16} /></button>
         </div>
         <div className="p-5">
           <p className="text-xs text-ink-3 mb-3">

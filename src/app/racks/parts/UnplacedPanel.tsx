@@ -47,7 +47,7 @@ export function UnplacedPanel({
         자산을 끌어 랙 슬롯에 놓으면 배치됩니다. 실장된 장비를 이 패널에 놓으면 해제됩니다.
       </p>
       <div className="flex gap-1 mb-2">
-        <input
+        <input aria-label="자산 검색"
           value={unplacedSearch}
           onChange={(e) => setUnplacedSearch(e.target.value)}
           placeholder="자산 검색..."

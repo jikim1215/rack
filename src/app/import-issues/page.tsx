@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { ImportIssuesView } from "./ImportIssuesView";
+export const metadata = { title: "정리큐 처리" };
 
 // 정리큐 처리 화면 — 총괄(admin) 전용 (대시보드 정리 필요 큐에서 진입)
 export default async function ImportIssuesPage() {

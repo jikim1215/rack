@@ -114,26 +114,26 @@ export function LogsTab({ logs, onLogsChange, assets, vendors }: Props) {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-ink-3" />
-          <input
+          <input aria-label="자산명, 증상, 보고자 검색"
             className="form-input w-full pl-8 pr-3 py-2 text-sm"
             placeholder="자산명, 증상, 보고자 검색..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <select className="form-input px-3 py-2 text-sm" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <select aria-label="유형 필터" className="form-input px-3 py-2 text-sm" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
           <option value="">유형 전체</option>
           <option value="failure">장애</option>
           <option value="maintenance">유지보수</option>
           <option value="inspection">점검</option>
         </select>
-        <select className="form-input px-3 py-2 text-sm" value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)}>
+        <select aria-label="심각도 필터" className="form-input px-3 py-2 text-sm" value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)}>
           <option value="">심각도 전체</option>
           <option value="critical">심각</option>
           <option value="major">주요</option>
           <option value="minor">경미</option>
         </select>
-        <select className="form-input px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <select aria-label="상태 필터" className="form-input px-3 py-2 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">상태 전체</option>
           <option value="open">미해결</option>
           <option value="in_progress">진행중</option>
@@ -154,7 +154,7 @@ export function LogsTab({ logs, onLogsChange, assets, vendors }: Props) {
       )}
 
       {/* 테이블 */}
-      <div className="panel overflow-hidden">
+      <div className="panel overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-panel border-b border-line">
             <tr>

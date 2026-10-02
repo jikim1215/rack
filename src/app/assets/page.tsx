@@ -5,6 +5,8 @@ import { AssetTable } from "./AssetTable";
 import { rackScopeWhere } from "@/lib/authz";
 import { listAssets, ASSET_MISSING_FILTERS, type AssetMissingFilter } from "@/lib/asset-list";
 import type { RackRow, CustomFieldRow, TeamRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("assets");
 
 export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ rack_id?: string; missing?: string; q?: string }> }) {
   const db = getDb();

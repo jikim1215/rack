@@ -125,10 +125,10 @@ export function TeamsTab({ teams, onTeamsChange }: Props) {
       )}
 
       {/* 팀 추가 폼 */}
-      <form onSubmit={handleAddTeam} className="mb-4 p-4 bg-rail rounded-lg flex items-end gap-3">
+      <form onSubmit={handleAddTeam} className="mb-4 p-4 bg-surface border border-line rounded-lg flex items-end gap-3">
         <div className="flex-1">
           <label className="block text-sm font-medium text-ink-2 mb-1">팀 이름</label>
-          <input
+          <input aria-label="팀 이름"
             type="text"
             value={newTeamName}
             onChange={(e) => setNewTeamName(e.target.value)}
@@ -165,7 +165,7 @@ export function TeamsTab({ teams, onTeamsChange }: Props) {
                 <tr key={t.id} className="border-b border-line hover:bg-slate-50">
                   <td className="py-2 px-3 font-medium">
                     {editingTeamId === t.id ? (
-                      <input
+                      <input aria-label="팀 이름"
                         type="text"
                         value={editTeamName}
                         onChange={(e) => setEditTeamName(e.target.value)}

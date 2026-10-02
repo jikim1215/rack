@@ -4,6 +4,8 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { scopeWhere } from "@/lib/authz";
 import SubAssetsView from "./SubAssetsView";
 import type { SubAssetRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("subassets");
 
 // 부속자산 — S/W·기반설비·메모리·모듈·디스크·주변기기·비품 등 재물 관점 품목.
 // 자산(assets)과 동일한 팀 스코프 정책으로 SSR 목록 + 분류 집계를 전달한다.

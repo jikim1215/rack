@@ -4,6 +4,7 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { scopeWhere } from "@/lib/authz";
 import { TopologyView } from "./TopologyView";
 import type { AssetRow } from "@/lib/db-types";
+export const metadata = { title: "네트워크 토폴로지" };
 
 export default async function TopologyPage() {
   const db = getDb();

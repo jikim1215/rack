@@ -5,6 +5,8 @@ import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
 import { ReportView } from "./ReportView";
 import { getDashboardStats } from "@/lib/dashboard-stats";
 import type { CountRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("reports");
 
 // ── 통계 리포트 (외부 검토 가격심의 갭 5 대응) ──
 // 심의·감사·상부 보고용 집계 화면. 대시보드(운영 계기판)와 달리 인쇄를 전제로 한 표 중심 산출물.

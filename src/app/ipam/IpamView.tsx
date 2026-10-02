@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Globe, Plus, Trash2, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { UsageGuide } from "@/components/UsageGuide";
 
+import { pressable } from "@/lib/a11y";
+import { useEscape } from "@/lib/use-escape";
 interface Subnet {
   id: number;
   subnet_name: string;
@@ -42,6 +44,15 @@ const maskOptions: { label: string; mask: string; count: number }[] = [
   { label: "/27", mask: "255.255.255.224", count: 32 },
   { label: "/28", mask: "255.255.255.240", count: 16 },
 ];
+
+const IPV4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+
+/** 정렬된 배열에서 x 이상인 첫 위치(이분 탐색). */
+export function lowerBound(sorted: number[], x: number): number {
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) { const mid = (lo + hi) >>> 1; if (sorted[mid] < x) lo = mid + 1; else hi = mid; }
+  return lo;
+}
 
 function ipToNum(ip: string): number {
   return ip.split(".").reduce((acc, o) => (acc << 8) + Number(o), 0) >>> 0;
@@ -83,6 +94,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
   const [hoveredIp, setHoveredIp] = useState<{ ip: string; asset?: string; iface?: string; x: number; y: number } | null>(null);
   // IP 인라인 편집 팝오버 (셀 클릭): 대표 IP만 이 자리에서 수정/해제 — 원천(assets.ip_address)에 쓰므로 자산관리에 즉시 반영
   const [editCell, setEditCell] = useState<{ entry: AssetIp; x: number; y: number } | null>(null);
+  useEscape(editCell !== null, () => setEditCell(null));
   const [editIp, setEditIp] = useState("");
   const [ipSaving, setIpSaving] = useState(false);
 
@@ -138,6 +150,18 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
   // ── 미등록 IP 자동 감지 ──
   // 등록된 서브넷에 속하지 않는 자산 IP를 /24 대역으로 묶어 "자동 감지 대역"으로 노출한다.
   // 서브넷을 수기 정의하지 않아도 대역별(.0~.255) IP 할당 현황을 바로 볼 수 있고, '등록'으로 정식 서브넷화한다.
+  // IP 색인 — 유효한 IPv4 만 숫자로 한 번 바꿔 정렬해 둔다. 대역별 조회(사이드바 사용률·격자)는 이분 탐색으로
+  // [시작, 끝] 구간만 본다. 예전엔 대역마다 전체 IP 를 다시 훑어(대역 수 × IP 수) 자산 1만 건에서 화면이 16초 걸렸다(실측).
+  const ipIndex = useMemo(() => {
+    const list: { n: number; aip: AssetIp }[] = [];
+    for (const aip of ips) {
+      if (!IPV4.test(aip.ip_address || "")) continue;
+      list.push({ n: ipToNum(aip.ip_address), aip });
+    }
+    list.sort((a, b) => a.n - b.n);
+    return { nums: list.map((x) => x.n), entries: list };
+  }, [ips]);
+
   function isCoveredByRegistered(ipNum: number): boolean {
     for (const s of subnets) {
       const net = ipToNum(s.network_address);
@@ -151,11 +175,10 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
   }
   const detectedSubnets: Subnet[] = (() => {
     const set = new Set<number>();
-    for (const aip of ips) {
-      if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(aip.ip_address || "")) continue;
-      const n = ipToNum(aip.ip_address);
-      if (isCoveredByRegistered(n)) continue;
-      set.add((n & 0xFFFFFF00) >>> 0);
+    for (const n of ipIndex.nums) {
+      const net24 = (n & 0xFFFFFF00) >>> 0;
+      if (set.has(net24) || isCoveredByRegistered(n)) continue;
+      set.add(net24);
     }
     return [...set].sort((a, b) => a - b).map((net24) => ({
       id: -(net24 + 1),
@@ -201,11 +224,9 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
     const broadcastNum = netStart + count;
 
     const ipMap = new Map<number, AssetIp>();
-    for (const aip of ips) {
-      const n = ipToNum(aip.ip_address);
-      if (n >= netStart && n <= broadcastNum) {
-        ipMap.set(n - netStart, aip);
-      }
+    const { nums, entries } = ipIndex;
+    for (let i = lowerBound(nums, netStart); i < nums.length && nums[i] <= broadcastNum; i++) {
+      ipMap.set(nums[i] - netStart, entries[i].aip);
     }
 
     const gwNum = subnet.gateway ? ipToNum(subnet.gateway) : -1;
@@ -334,7 +355,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-signal inline-block" /> 사용중</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-200 inline-block" /> 미사용</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-warn inline-block" /> 게이트웨이(G)</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-400 inline-block" /> 네트워크(N)/브로드캐스트(B)</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-slate-500 inline-block" /> 네트워크(N)/브로드캐스트(B)</span>
           {canWrite && <span className="text-ink-3 flex items-center gap-1"><Pencil className="w-3 h-3" /> 사용중 셀을 클릭하면 IP를 바로 수정/해제할 수 있습니다</span>}
         </div>
 
@@ -350,8 +371,8 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
             const ipAddr = numToIp(netStart + offset);
 
             let bg = "bg-slate-200";
-            if (isNetwork || isBroadcast) bg = "bg-slate-400";
-            else if (isGw) bg = "bg-warn";
+            if (isNetwork || isBroadcast) bg = "bg-slate-500";
+            else if (isGw) bg = "bg-warn text-white";
             else if (assigned) bg = "bg-signal text-white";
 
             return (
@@ -371,6 +392,16 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                   });
                 }}
                 onMouseLeave={() => setHoveredIp(null)}
+                // 할당된 IP 칸만 키보드 대상(Tab 256회 방지) — Enter/Space 로 마우스 클릭과 같은 IP 편집 팝오버
+                {...(assigned ? { role: "button", tabIndex: 0, "aria-label": `${ipAddr} ${assigned.asset_name}${assigned.interface_name ? ` ${assigned.interface_name}` : ""} — IP 편집` } : {})}
+                onKeyDown={(e) => {
+                  if (!assigned || (e.key !== "Enter" && e.key !== " ")) return;
+                  e.preventDefault();
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setHoveredIp(null);
+                  setEditIp(assigned.ip_address);
+                  setEditCell({ entry: assigned, x: r.left + r.width / 2, y: r.bottom });
+                }}
                 onClick={(e) => {
                   if (!assigned) {
                     // 무반응 방지 (외부 검토 R2-5 합의): 미사용/GW/네트워크 셀도 클릭 이유를 안내
@@ -393,7 +424,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
         </div>
 
         {/* 서브넷 정보 */}
-        <div className="mt-4 grid grid-cols-4 gap-3 text-sm">
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div className="panel p-3">
             <div className="text-ink-3 text-xs">네트워크</div>
             <div className="num font-medium">{subnet.network_address}/{cidr}</div>
@@ -432,7 +463,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
         ]}
       />
       {/* 통계 */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="panel p-4 text-center">
           <div className="text-2xl font-bold num">{globalStats.totalSubnets}</div>
           <div className="text-xs text-ink-3">전체 서브넷</div>
@@ -456,9 +487,9 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
       </div>
 
       {/* 메인 레이아웃 */}
-      <div className="flex gap-6">
+      <div className="flex flex-col md:flex-row gap-6">
         {/* 좌측: 서브넷 목록 + 추가 폼 */}
-        <div className="w-[250px] shrink-0 space-y-3">
+        <div className="w-full md:w-[250px] md:shrink-0 space-y-3">
           <div className="panel p-3">
             <h3 className="font-semibold text-sm mb-3 flex items-center gap-1 text-ink">
               <Globe className="w-4 h-4" /> 서브넷 목록
@@ -473,6 +504,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                   <div key={groupKey}>
                     <button
                       onClick={() => toggleGroup(groupKey)}
+                      aria-expanded={open}
                       className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-sm font-semibold text-ink hover:bg-slate-100"
                     >
                       {open ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
@@ -487,7 +519,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                           return (
                             <div
                               key={s.id}
-                              onClick={() => setSelected(s.id)}
+                              {...pressable(() => setSelected(s.id), { pressed: selected === s.id })}
                               className={`cursor-pointer px-3 py-2 rounded text-sm transition-colors group ${
                                 selected === s.id ? "bg-ink text-white font-medium" : "text-ink-2 hover:bg-slate-100"
                               }`}
@@ -497,27 +529,27 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                                 <span className="flex items-center gap-0.5 shrink-0">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); startEditSubnet(s); }}
-                                    className="opacity-0 group-hover:opacity-100 hover:bg-slate-200 rounded p-0.5"
+                                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 hover:bg-slate-200 rounded p-0.5"
                                     title="서브넷 수정 (대역 내 IP는 유지됨)"
                                   >
                                     <Pencil className="w-3 h-3" />
                                   </button>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); deleteSubnet(s.id); }}
-                                    className="opacity-0 group-hover:opacity-100 text-fault hover:bg-red-50 rounded p-0.5"
+                                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 text-fault hover:bg-red-50 rounded p-0.5"
                                     title="서브넷 삭제 (빈 대역만 가능)"
                                   >
                                     <Trash2 className="w-3 h-3" />
                                   </button>
                                 </span>
                               </div>
-                              <div className="text-xs num opacity-70">{s.network_address}/{cidr}
+                              <div className="text-xs num">{s.network_address}/{cidr}
                                 {s.owner_team_name && <span className="ml-1 font-sans not-italic text-[10px] px-1 py-0.5 rounded bg-indigo-100 text-indigo-700">{s.owner_team_name}</span>}
                               </div>
                               <div className="mt-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                 <div className="h-full bg-signal rounded-full transition-all" style={{ width: `${usage.pct}%` }} />
                               </div>
-                              <div className="text-[10px] num opacity-70 mt-0.5">{usage.used}/{usage.usable} ({usage.pct}%)</div>
+                              <div className="text-[10px] num mt-0.5">{usage.used}/{usage.usable} ({usage.pct}%)</div>
                             </div>
                           );
                         })}
@@ -540,7 +572,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                       return (
                         <div
                           key={s.id}
-                          onClick={() => setSelected(s.id)}
+                          {...pressable(() => setSelected(s.id), { pressed: selected === s.id })}
                           className={`cursor-pointer px-3 py-2 rounded text-sm transition-colors group ${
                             selected === s.id ? "bg-ink text-white font-medium" : "text-ink-2 hover:bg-slate-100"
                           }`}
@@ -550,12 +582,12 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                             {canWrite && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); prefillRegister(s); }}
-                                className="opacity-0 group-hover:opacity-100 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0"
+                                className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0"
                                 title="이 대역을 정식 서브넷으로 등록(폼 프리필)"
                               >등록</button>
                             )}
                           </div>
-                          <div className="text-[10px] num opacity-70 mt-0.5">{usage.used}개 IP 사용중</div>
+                          <div className="text-[10px] num mt-0.5">{usage.used}개 IP 사용중</div>
                         </div>
                       );
                     })}
@@ -571,19 +603,19 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
               {editingId != null ? <><Pencil className="w-4 h-4" /> 서브넷 수정</> : <><Plus className="w-4 h-4" /> 서브넷 추가</>}
             </h3>
             <div className="space-y-2">
-              <input
+              <input aria-label="서브넷 이름"
                 className="form-input w-full text-sm"
                 placeholder="서브넷 이름"
                 value={form.subnet_name}
                 onChange={(e) => setForm({ ...form, subnet_name: e.target.value })}
               />
-              <input
+              <input aria-label="네트워크 주소 (x.x.x.x)"
                 className="form-input w-full text-sm font-mono"
                 placeholder="네트워크 주소 (x.x.x.x)"
                 value={form.network_address}
                 onChange={(e) => setForm({ ...form, network_address: e.target.value })}
               />
-              <select
+              <select aria-label="서브넷 마스크"
                 className="form-input w-full text-sm"
                 value={form.subnet_mask}
                 onChange={(e) => setForm({ ...form, subnet_mask: e.target.value })}
@@ -592,19 +624,19 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                   <option key={m.label} value={m.mask}>{m.label} ({m.mask})</option>
                 ))}
               </select>
-              <input
+              <input aria-label="게이트웨이"
                 className="form-input w-full text-sm font-mono"
                 placeholder="게이트웨이"
                 value={form.gateway}
                 onChange={(e) => setForm({ ...form, gateway: e.target.value })}
               />
-              <input
+              <input aria-label="VLAN ID"
                 className="form-input w-full text-sm"
                 placeholder="VLAN ID"
                 value={form.vlan_id}
                 onChange={(e) => setForm({ ...form, vlan_id: e.target.value })}
               />
-              <select
+              <select aria-label="위치"
                 className="form-input w-full text-sm"
                 value={form.location_id}
                 onChange={(e) => setForm({ ...form, location_id: e.target.value })}
@@ -615,7 +647,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                 ))}
               </select>
               {isAdmin && (
-                <select
+                <select aria-label="소유 팀"
                   className="form-input w-full text-sm"
                   value={form.team_id}
                   onChange={(e) => setForm({ ...form, team_id: e.target.value === "" ? "" : Number(e.target.value) })}
@@ -645,7 +677,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
         </div>
 
         {/* 우측: IP 격자 */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {selectedSubnet ? (
             <div className="panel p-4">
               <h3 className="font-bold text-lg mb-2 text-ink flex items-center flex-wrap gap-2">
@@ -692,6 +724,9 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
         <>
           <div className="fixed inset-0 z-40" onClick={() => setEditCell(null)} />
           <div
+            role="dialog" aria-label={`${editCell.entry.ip_address} IP 편집`} tabIndex={-1}
+            // 입력칸이 없는 경우(비대표 IP·읽기 권한)에도 키보드 포커스가 팝오버로 옮겨 오게 — 입력칸이 있으면 그쪽 autoFocus 가 이긴다
+            ref={(el) => { if (el && !el.contains(document.activeElement)) el.focus(); }}
             className="fixed z-50 panel bg-white shadow-lg rounded px-4 py-3 w-[280px] border border-line-strong"
             style={{ left: Math.min(editCell.x, typeof window !== "undefined" ? window.innerWidth - 150 : editCell.x), top: editCell.y + 6, transform: "translateX(-50%)" }}
           >
@@ -702,7 +737,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
             <div className="text-xs text-ink-2 mb-2 truncate">{editCell.entry.asset_name}</div>
             {canWrite && editCell.entry.ip_type === "대표" ? (
               <div className="space-y-2">
-                <input
+                <input aria-label="IP 주소"
                   className="form-input w-full text-sm font-mono"
                   value={editIp}
                   autoFocus

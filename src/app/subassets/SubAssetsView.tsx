@@ -45,6 +45,9 @@ interface CategoryAgg {
   cnt: number;
 }
 
+/** 부모장비 검색 결과 상한 — 셀렉트 목록으로 고를 수 있는 규모. 넘으면 검색어를 좁히라고 안내. */
+const PARENT_SEARCH_LIMIT = 50;
+
 interface ParentAsset {
   id: number;
   asset_name: string;
@@ -101,12 +104,13 @@ export default function SubAssetsView({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  // 부모장비 연결 — 텍스트 검색 → /api/assets 결과 이름 필터 셀렉트
+  // 부모장비 연결 — 검색어를 서버 검색(/api/assets?q=, 자산 목록 화면과 같은 범위·권한)에 넘겨 상위 N건만 받는다.
+  // 예전엔 폼을 열 때마다 자산 전량(limit=0)을 받아 브라우저에서 걸렀다: 자산 1만 건이면 응답 7.7MB(실측).
   const [parentId, setParentId] = useState<number | null>(null);
   const [parentName, setParentName] = useState<string>("");
   const [parentQuery, setParentQuery] = useState("");
-  const [parentOptions, setParentOptions] = useState<ParentAsset[]>([]);
-  const [parentLoaded, setParentLoaded] = useState(false);
+  const [parentMatches, setParentMatches] = useState<ParentAsset[]>([]);
+  const [parentTotal, setParentTotal] = useState(0);
 
   // 분류 옵션 — SSR 집계 + 클라이언트에서 새로 생긴 분류 병합
   const mids = useMemo(() => {
@@ -170,37 +174,25 @@ export default function SubAssetsView({
     [filtered, safePage]
   );
 
-  async function loadParentOptions() {
-    if (parentLoaded) return;
-    try {
-      // 상위 장비 선택 드롭다운 — 목록 API 는 기본 100건 페이지마다 주므로 전량(limit=0)을 명시한다
-      const res = await fetch("/api/assets?limit=0&sort=asset_name&dir=asc");
-      if (!res.ok) throw new Error();
-      const list = ((await res.json()).rows ?? []) as ParentAsset[];
-      setParentOptions(
-        list.map((a) => ({
-          id: a.id,
-          asset_name: a.asset_name,
-          asset_type: a.asset_type,
-          ip_address: a.ip_address,
-          serial_number: a.serial_number,
-        }))
-      );
-      setParentLoaded(true);
-    } catch {
-      addToast("장비 목록을 불러오지 못했습니다.", "error");
-    }
-  }
-
-  const parentMatches = useMemo(() => {
-    const q = parentQuery.trim().toLowerCase();
-    if (!q) return [];
-    return parentOptions
-      .filter((a) =>
-        `${a.asset_name} ${a.ip_address} ${a.serial_number}`.toLowerCase().includes(q)
-      )
-      .slice(0, 50);
-  }, [parentOptions, parentQuery]);
+  // 검색어 입력이 멈추면(250ms) 서버 검색. 늦게 도착한 이전 응답이 최신 결과를 덮지 않게 요청마다 취소한다.
+  useEffect(() => {
+    const q = parentQuery.trim();
+    if (!q) { setParentMatches([]); setParentTotal(0); return; }
+    const ctl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        const qs = new URLSearchParams({ q, limit: String(PARENT_SEARCH_LIMIT), sort: "asset_name", dir: "asc" });
+        const res = await fetch(`/api/assets?${qs}`, { signal: ctl.signal });
+        if (!res.ok) throw new Error();
+        const data = (await res.json()) as { rows?: ParentAsset[]; total?: number };
+        setParentMatches((data.rows ?? []).map(({ id, asset_name, asset_type, ip_address, serial_number }) => ({ id, asset_name, asset_type, ip_address, serial_number })));
+        setParentTotal(data.total ?? 0);
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") addToast("장비 검색에 실패했습니다.", "error");
+      }
+    }, 250);
+    return () => { clearTimeout(t); ctl.abort(); };
+  }, [parentQuery, addToast]);
 
   function openCreate() {
     setEditing(null);
@@ -209,7 +201,6 @@ export default function SubAssetsView({
     setParentName("");
     setParentQuery("");
     setShowForm(true);
-    loadParentOptions();
   }
 
   function openEdit(row: SubAsset) {
@@ -232,7 +223,6 @@ export default function SubAssetsView({
     setParentName(row.parent_name ?? "");
     setParentQuery("");
     setShowForm(true);
-    loadParentOptions();
   }
 
   function closeForm() {
@@ -413,17 +403,17 @@ export default function SubAssetsView({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">자산코드</label>
-              <input className="form-input w-full" value={form.asset_code}
+              <input aria-label="자산코드" className="form-input w-full" value={form.asset_code}
                 onChange={(e) => set("asset_code", e.target.value)} placeholder="예: SW-2026-001" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">대분류</label>
-              <input className="form-input w-full" value={form.category_major}
+              <input aria-label="대분류" className="form-input w-full" value={form.category_major}
                 onChange={(e) => set("category_major", e.target.value)} placeholder="예: 부속자산" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">중분류</label>
-              <input className="form-input w-full" value={form.category_mid} list="subasset-mids"
+              <input aria-label="중분류" className="form-input w-full" value={form.category_mid} list="subasset-mids"
                 onChange={(e) => set("category_mid", e.target.value)} placeholder="예: 소프트웨어" />
               <datalist id="subasset-mids">
                 {mids.map((m) => <option key={m} value={m} />)}
@@ -431,49 +421,49 @@ export default function SubAssetsView({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">소분류</label>
-              <input className="form-input w-full" value={form.category_minor}
+              <input aria-label="소분류" className="form-input w-full" value={form.category_minor}
                 onChange={(e) => set("category_minor", e.target.value)} placeholder="예: 백신" />
             </div>
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 자산명 <span className="text-fault">*</span>
               </label>
-              <input className="form-input w-full" value={form.sub_name} required
+              <input aria-label="자산명" className="form-input w-full" value={form.sub_name} required
                 onChange={(e) => set("sub_name", e.target.value)} placeholder="예: V3 백신 서버용 라이선스" />
             </div>
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">규격</label>
-              <input className="form-input w-full" value={form.spec}
+              <input aria-label="규격" className="form-input w-full" value={form.spec}
                 onChange={(e) => set("spec", e.target.value)} placeholder="예: 32GB DDR4 ECC" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">시리얼번호</label>
-              <input className="form-input w-full" value={form.serial_number}
+              <input aria-label="시리얼번호" className="form-input w-full" value={form.serial_number}
                 onChange={(e) => set("serial_number", e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">취득일</label>
-              <input type="date" className="form-input w-full" value={form.acquired_date}
+              <input aria-label="취득일" type="date" className="form-input w-full" value={form.acquired_date}
                 onChange={(e) => set("acquired_date", e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">사용자</label>
-              <input className="form-input w-full" value={form.user_name}
+              <input aria-label="사용자" className="form-input w-full" value={form.user_name}
                 onChange={(e) => set("user_name", e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">설치장소</label>
-              <input className="form-input w-full" value={form.place}
+              <input aria-label="설치장소" className="form-input w-full" value={form.place}
                 onChange={(e) => set("place", e.target.value)} placeholder="예: 전산실 A01" />
             </div>
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">용도</label>
-              <input className="form-input w-full" value={form.purpose}
+              <input aria-label="용도" className="form-input w-full" value={form.purpose}
                 onChange={(e) => set("purpose", e.target.value)} />
             </div>
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">비고</label>
-              <input className="form-input w-full" value={form.note}
+              <input aria-label="비고" className="form-input w-full" value={form.note}
                 onChange={(e) => set("note", e.target.value)} />
             </div>
 
@@ -495,20 +485,20 @@ export default function SubAssetsView({
                 </div>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <input
+                  <input aria-label="장비명·IP·시리얼로 검색"
                     className="form-input w-64"
                     placeholder="장비명·IP·시리얼로 검색"
                     value={parentQuery}
                     onChange={(e) => setParentQuery(e.target.value)}
                   />
                   {parentQuery.trim() && (
-                    <select
+                    <select aria-label="부모 장비 선택"
                       className="form-input w-72"
                       value=""
                       onChange={(e) => {
                         const pid = Number(e.target.value);
                         if (!pid) return;
-                        const picked = parentOptions.find((a) => a.id === pid);
+                        const picked = parentMatches.find((a) => a.id === pid);
                         if (picked) {
                           setParentId(picked.id);
                           setParentName(picked.asset_name);
@@ -516,9 +506,11 @@ export default function SubAssetsView({
                       }}
                     >
                       <option value="">
-                        {parentMatches.length > 0
-                          ? `검색 결과 ${parentMatches.length}건 — 선택하세요`
-                          : "검색 결과 없음"}
+                        {parentMatches.length === 0
+                          ? "검색 결과 없음"
+                          : parentTotal > parentMatches.length
+                            ? `검색 결과 ${parentTotal}건 중 ${parentMatches.length}건 — 더 구체적으로 검색하세요`
+                            : `검색 결과 ${parentMatches.length}건 — 선택하세요`}
                       </option>
                       {parentMatches.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -547,7 +539,7 @@ export default function SubAssetsView({
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">중분류</label>
-            <select
+            <select aria-label="중분류"
               className="form-input"
               value={filterMid}
               onChange={(e) => { setFilterMid(e.target.value); setFilterMinor(""); }}
@@ -558,7 +550,7 @@ export default function SubAssetsView({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">소분류</label>
-            <select
+            <select aria-label="소분류"
               className="form-input"
               value={filterMinor}
               onChange={(e) => setFilterMinor(e.target.value)}
@@ -569,7 +561,7 @@ export default function SubAssetsView({
           </div>
           <div className="flex-1 min-w-56">
             <label className="block text-sm font-medium text-gray-700 mb-1">검색</label>
-            <input
+            <input aria-label="검색"
               className="form-input w-full"
               placeholder="자산코드, 자산명, 규격, 시리얼, 설치장소, 사용자"
               value={search}
@@ -663,7 +655,7 @@ export default function SubAssetsView({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-ink-3 border-b border-line">
+              <tr className="text-left text-ink-3 border-b border-line whitespace-nowrap">
                 <th className="py-2 pr-3 font-medium">자산코드</th>
                 <th className="py-2 pr-3 font-medium">분류</th>
                 <th className="py-2 pr-3 font-medium">자산명</th>

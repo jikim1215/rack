@@ -48,7 +48,7 @@ export default function WarningsPanel({
               <div>
                 <span className="font-medium">{w.asset_name}</span>
                 <span className="text-xs text-ink-3 ml-2">{typeLabels[w.asset_type] || w.asset_type}</span>
-                <span className="eyebrow ml-2 !text-[0.625rem]">{w.warnType}</span>
+                <span className="eyebrow ml-2 text-[0.625rem]">{w.warnType}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="num text-xs text-ink-2">{w.date}</span>

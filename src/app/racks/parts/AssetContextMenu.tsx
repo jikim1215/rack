@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import type { CtxMenuState, DistFrame, Asset } from "./types";
 import { frameOfAsset } from "./placement";
+import { useEscape } from "@/lib/use-escape";
 
 interface AssetContextMenuProps {
   ctxMenu: CtxMenuState;
@@ -13,6 +14,7 @@ interface AssetContextMenuProps {
 
 export function AssetContextMenu({ ctxMenu, onClose, distFrames, onUnrack }: AssetContextMenuProps) {
   const router = useRouter();
+  useEscape(true, onClose);
 
   return (
     <>

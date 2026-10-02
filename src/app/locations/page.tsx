@@ -4,6 +4,8 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
 import { LocationManager } from "./LocationManager";
 import type { LocationRow, RackRow, TeamRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("locations");
 
 export default async function LocationsPage() {
   const db = getDb();

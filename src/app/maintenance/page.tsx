@@ -4,6 +4,8 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { scopeWhere } from "@/lib/authz";
 import MaintenanceView from "./MaintenanceView";
 import type { MaintenanceLogRow, MaintenanceTargetRow, AssetRow, VendorRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("maintenance");
 
 export default async function MaintenancePage() {
   const db = getDb();

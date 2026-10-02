@@ -145,6 +145,8 @@ export function Onboarding() {
   useEffect(() => {
     if (!step || !step.selector) { setRect(null); return; }
     const sel = step.selector;
+    // 좁은 화면에서는 사이드바가 서랍이다 — 메뉴·도움말 단계는 서랍을 열어 대상을 보이게 한다(넓은 화면은 무시됨).
+    if (document.querySelector(sel)?.closest("#app-nav")) window.dispatchEvent(new Event("asset:nav-open"));
     document.querySelector<HTMLElement>(sel)?.scrollIntoView({ block: "nearest" });
     const compute = () => {
       const el = document.querySelector<HTMLElement>(sel);

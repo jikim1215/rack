@@ -91,7 +91,7 @@ export default function ChangePasswordPage() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-ink-2 mb-1">현재(임시) 비밀번호</label>
-                <input
+                <input aria-label="현재(임시) 비밀번호"
                   type="password"
                   value={currentPw}
                   onChange={(e) => setCurrentPw(e.target.value)}
@@ -102,7 +102,7 @@ export default function ChangePasswordPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-ink-2 mb-1">새 비밀번호</label>
-                <input
+                <input aria-label="새 비밀번호"
                   type="password"
                   value={newPw}
                   onChange={(e) => setNewPw(e.target.value)}
@@ -113,7 +113,7 @@ export default function ChangePasswordPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-ink-2 mb-1">새 비밀번호 확인</label>
-                <input
+                <input aria-label="새 비밀번호 확인"
                   type="password"
                   value={confirmPw}
                   onChange={(e) => setConfirmPw(e.target.value)}

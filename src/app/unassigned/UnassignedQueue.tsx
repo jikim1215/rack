@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Inbox, Check, Sparkles, Building2 } from "lucide-react";
+import { Inbox, Check, Sparkles, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import { suggestTeam } from "@/lib/team-mapping";
 import { useToast } from "@/components/Toast";
 import { UsageGuide } from "@/components/UsageGuide";
@@ -31,7 +31,11 @@ interface DepartmentSummary {
 }
 
 interface Props {
-  assets: Asset[];
+  /** 첫 페이지(SSR). 다음 페이지부터는 /api/assets?scope=unassigned 로 받는다. */
+  initialRows: Asset[];
+  total: number;
+  /** 페이지 행 수(서버 상수 pageSize). 부서별 일괄 배정은 페이지와 무관하게 전량 대상. */
+  pageSize: number;
   teams: Team[];
   departmentSummary: DepartmentSummary[];
 }
@@ -51,9 +55,37 @@ const guideItems = [
   "목록 선택 재배정: 개별 자산의 체크박스를 선택 후 팀을 지정하여 일괄 배정할 수도 있습니다.",
 ];
 
-export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
+export function UnassignedQueue({ initialRows, total: initialTotal, pageSize, teams, departmentSummary }: Props) {
   const router = useRouter();
   const { addToast } = useToast();
+
+  // 페이지 상태 — 재배정 후엔 지금 보던 페이지를 다시 받는다(줄어든 만큼 뒤 행이 당겨 올라온다)
+  const [assets, setAssets] = useState<Asset[]>(initialRows);
+  const [total, setTotal] = useState(initialTotal);
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  async function loadPage(target: number) {
+    setLoading(true);
+    try {
+      for (let p = Math.max(1, target); ; p--) {
+        const qs = new URLSearchParams({ scope: "unassigned", sort: "created_at", dir: "desc", limit: String(pageSize), offset: String((p - 1) * pageSize) });
+        const res = await fetch(`/api/assets?${qs}`);
+        const data = await res.json();
+        if (!res.ok) { addToast(data.error || "목록을 불러오지 못했습니다.", "error"); return; }
+        // 마지막 페이지를 다 배정해 비었으면 한 페이지 앞으로
+        if (data.rows.length === 0 && p > 1) continue;
+        setAssets(data.rows);
+        setTotal(data.total);
+        setPage(p);
+        return;
+      }
+    } catch {
+      addToast("서버 연결에 실패했습니다.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [teamId, setTeamId] = useState<string>("");
@@ -71,7 +103,8 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
     return suggested ? String(suggested) : "";
   }
 
-  const allSelected = assets.length > 0 && selected.size === assets.length;
+  // 전체 선택 체크박스 = 이 페이지 행 전부(다른 페이지 선택은 유지)
+  const allSelected = assets.length > 0 && assets.every((a) => selected.has(a.id));
 
   function toggle(id: number) {
     setSelected((prev) => {
@@ -83,7 +116,11 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(assets.map((a) => a.id)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const a of assets) { if (allSelected) next.delete(a.id); else next.add(a.id); }
+      return next;
+    });
   }
 
   async function handleBulkDeptReassign() {
@@ -99,6 +136,15 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
       return;
     }
 
+    // 여러 부서의 자산 소유 팀을 한 번에 바꾼다 — 무엇이 어디로 가는지 보여주고 확인받는다.
+    const countByDept = new Map(departmentSummary.map((d) => [d.department, d.count] as const));
+    const count = payload.reduce((n, p) => n + (countByDept.get(p.department) ?? 0), 0);
+    const lines = payload.slice(0, 15).map((p) =>
+      `· ${p.department} (${countByDept.get(p.department) ?? 0}건) → ${teams.find((t) => t.id === p.team_id)?.team_name ?? p.team_id}`,
+    );
+    if (payload.length > 15) lines.push(`… 외 ${payload.length - 15}개 부서`);
+    if (!confirm(`추천된 팀으로 자산 ${count}건(${payload.length}개 부서)을 배정합니다.\n\n${lines.join("\n")}\n\n자산별 변경이력이 감사로그에 남습니다. 진행할까요?`)) return;
+
     setLoading(true);
     try {
       const res = await fetch("/api/assets/reassign", {
@@ -112,7 +158,9 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
           `부서별 일괄 배정 완료: 총 ${data.reassigned}건의 자산이 배정되었습니다.`,
           "success",
         );
+        setSelected(new Set());
         router.refresh();
+        await loadPage(page);
       } else {
         addToast(data.error || "부서별 일괄 배정에 실패했습니다.", "error");
       }
@@ -148,7 +196,9 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
           `${deptDisplayName} 부서 자산 ${data.reassigned}건을 '${teamName}' 팀에 배정했습니다.`,
           "success",
         );
+        setSelected(new Set());
         router.refresh();
+        await loadPage(page);
       } else {
         addToast(data.error || "부서 재배정에 실패했습니다.", "error");
       }
@@ -181,6 +231,7 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
         addToast(`${data.reassigned}건을 '${teamName}' 팀에 배정했습니다.`, "success");
         setSelected(new Set());
         router.refresh();
+        await loadPage(page);
       } else {
         addToast(data.error || "재배정에 실패했습니다.", "error");
       }
@@ -199,7 +250,7 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Inbox size={22} /> 미배정 큐
           </h2>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-ink-3 mt-1">
             소속 팀이 지정되지 않은 자산을 총괄이 팀에 재배정합니다.
           </p>
         </div>
@@ -214,7 +265,7 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
             <div className="flex items-center gap-2">
               <Building2 size={18} className="text-signal" />
               <h3 className="text-base font-bold">부서별 일괄 배정</h3>
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-ink-3">
                 ({departmentSummary.length}개 부서 집계)
               </span>
             </div>
@@ -230,7 +281,7 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-500 border-b">
+                <tr className="text-left text-ink-3 border-b">
                   <th className="py-2">부서명</th>
                   <th className="py-2">미배정 건수</th>
                   <th className="py-2">배정 팀 (기본: 자동 추천)</th>
@@ -250,7 +301,7 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
                       <td className="py-2.5 num font-semibold text-ink-2">{d.count}건</td>
                       <td className="py-2.5">
                         <div className="flex items-center gap-2">
-                          <select
+                          <select aria-label={`${displayName} 배정 팀`}
                             value={selectedVal}
                             onChange={(e) =>
                               setDeptSelections((prev) => ({
@@ -296,7 +347,7 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
       <div className="card p-5">
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <span className="text-sm text-slate-600">선택 {selected.size}건</span>
-          <select
+          <select aria-label="선택 자산을 배정할 팀"
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
             className="form-input !w-auto"
@@ -317,18 +368,19 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
           </button>
         </div>
 
-        {assets.length === 0 ? (
-          <p className="text-sm text-slate-500 py-8 text-center">미배정 자산이 없습니다.</p>
+        {total === 0 ? (
+          <p className="text-sm text-ink-3 py-8 text-center">미배정 자산이 없습니다.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-slate-500 border-b">
+              <tr className="text-left text-ink-3 border-b">
                 <th className="py-2 w-8">
                   <input
                     type="checkbox"
                     checked={allSelected}
                     onChange={toggleAll}
-                    aria-label="전체 선택"
+                    aria-label="이 페이지 전체 선택"
                   />
                 </th>
                 <th className="py-2">자산명</th>
@@ -372,6 +424,35 @@ export function UnassignedQueue({ assets, teams, departmentSummary }: Props) {
               ))}
             </tbody>
           </table>
+          </div>
+        )}
+        {total > 0 && (
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-line text-sm text-ink-2">
+            <span className="num">
+              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} / {total}건
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                className="p-1.5 rounded text-ink-3 hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                disabled={loading || page <= 1}
+                onClick={() => loadPage(page - 1)}
+                aria-label="이전 페이지"
+                title="이전 페이지"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="px-2 num">{page} / {totalPages}</span>
+              <button
+                className="p-1.5 rounded text-ink-3 hover:text-ink disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                disabled={loading || page >= totalPages}
+                onClick={() => loadPage(page + 1)}
+                aria-label="다음 페이지"
+                title="다음 페이지"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -68,15 +68,15 @@ export function MailTab({ active }: Props) {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="block text-sm font-medium text-ink-2 mb-1">SMTP 호스트</label>
-            <input type="text" value={mail.host} onChange={(e) => setMail({ ...mail, host: e.target.value })} placeholder="relay.example.go.kr" className="form-input" />
+            <input aria-label="SMTP 호스트" type="text" value={mail.host} onChange={(e) => setMail({ ...mail, host: e.target.value })} placeholder="relay.example.go.kr" className="form-input" />
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-2 mb-1">포트</label>
-            <input type="number" value={mail.port} onChange={(e) => setMail({ ...mail, port: Number(e.target.value) })} className="form-input" />
+            <input aria-label="포트" type="number" value={mail.port} onChange={(e) => setMail({ ...mail, port: Number(e.target.value) })} className="form-input" />
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-2 mb-1">보안</label>
-            <select value={mail.security} onChange={(e) => setMail({ ...mail, security: e.target.value })} className="form-input">
+            <select aria-label="보안" value={mail.security} onChange={(e) => setMail({ ...mail, security: e.target.value })} className="form-input">
               <option value="NONE">NONE (평문)</option>
               <option value="STARTTLS">STARTTLS</option>
               <option value="TLS">TLS</option>
@@ -84,15 +84,15 @@ export function MailTab({ active }: Props) {
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-2 mb-1">발신 주소</label>
-            <input type="email" value={mail.from_address} onChange={(e) => setMail({ ...mail, from_address: e.target.value })} placeholder="noreply@example.go.kr" className="form-input" />
+            <input aria-label="발신 주소" type="email" value={mail.from_address} onChange={(e) => setMail({ ...mail, from_address: e.target.value })} placeholder="noreply@example.go.kr" className="form-input" />
           </div>
           <div>
             <label className="block text-sm font-medium text-ink-2 mb-1">발신 이름 (선택)</label>
-            <input type="text" value={mail.from_name} onChange={(e) => setMail({ ...mail, from_name: e.target.value })} placeholder="자산관리" className="form-input" />
+            <input aria-label="발신 이름 (선택)" type="text" value={mail.from_name} onChange={(e) => setMail({ ...mail, from_name: e.target.value })} placeholder="자산관리" className="form-input" />
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-ink-2 mb-1">기준 URL</label>
-            <input type="text" value={mail.base_url} onChange={(e) => setMail({ ...mail, base_url: e.target.value })} placeholder="https://itam.example.go.kr" className="form-input" />
+            <input aria-label="기준 URL" type="text" value={mail.base_url} onChange={(e) => setMail({ ...mail, base_url: e.target.value })} placeholder="https://itam.example.go.kr" className="form-input" />
             <p className="text-[0.6875rem] text-ink-3 mt-1">메일 본문의 로그인 링크에 사용됩니다.</p>
           </div>
         </div>
@@ -111,7 +111,7 @@ export function MailTab({ active }: Props) {
       <div className="mt-6 pt-4 border-t border-line max-w-lg">
         <h3 className="text-sm font-medium text-ink mb-2">테스트 발송</h3>
         <div className="flex items-center gap-2">
-          <input type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="비우면 내 이메일로" className="form-input flex-1" />
+          <input aria-label="테스트 메일 받는 주소 (비우면 내 이메일)" type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="비우면 내 이메일로" className="form-input flex-1" />
           <button type="button" onClick={handleTestMail} disabled={mailLoading} className="px-3 py-2 rounded-lg text-sm border border-line hover:bg-slate-50 disabled:opacity-50 shrink-0">
             테스트 메일
           </button>

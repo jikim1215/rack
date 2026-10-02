@@ -5,6 +5,8 @@ import { GitBranch, Search, Save, X, Link2, Unlink, ArrowRight, Download, Upload
 import { useToast } from "@/components/Toast";
 import { UsageGuide } from "@/components/UsageGuide";
 
+import { pressable } from "@/lib/a11y";
+import { useDialog } from "@/lib/use-dialog";
 const pairStatusColors: Record<string, string> = {
   used: "bg-signal text-white",
   unused: "bg-slate-200 text-slate-600",
@@ -95,6 +97,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
   );
   const [pairsState, setPairsState] = useState<Pair[]>(initialPairs);
   const [editingPair, setEditingPair] = useState<Pair | null>(null);
+  const pairDialogRef = useDialog(editingPair !== null, () => setEditingPair(null));
   const [hoveredPair, setHoveredPair] = useState<Pair | null>(null);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -379,7 +382,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
       <div className="panel p-4 mb-6">
         <div className="flex items-center gap-2">
           <Route className="w-4 h-4 text-ink-3 shrink-0" />
-          <input
+          <input aria-label="선번 추적 — 케이블ID, 라벨, 코어번호, 장비명, IP, 사용자로 검색"
             type="text"
             placeholder="선번 추적 — 케이블ID, 라벨, 코어번호, 장비명, IP, 사용자로 검색..."
             value={traceQ}
@@ -478,9 +481,9 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
         </div>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col md:flex-row gap-6">
         {/* 좌측 트리 네비게이션 */}
-        <div className="w-[250px] shrink-0">
+        <div className="w-full md:w-[250px] md:shrink-0">
           <div className="panel p-4">
             <div className="flex items-center gap-2 mb-3">
               <GitBranch className="w-4 h-4 text-ink-3" />
@@ -490,7 +493,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
             {/* 검색 */}
             <div className="relative mb-3">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-3" />
-              <input
+              <input aria-label="배선반 검색"
                 type="text"
                 placeholder="배선반 검색..."
                 value={searchQuery}
@@ -640,7 +643,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                       className={`relative w-9 h-9 rounded flex items-center justify-center cursor-pointer hover-cell ${colorCls}`}
                       onMouseEnter={() => pair && setHoveredPair(pair)}
                       onMouseLeave={() => setHoveredPair(null)}
-                      onClick={() => {
+                      {...pressable(() => {
                         if (pair) {
                           setEditingPair({ ...pair });
                         } else {
@@ -658,7 +661,9 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                             description: "",
                           });
                         }
-                      }}
+                      }, { label: `${pairNum}번 페어 ${pairStatusLabels[status] ?? status}${pair?.label ? ` · ${pair.label}` : ""}` })}
+                      onFocus={() => pair && setHoveredPair(pair)}
+                      onBlur={() => setHoveredPair(null)}
                     >
                       <span className="text-[9px] font-medium leading-none">{pairNum}</span>
                       {pair?.linked_pair_id && (
@@ -668,7 +673,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                       {/* 툴팁 */}
                       {hoveredPair?.pair_number === pairNum && pair && (
                         <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-ink text-white text-[11px] rounded-lg p-2.5 shadow-lg pointer-events-none">
-                          <div className="font-semibold mb-1 num">페어 #{pair.pair_number} <span className="font-normal text-white/60">{colorCodeOf(currentFrame.frame_type, pair.core_number || pair.pair_number)}</span></div>
+                          <div className="font-semibold mb-1 num">페어 #{pair.pair_number} <span className="font-normal text-white/85">{colorCodeOf(currentFrame.frame_type, pair.core_number || pair.pair_number)}</span></div>
                           <div>상태: {pairStatusLabels[pair.status]}</div>
                           {pair.core_number != null && <div>코어: <span className="num">{pair.core_number}</span></div>}
                           {pair.linked_frame_name && <div>대향: {pair.linked_frame_name} <span className="num">#{pair.linked_pair_number}</span></div>}
@@ -694,7 +699,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
       {/* 편집 모달 */}
       {editingPair && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-panel border border-line rounded-lg shadow-xl w-full max-w-md p-6">
+          <div ref={pairDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`페어 ${editingPair.pair_number} 편집`} className="focus:outline-none bg-panel border border-line rounded-lg shadow-xl w-full max-w-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-ink">
                 페어 <span className="num">#{editingPair.pair_number}</span> 편집
@@ -702,7 +707,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                   {colorCodeOf(frames.find((f) => f.id === editingPair.frame_id)?.frame_type || "", editingPair.core_number || editingPair.pair_number)}
                 </span>
               </h3>
-              <button onClick={() => setEditingPair(null)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-0.5">
+              <button onClick={() => setEditingPair(null)} aria-label="닫기" className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-0.5">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -710,7 +715,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-ink-2 mb-1">상태</label>
-                <select
+                <select aria-label="상태"
                   className="form-input w-full"
                   value={editingPair.status}
                   onChange={(e) => setEditingPair({ ...editingPair, status: e.target.value })}
@@ -722,7 +727,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-2 mb-1">라벨</label>
-                <input
+                <input aria-label="라벨"
                   className="form-input w-full"
                   value={editingPair.label}
                   onChange={(e) => setEditingPair({ ...editingPair, label: e.target.value })}
@@ -731,7 +736,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-ink-2 mb-1">코어/회선번호</label>
-                  <input
+                  <input aria-label="코어/회선번호"
                     type="number"
                     className="form-input w-full"
                     value={editingPair.core_number ?? ""}
@@ -740,7 +745,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-ink-2 mb-1">케이블 ID</label>
-                  <input
+                  <input aria-label="케이블 ID"
                     className="form-input w-full"
                     value={editingPair.cable_id}
                     onChange={(e) => setEditingPair({ ...editingPair, cable_id: e.target.value })}
@@ -750,7 +755,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-ink-2 mb-1">소스</label>
-                  <input
+                  <input aria-label="소스"
                     className="form-input w-full"
                     value={editingPair.source}
                     onChange={(e) => setEditingPair({ ...editingPair, source: e.target.value })}
@@ -758,7 +763,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-ink-2 mb-1">목적지</label>
-                  <input
+                  <input aria-label="목적지"
                     className="form-input w-full"
                     value={editingPair.destination}
                     onChange={(e) => setEditingPair({ ...editingPair, destination: e.target.value })}
@@ -780,14 +785,14 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                   </div>
                 ) : editingPair.id ? (
                   <div className="flex items-center gap-2">
-                    <select value={linkFrameId} onChange={(e) => setLinkFrameId(e.target.value ? Number(e.target.value) : "")}
+                    <select aria-label="대향 배선반" value={linkFrameId} onChange={(e) => setLinkFrameId(e.target.value ? Number(e.target.value) : "")}
                       className="form-input text-xs flex-1">
                       <option value="">대향 배선반...</option>
                       {frames
                         .filter((f) => f.id !== editingPair.frame_id && f.frame_type === (frames.find((x) => x.id === editingPair.frame_id)?.frame_type))
                         .map((f) => <option key={f.id} value={f.id}>{f.frame_name}</option>)}
                     </select>
-                    <input type="number" placeholder="포트#" value={linkPairNo}
+                    <input aria-label="연결할 페어(포트) 번호" type="number" placeholder="포트#" value={linkPairNo}
                       onChange={(e) => setLinkPairNo(e.target.value)} className="form-input text-xs w-20" />
                     <button onClick={() => linkPair(editingPair)} disabled={linking}
                       className="btn-ink px-3 py-1.5 text-xs disabled:opacity-50">연결</button>
@@ -799,7 +804,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
               </div>
               <div>
                 <label className="block text-xs font-medium text-ink-2 mb-1">사용자 정보</label>
-                <input
+                <input aria-label="사용자 정보"
                   className="form-input w-full"
                   value={editingPair.user_info}
                   onChange={(e) => setEditingPair({ ...editingPair, user_info: e.target.value })}

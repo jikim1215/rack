@@ -42,7 +42,7 @@ export default function GlobalError({
               letterSpacing: "0.12em",
               fontSize: "0.6875rem",
               fontWeight: 600,
-              color: "#8b97a8",
+              color: "#5e6a7d", // --color-ink-3 (전역 오류 화면은 CSS 를 못 믿어 인라인)
               marginBottom: "0.75rem",
             }}
           >

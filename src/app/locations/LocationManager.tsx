@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useDialog } from "@/lib/use-dialog";
 import { Plus, MapPin, HardDrive, Pencil, Trash2, X, Save, History, AlertTriangle } from "lucide-react";
 import { AuditLogModal, fetchAuditLogs } from "@/components/AuditLogModal";
 import { useToast } from "@/components/Toast";
 
+import { pressable } from "@/lib/a11y";
 interface Location {
   id: number;
   location_name: string;
@@ -52,11 +54,10 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
   const cancelBtnRef = useRef<HTMLButtonElement>(null);
   const deleteBtnRef = useRef<HTMLButtonElement>(null);
-  // 확인 모달이 열리면 취소 버튼에 포커스(파괴적 동작이 기본 선택되지 않도록)
-  useEffect(() => { if (confirmDialog) cancelBtnRef.current?.focus(); }, [confirmDialog]);
-  // 방향키로 취소↔삭제 포커스 이동, ESC 닫기 (스페이스/엔터는 포커스된 버튼의 기본 동작으로 실행)
+  // 확인 모달: 열리면 취소 버튼에 포커스(파괴적 동작이 기본 선택되지 않도록), Tab 가두기·Esc 닫기·닫히면 삭제 버튼으로 초점 복귀
+  const confirmRef = useDialog(confirmDialog !== null, () => setConfirmDialog(null), { initialFocus: () => cancelBtnRef.current });
+  // 방향키로 취소↔삭제 포커스 이동 (스페이스/엔터는 포커스된 버튼의 기본 동작으로 실행)
   function onConfirmKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") { setConfirmDialog(null); return; }
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
       e.preventDefault();
       (document.activeElement === deleteBtnRef.current ? cancelBtnRef : deleteBtnRef).current?.focus();
@@ -186,17 +187,17 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
               <button onClick={() => setShowLocForm(false)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-1"><X size={16} /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block col-span-2"><span className="text-xs text-slate-500">이름</span>
+              <label className="block col-span-2"><span className="text-xs text-ink-3">이름</span>
                 <input value={locForm.location_name} onChange={(e) => setLocForm({ ...locForm, location_name: e.target.value })} className="form-input" /></label>
 
-              <label className="block"><span className="text-xs text-slate-500">건물</span>
+              <label className="block"><span className="text-xs text-ink-3">건물</span>
                 <input value={locForm.building} onChange={(e) => setLocForm({ ...locForm, building: e.target.value })} className="form-input" /></label>
-              <label className="block"><span className="text-xs text-slate-500">층</span>
+              <label className="block"><span className="text-xs text-ink-3">층</span>
                 <input value={locForm.floor} onChange={(e) => setLocForm({ ...locForm, floor: e.target.value })} className="form-input" /></label>
-              <label className="block col-span-2"><span className="text-xs text-slate-500">실</span>
+              <label className="block col-span-2"><span className="text-xs text-ink-3">실</span>
                 <input value={locForm.room} onChange={(e) => setLocForm({ ...locForm, room: e.target.value })} className="form-input" /></label>
               {isAdmin && (
-                <label className="block col-span-2"><span className="text-xs text-slate-500">소유 팀</span>
+                <label className="block col-span-2"><span className="text-xs text-ink-3">소유 팀</span>
                   <select value={locForm.team_id} onChange={(e) => setLocForm({ ...locForm, team_id: e.target.value === "" ? "" : Number(e.target.value) })} className="form-input">
                     <option value="">공유(미지정) — 여러 팀이 함께 쓰는 센터</option>
                     {teams.map((t) => <option key={t.id} value={t.id}>{t.team_name}</option>)}
@@ -213,7 +214,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
         <div className="space-y-2">
           {locations.map((loc) => (
             <div key={loc.id}
-              onClick={() => setSelectedLocId(selectedLocId === loc.id ? null : loc.id)}
+              {...pressable(() => setSelectedLocId(selectedLocId === loc.id ? null : loc.id), { pressed: selectedLocId === loc.id })}
               className={`panel p-4 flex items-center justify-between cursor-pointer transition-colors ${selectedLocId === loc.id ? "ring-1 ring-signal bg-signal/5" : "hover:bg-surface"}`}>
               <div>
                 <div className="font-medium flex items-center gap-2">
@@ -224,7 +225,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
                 <div className="text-xs text-ink-2 mt-1">랙 <span className="num">{loc.rack_count}</span>개 · 자산 <span className="num">{loc.asset_count}</span>대
                   {loc.owner_team_name
                     ? <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">전용 · {loc.owner_team_name}</span>
-                    : <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">공유</span>}
+                    : <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-ink-3">공유</span>}
                 </div>
               </div>
               <div className="flex gap-1 text-xs" onClick={(e) => e.stopPropagation()}>
@@ -273,15 +274,15 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
             </div>
             {!editRackId && <p className="text-xs text-ink-3 mb-2">저장하면 <b>이름만</b> 비워지고 위치·총 유닛·설명은 유지됩니다. 이름만 바꿔 Enter 또는 저장으로 같은 위치·크기의 랙을 연속 추가하세요.</p>}
             <div className="grid grid-cols-2 gap-3">
-              <label className="block"><span className="text-xs text-slate-500">위치</span>
+              <label className="block"><span className="text-xs text-ink-3">위치</span>
                 <select value={rackForm.location_id} onChange={(e) => setRackForm({ ...rackForm, location_id: Number(e.target.value) })} className="form-input">
                   {locations.map((l) => <option key={l.id} value={l.id}>{l.location_name}</option>)}
 
                 </select></label>
-              <label className="block"><span className="text-xs text-slate-500">이름</span>
+              <label className="block"><span className="text-xs text-ink-3">이름</span>
                 <input ref={rackNameRef} value={rackForm.rack_name} onChange={(e) => setRackForm({ ...rackForm, rack_name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveRack(); } }} className="form-input" /></label>
 
-              <label className="block"><span className="text-xs text-slate-500">총 유닛 수</span>
+              <label className="block"><span className="text-xs text-ink-3">총 유닛 수</span>
                 <select value={rackForm.total_units} onChange={(e) => setRackForm({ ...rackForm, total_units: Number(e.target.value) })} className="form-input">
                   <option value={4}>4U (소형)</option>
                   <option value={9}>9U</option>
@@ -298,10 +299,10 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
                   <option value={47}>47U</option>
                   <option value={48}>48U</option>
                 </select></label>
-              <label className="block"><span className="text-xs text-slate-500">설명</span>
+              <label className="block"><span className="text-xs text-ink-3">설명</span>
                 <input value={rackForm.description} onChange={(e) => setRackForm({ ...rackForm, description: e.target.value })} className="form-input" /></label>
               {isAdmin && (
-                <label className="block col-span-2"><span className="text-xs text-slate-500">소유 팀</span>
+                <label className="block col-span-2"><span className="text-xs text-ink-3">소유 팀</span>
                   <select value={rackForm.team_id} onChange={(e) => setRackForm({ ...rackForm, team_id: e.target.value === "" ? "" : Number(e.target.value) })} className="form-input">
                     <option value="">공유(미지정) — 공용센터 공용 랙</option>
                     {teams.map((t) => <option key={t.id} value={t.id}>{t.team_name}</option>)}
@@ -327,7 +328,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
                     <div className="text-xs text-ink-3">{rack.location_name}
                       {rack.owner_team_name
                         ? <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">전용 · {rack.owner_team_name}</span>
-                        : <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">공유</span>}
+                        : <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-ink-3">공유</span>}
                     </div>
                     <div className="text-xs text-ink-2 mt-1">
                       <span className="num">{rack.used_units}</span>U / <span className="num">{rack.total_units}</span>U (<span className="num">{pct}</span>%) · <span className="num">{rack.asset_count}</span>대
@@ -368,12 +369,13 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
       {/* 커스텀 확인 모달 */}
       {confirmDialog && (
         <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={() => setConfirmDialog(null)}>
-          <div className="bg-panel border border-line rounded-xl shadow-xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()} onKeyDown={onConfirmKeyDown}>
+          <div ref={confirmRef} tabIndex={-1} role="alertdialog" aria-modal="true" aria-labelledby="loc-confirm-title" aria-describedby="loc-confirm-msg"
+            className="bg-panel border border-line rounded-xl shadow-xl p-6 max-w-sm w-full focus:outline-none" onClick={(e) => e.stopPropagation()} onKeyDown={onConfirmKeyDown}>
             <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={20} className="text-warning shrink-0" />
-              <h3 className="font-semibold">확인</h3>
+              <AlertTriangle size={20} className="text-warn shrink-0" aria-hidden="true" />
+              <h3 id="loc-confirm-title" className="font-semibold">확인</h3>
             </div>
-            <p className="text-sm text-ink-2 mb-5">{confirmDialog.message}</p>
+            <p id="loc-confirm-msg" className="text-sm text-ink-2 mb-5">{confirmDialog.message}</p>
             <div className="flex justify-end gap-2">
               <button ref={cancelBtnRef} onClick={() => setConfirmDialog(null)}
                 className="px-4 py-2 border border-line rounded text-sm text-ink-2 hover:text-ink hover:bg-surface focus:ring-2 focus:ring-ink/40 focus:outline-none">취소</button>

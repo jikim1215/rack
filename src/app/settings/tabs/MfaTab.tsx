@@ -190,7 +190,7 @@ export function MfaTab({ active }: { active: boolean }) {
           </div>
           <div>
             <p className="text-sm font-medium text-ink-2 mb-2">2. 앱에 표시된 6자리 코드를 입력하세요</p>
-            <input
+            <input aria-label="인증 앱의 6자리 코드"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               className="form-input num text-center text-lg tracking-[0.4em] !w-48"

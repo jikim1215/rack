@@ -1,11 +1,11 @@
 // tests/asset-list.test.ts — 자산 목록 서버 페이지네이션 (API·페이지 SSR 공용 쿼리)
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Actor } from "../src/lib/authz.ts";
-import { listAssets, parseAssetListParams, ASSET_PAGE_DEFAULT, ASSET_PAGE_MAX } from "../src/lib/asset-list.ts";
+import { listAssets, parseAssetListParams, ASSET_PAGE_DEFAULT, ASSET_PAGE_MAX, UNASSIGNED_PAGE_SIZE } from "../src/lib/asset-list.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "asset-list-"));
 process.env.ASSET_DB_PATH = join(dir, "t.db");
@@ -89,4 +89,35 @@ test("검색 q: 이름 LIKE + 정렬 화이트리스트", () => {
 test("withCustomValues: 페이지 행의 값만 (없으면 빈 맵)", () => {
   const r = listAssets(db, admin, { limit: 10, withCustomValues: true });
   assert.ok(r.customValues && typeof r.customValues === "object");
+});
+
+test("미배정 큐: unassignedOnly 페이지 분할(중복·누락 없음), 비총괄은 0건, SSR 은 한 페이지만", () => {
+  const ins = db.prepare("INSERT INTO assets (asset_type, asset_name, team_id, created_at) VALUES ('server', ?, NULL, ?)");
+  const ids: number[] = [];
+  for (let i = 0; i < UNASSIGNED_PAGE_SIZE * 2 + 7; i++) {
+    // created_at 동률을 일부러 섞는다 — 동률에서 페이지가 겹치거나 빠지면 안 된다(ORDER BY 의 id 보조 키)
+    ids.push(Number(ins.run(`un-${i}`, `2026-02-01 00:00:${String(i % 3).padStart(2, "0")}`).lastInsertRowid));
+  }
+  try {
+    const seen: number[] = [];
+    let total = -1;
+    for (let offset = 0; ; offset += UNASSIGNED_PAGE_SIZE) {
+      const r = listAssets(db, admin, { unassignedOnly: true, sort: "created_at", dir: "desc", limit: UNASSIGNED_PAGE_SIZE, offset });
+      total = r.total;
+      if (r.rows.length === 0) break;
+      assert.ok(r.rows.length <= UNASSIGNED_PAGE_SIZE);
+      assert.ok(r.rows.every((a) => a.team_id === null));
+      seen.push(...r.rows.map((a) => a.id));
+    }
+    assert.equal(total, ids.length);
+    assert.deepEqual([...seen].sort((x, y) => x - y), ids, "페이지를 이어 붙이면 미배정 전량과 정확히 일치");
+    assert.equal(listAssets(db, teamA, { unassignedOnly: true }).total, 0, "비총괄은 미배정 큐를 못 본다");
+
+    // 회귀 방지: /unassigned 가 다시 미배정 전량을 SSR 로 내려보내지 않도록(1만 건 이관 직후 8MB 였다)
+    const page = readFileSync(join(import.meta.dirname, "../src/app/unassigned/page.tsx"), "utf8");
+    assert.match(page, /limit: UNASSIGNED_PAGE_SIZE/);
+    assert.doesNotMatch(page, /FROM assets a[\s\S]*WHERE a\.team_id IS NULL/, "목록은 listAssets 페이지 조회로만");
+  } finally {
+    db.prepare(`DELETE FROM assets WHERE id IN (${ids.join(",")})`).run();
+  }
 });

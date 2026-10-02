@@ -114,7 +114,7 @@ export function Sidebar() {
     nav.filter((item) => {
       if (item.adminOnly && user?.role !== "admin") return false;
       if (!user || user.role === "admin") return true;
-      // 서버 판정과 동일한 폴백: DB 행 → 레지스트리 기본값 (행이 없다고 무조건 보이면 클릭 후 access-denied 로 튙긴다, 비평 반영)
+      // 서버 판정과 동일한 폴백: DB 행 → 레지스트리 기본값 (행이 없다고 무조건 보이면 클릭 후 access-denied 로 튕긴다, 비평 반영)
       const perm = user.permissions?.[menuKeyForHref(item.href)];
       if (perm) return !!perm.can_access;
       const d = item.defaults[user.role as "team" | "viewer"];
@@ -143,7 +143,7 @@ export function Sidebar() {
       <div className="px-4 py-4 border-b border-krds-gray-10">
         <div className="flex items-center gap-2">
           <span className="led led-up led-live" />
-          <span className="eyebrow !text-krds-gray-60">SYSTEM ONLINE</span>
+          <span className="eyebrow text-krds-gray-60">SYSTEM ONLINE</span>
         </div>
         <h1 className="mt-2 text-[15px] font-bold tracking-tight text-krds-gray-90 leading-snug">
           정보시스템 자산관리
@@ -192,7 +192,7 @@ export function Sidebar() {
                 <Icon size={18} className={active ? "text-krds-primary" : "text-krds-gray-50"} />
                 <span className="flex-1 truncate">{label}</span>
                 {href === "/feedback" && openFeedback > 0 && (
-                  <span className="num text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-warn/15 text-warn" title={`미처리 의견 ${openFeedback}건`}>
+                  <span className="num text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-warn text-white" title={`미처리 의견 ${openFeedback}건`}>
                     {openFeedback}
                   </span>
                 )}
@@ -223,7 +223,7 @@ export function Sidebar() {
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-krds-gray-90 truncate">{user.displayName || user.username}</p>
-                <p className="eyebrow !text-[0.625rem] !tracking-[0.1em] !text-krds-gray-60">{roleBadge[user.role] || user.role}</p>
+                <p className="eyebrow text-[0.625rem] tracking-[0.1em] text-krds-gray-60">{roleBadge[user.role] || user.role}</p>
               </div>
             </div>
             <button
@@ -235,7 +235,7 @@ export function Sidebar() {
             </button>
           </div>
         ) : (
-          <p className="eyebrow !text-krds-gray-60">v2.0.0</p>
+          <p className="eyebrow text-krds-gray-60">v2.0.0</p>
         )}
         <button
           onClick={openFeedbackModal}

@@ -108,7 +108,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth") ||
     pathname === "/api/health" ||          // 모니터링·배포 스모크용 (업무 정보 미노출)
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname === "/icon.svg"             // app/icon.svg (로그인 화면에서도 보여야 함)
   ) {
     return next();
   }

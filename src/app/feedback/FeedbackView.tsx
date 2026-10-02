@@ -193,18 +193,18 @@ export function FeedbackView({ isAdmin, userId }: { isAdmin: boolean; userId: nu
               status === c.key ? "bg-ink text-white border-ink" : "border-line text-ink-2 hover:bg-slate-50"
             }`}
           >
-            {c.label} <span className="num opacity-80">{c.count}</span>
+            {c.label} <span className="num">{c.count}</span>
           </button>
         ))}
       </div>
 
       {/* 필터바 */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select className="form-input !w-auto text-sm" value={category} onChange={(e) => { setCategory(e.target.value); setPage(0); }}>
+        <select aria-label="유형 필터" className="form-input !w-auto text-sm" value={category} onChange={(e) => { setCategory(e.target.value); setPage(0); }}>
           <option value="">전체 유형</option>
           {FEEDBACK_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
         </select>
-        <select className="form-input !w-auto text-sm" value={sort} onChange={(e) => { setSort(e.target.value as "recent" | "votes"); setPage(0); }}>
+        <select aria-label="정렬" className="form-input !w-auto text-sm" value={sort} onChange={(e) => { setSort(e.target.value as "recent" | "votes"); setPage(0); }}>
           <option value="recent">최신순</option>
           <option value="votes">공감순</option>
         </select>
@@ -214,7 +214,7 @@ export function FeedbackView({ isAdmin, userId }: { isAdmin: boolean; userId: nu
         </label>
         <form onSubmit={(e) => { e.preventDefault(); setQ(qInput.trim()); setPage(0); }} className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-3" />
-          <input className="form-input !w-56 pl-8 text-sm" placeholder="제목·내용·화면 검색" value={qInput} onChange={(e) => setQInput(e.target.value)} />
+          <input aria-label="제목·내용·화면 검색" className="form-input !w-56 pl-8 text-sm" placeholder="제목·내용·화면 검색" value={qInput} onChange={(e) => setQInput(e.target.value)} />
         </form>
         <button onClick={load} disabled={loading} className={`${outlineBtn} px-3 py-2 inline-flex items-center gap-1.5`}>
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> 새로고침
@@ -253,6 +253,7 @@ export function FeedbackView({ isAdmin, userId }: { isAdmin: boolean; userId: nu
                 {/* 공감 */}
                 <button
                   onClick={() => toggleVote(r)}
+                  aria-pressed={!!r.voted}
                   disabled={isOwner}
                   title={isOwner ? "본인 의견에는 공감할 수 없습니다" : r.voted ? "공감 취소" : "나도 겪었어요"}
                   className={`shrink-0 flex flex-col items-center justify-center w-12 h-14 rounded-lg border text-xs transition-colors ${
@@ -360,14 +361,14 @@ function ModerationForm({
     <div className="mt-3 border border-line rounded-lg p-3 bg-surface space-y-2">
       <p className="eyebrow">처리</p>
       <div className="flex flex-wrap gap-2">
-        <select className="form-input !w-auto text-sm" value={status} onChange={(e) => setStatus(e.target.value as FeedbackStatus)}>
+        <select aria-label="처리 상태" className="form-input !w-auto text-sm" value={status} onChange={(e) => setStatus(e.target.value as FeedbackStatus)}>
           {FEEDBACK_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
         </select>
-        <select className="form-input !w-auto text-sm" value={priority} onChange={(e) => setPriority(e.target.value as FeedbackPriority)}>
+        <select aria-label="우선순위" className="form-input !w-auto text-sm" value={priority} onChange={(e) => setPriority(e.target.value as FeedbackPriority)}>
           {FEEDBACK_PRIORITIES.map((p) => <option key={p} value={p}>우선순위 {PRIORITY_LABELS[p]}</option>)}
         </select>
       </div>
-      <textarea
+      <textarea aria-label="작성자에게 남길 답변 (선택) — 반영 계획, 대안 안내, 보류 사유 등"
         className="form-input min-h-[80px] text-sm" value={reply} maxLength={4000}
         placeholder="작성자에게 남길 답변 (선택) — 반영 계획, 대안 안내, 보류 사유 등"
         onChange={(e) => setReply(e.target.value)}

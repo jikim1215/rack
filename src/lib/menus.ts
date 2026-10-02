@@ -115,6 +115,13 @@ export function menuByKey(key: string): MenuDef | undefined {
   return BY_KEY.get(key);
 }
 
+/** page.tsx 의 `export const metadata` — 탭 제목을 사이드바 메뉴 이름과 같은 정본에서 얻는다. */
+export function menuTitle(key: MenuKey): { title: string } {
+  const m = BY_KEY.get(key);
+  if (!m) throw new Error(`unknown menu key: ${key}`);
+  return { title: m.label };
+}
+
 /** 권한 화면에 노출하는 메뉴 (총괄 전용 메뉴 제외 — 역할로 이미 고정). */
 export const PERMISSION_MENUS: readonly MenuDef[] = MENUS.filter((m) => !m.adminOnly);
 

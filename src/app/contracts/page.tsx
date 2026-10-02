@@ -4,6 +4,8 @@ import { requireMenuPage } from "@/lib/page-authz";
 import ContractsView from "./ContractsView";
 import { scopeWhere } from "@/lib/authz";
 import type { VendorRow, ContractRow, TeamRow } from "@/lib/db-types";
+import { menuTitle } from "@/lib/menus";
+export const metadata = menuTitle("contracts");
 
 export default async function ContractsPage() {
   const db = getDb();

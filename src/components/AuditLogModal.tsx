@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useDialog } from "@/lib/use-dialog";
 
 interface AuditLog {
   id: number;
@@ -28,12 +29,13 @@ const actionLabels: Record<string, { text: string; cls: string; led: string }> =
 };
 
 export function AuditLogModal({ logs, title, onClose }: Props) {
+  const dialogRef = useDialog(true, onClose);
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-panel border border-line rounded-xl shadow-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={`${title} 변경이력`} className="focus:outline-none bg-panel border border-line rounded-xl shadow-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-ink">{title} 변경이력</h3>
-          <button onClick={onClose} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-0.5"><X size={18} /></button>
+          <button onClick={onClose} aria-label="닫기" className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-0.5"><X size={18} /></button>
         </div>
 
         {logs.length === 0 ? (

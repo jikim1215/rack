@@ -314,7 +314,7 @@ export function TopologyView({ assets, connections }: Props) {
                   y={firstPos.y - 12}
                   textAnchor="middle"
                   fontSize={12}
-                  fill="#9ca3af"
+                  fill="#5e6a7d"
                   fontWeight={600}
                 >
                   Standalone
@@ -334,7 +334,7 @@ export function TopologyView({ assets, connections }: Props) {
                   y={pos.y - 12}
                   textAnchor="middle"
                   fontSize={12}
-                  fill="#9ca3af"
+                  fill="#5e6a7d"
                   fontWeight={600}
                 >
                   {label}

@@ -338,7 +338,7 @@ export default function InspectionView({
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">조사 회차</label>
-            <select
+            <select aria-label="조사 회차"
               className="form-input"
               value={selectedId ?? ""}
               onChange={(e) => e.target.value && selectAudit(Number(e.target.value))}
@@ -400,7 +400,7 @@ export default function InspectionView({
           <form onSubmit={handleCreate} className="mt-4 pt-4 border-t border-line flex flex-wrap items-end gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">회차 이름</label>
-              <input
+              <input aria-label="회차 이름"
                 className="form-input"
                 placeholder="예: 2026년 정기 자산실사"
                 value={newName}
@@ -410,7 +410,7 @@ export default function InspectionView({
             </div>
             <div className="flex-1 min-w-48">
               <label className="block text-sm font-medium text-gray-700 mb-1">설명 (선택)</label>
-              <input
+              <input aria-label="설명 (선택)"
                 className="form-input w-full"
                 placeholder="비고"
                 value={newDesc}
@@ -482,7 +482,7 @@ export default function InspectionView({
             <div className="mt-3 max-h-64 overflow-y-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="text-left text-ink-3 border-b border-line">
+                  <tr className="text-left text-ink-3 border-b border-line whitespace-nowrap">
                     <th className="py-1.5 pr-3">관리번호</th>
                     <th className="py-1.5 pr-3">대장 자산명</th>
                     <th className="py-1.5 pr-3">대장 시리얼</th>
@@ -515,7 +515,7 @@ export default function InspectionView({
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">구분</label>
-            <select
+            <select aria-label="구분"
               className="form-input"
               value={filterKind}
               onChange={(e) => setFilterKind(e.target.value as "all" | "asset" | "sub")}
@@ -527,7 +527,7 @@ export default function InspectionView({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">유형 (장비)</label>
-            <select className="form-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+            <select aria-label="유형 (장비)" className="form-input" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
               <option value="all">전체</option>
               {Object.entries(typeLabels).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
@@ -536,7 +536,7 @@ export default function InspectionView({
           </div>
           <div className="flex-1 min-w-56">
             <label className="block text-sm font-medium text-gray-700 mb-1">검색</label>
-            <input
+            <input aria-label="검색"
               className="form-input w-full"
               placeholder="이름, 랙/장소, 시리얼, 관리번호/자산코드"
               value={search}
@@ -603,7 +603,7 @@ export default function InspectionView({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-ink-3 border-b border-line">
+                  <tr className="text-left text-ink-3 border-b border-line whitespace-nowrap">
                     <th className="py-2 pr-3 font-medium">구분</th>
                     <th
                       className="py-2 pr-3 font-medium cursor-pointer select-none hover:text-ink"
@@ -649,7 +649,7 @@ export default function InspectionView({
                       <td className="py-2 pr-3 font-medium">{row.name}</td>
                       <td className="py-2 pr-3 whitespace-nowrap">{row.type_or_category || "—"}</td>
                       <td className="py-2 pr-3 whitespace-nowrap">{row.location || "—"}</td>
-                      <td className="py-2 pr-3 num">{row.serial_number || "—"}</td>
+                      <td className="py-2 pr-3 num whitespace-nowrap">{row.serial_number || "—"}</td>
                       <td className="py-2 pr-3 whitespace-nowrap">
                         {row.result ? (
                           <span className={`px-2 py-0.5 rounded text-xs font-medium ${resultColors[row.result] || "bg-slate-100 text-ink-2"}`}>
@@ -681,7 +681,7 @@ export default function InspectionView({
                                     });
                                   }
                                 }}
-                                className={`px-2 py-1 rounded text-xs border transition-colors ${
+                                className={`px-2 py-1 rounded text-xs border transition-colors whitespace-nowrap ${
                                   row.result === k
                                     ? `${resultColors[k]} border-transparent font-medium`
                                     : "border-line text-ink-2 hover:bg-slate-50"
@@ -690,7 +690,7 @@ export default function InspectionView({
                                 {v}
                               </button>
                             ))}
-                            <input
+                            <input aria-label="비고 (분실·이동 시 근거 기재)"
                               data-note-for={rowKey(row)}
                               className="form-input !py-1 !text-xs w-32"
                               placeholder="비고 (분실·이동 시 근거 기재)"

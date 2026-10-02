@@ -254,11 +254,11 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
 
       {/* 사용자 추가 폼 */}
       {showAdd && (
-        <form onSubmit={handleAddUser} className="mb-4 p-4 bg-rail rounded-lg space-y-3">
+        <form onSubmit={handleAddUser} className="mb-4 p-4 bg-surface border border-line rounded-lg space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-ink-2 mb-1">이메일</label>
-              <input
+              <input aria-label="이메일"
                 type="email"
                 value={addForm.username}
                 onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
@@ -268,7 +268,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
             </div>
             <div>
               <label className="block text-sm font-medium text-ink-2 mb-1">비밀번호</label>
-              <input
+              <input aria-label="비밀번호"
                 type="password"
                 value={addForm.password}
                 onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
@@ -278,7 +278,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
             </div>
             <div>
               <label className="block text-sm font-medium text-ink-2 mb-1">이름</label>
-              <input
+              <input aria-label="이름"
                 type="text"
                 value={addForm.display_name}
                 onChange={(e) => setAddForm({ ...addForm, display_name: e.target.value })}
@@ -287,7 +287,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
             </div>
             <div>
               <label className="block text-sm font-medium text-ink-2 mb-1">역할</label>
-              <select
+              <select aria-label="역할"
                 value={addForm.role}
                 onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
                 className="form-input"
@@ -300,7 +300,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
             {addForm.role === "team" && (
               <div>
                 <label className="block text-sm font-medium text-ink-2 mb-1">팀</label>
-                <select
+                <select aria-label="팀"
                   value={addForm.team_id ?? ""}
                   onChange={(e) => setAddForm({ ...addForm, team_id: e.target.value ? Number(e.target.value) : null })}
                   className="form-input"
@@ -314,7 +314,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
             )}
             <div className="col-span-2">
               <label className="block text-sm font-medium text-ink-2 mb-1">허용 IP (비우면 제한 없음)</label>
-              <input
+              <input aria-label="허용 IP (비우면 제한 없음)"
                 type="text"
                 value={addForm.allowed_ips}
                 onChange={(e) => setAddForm({ ...addForm, allowed_ips: e.target.value })}
@@ -362,7 +362,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
                 <td className="py-2 px-3 text-ink-3 num">{u.id}</td>
                 <td className="py-2 px-3 font-medium">
                   {editingId === u.id ? (
-                    <input
+                    <input aria-label="이메일(로그인 ID)"
                       type="email"
                       value={editForm.username}
                       onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
@@ -375,14 +375,14 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
                 <td className="py-2 px-3">
                   {editingId === u.id ? (
                     <div className="flex flex-col gap-1">
-                      <input
+                      <input aria-label="이름"
                         type="text"
                         value={editForm.display_name}
                         onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
                         className="form-input py-1 text-sm"
                       />
                       <label className="block text-xs font-medium text-ink-3 mt-1">새 비밀번호 (변경 시에만 입력)</label>
-                      <input
+                      <input aria-label="새 비밀번호 (변경 시에만 입력)"
                         type="password"
                         value={editForm.password}
                         onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
@@ -390,7 +390,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
                         className="form-input py-1 text-sm"
                       />
                       <label className="block text-xs font-medium text-ink-3 mt-1">허용 IP (비우면 제한 없음)</label>
-                      <input
+                      <input aria-label="허용 IP (비우면 제한 없음)"
                         type="text"
                         value={editForm.allowed_ips}
                         onChange={(e) => setEditForm({ ...editForm, allowed_ips: e.target.value })}
@@ -404,7 +404,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
                 </td>
                 <td className="py-2 px-3">
                   {editingId === u.id ? (
-                    <select
+                    <select aria-label="역할"
                       value={editForm.role}
                       onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                       className="form-input py-1 text-sm"
@@ -420,7 +420,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
                 <td className="py-2 px-3">
                   {editingId === u.id ? (
                     editForm.role === "team" ? (
-                      <select
+                      <select aria-label="팀"
                         value={editForm.team_id ?? ""}
                         onChange={(e) => setEditForm({ ...editForm, team_id: e.target.value ? Number(e.target.value) : null })}
                         className="form-input py-1 text-sm"

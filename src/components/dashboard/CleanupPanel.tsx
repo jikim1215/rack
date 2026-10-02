@@ -53,7 +53,7 @@ export default function CleanupPanel({
                 <div key={q.asset_id} className="flex items-center justify-between text-sm border-b border-line last:border-0 pb-1.5">
                   <div className="min-w-0">
                     <span className="truncate font-medium">{q.asset_name}</span>
-                    <span className="eyebrow ml-2 !text-[0.625rem]">{typeLabels[q.asset_type] || q.asset_type}</span>
+                    <span className="eyebrow ml-2 text-[0.625rem]">{typeLabels[q.asset_type] || q.asset_type}</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-2">
                     {q.missing_ip === 1 && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-50 text-warn">IP</span>}
