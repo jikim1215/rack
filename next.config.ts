@@ -16,6 +16,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["better-sqlite3", "xlsx", "nodemailer"],
   // 폐쇄망: 외부 요청 차단
   images: { unoptimized: true },
+  // Next 15.5 는 sharp(이미지 최적화, @img/* 네이티브 ~18MB)를 standalone 에 트레이스한다.
+  // 이미지 최적화는 위에서 끔으므로 런타임에 로드되지 않는다 — 폐쇄망 번들에서 제외.
+  outputFileTracingExcludes: { "*": ["node_modules/sharp/**", "node_modules/@img/**"] },
   // Next 15.5+: 미들웨어를 거치는 요청 본문은 기본 10MB 에서 잘린다 → 엑셀 업로드 상한(UPLOAD_MAX_BYTES=20MB)이
   // 무력화되고 10~20MB 파일이 500 으로 깨진다. 상한 + multipart 오버헤드 여유로 올린다(nginx client_max_body_size 이하).
   experimental: { middlewareClientMaxBodySize: "25mb" },
