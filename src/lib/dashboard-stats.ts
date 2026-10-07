@@ -50,9 +50,8 @@ export interface DashboardStats {
   rackUsage: { id: number; rack_name: string; total_units: number; used_units: number }[];
   recentAssets: {
     id: number; asset_name: string; asset_type: string; status: AssetStatus;
-    ip_address: string; os: string; admin_name: string; department: string; created_at: string;
+    ip_address: string; os: string; admin_name: string; team_name: string | null; created_at: string;
   }[];
-  byDepartment: { department: string; c: number }[];
   byAdmin: { admin_name: string; c: number }[];
   byOs: { os: string; c: number }[];
   byStatus: { status: string; c: number }[];
@@ -101,14 +100,12 @@ export function getDashboardStats(db: Database.Database, actor: Actor | null): D
     GROUP BY r.id
   `).all(...scopeA.params, ...rackScope.params) as DashboardStats["rackUsage"];
 
+  // 관리부서는 teams 조인으로 현재 부서명을 읽는다 — 부서명 변경이 즉시 반영된다.
   const recentAssets = db.prepare(`
-    SELECT id, asset_name, asset_type, status, ip_address, os, admin_name, department, created_at
-    FROM assets WHERE ${scope.sql} ORDER BY created_at DESC LIMIT 5
-  `).all(...scope.params) as DashboardStats["recentAssets"];
-
-  const byDepartment = db.prepare(`
-    SELECT department, COUNT(*) as c FROM assets WHERE department != '' AND ${scope.sql} GROUP BY department ORDER BY c DESC
-  `).all(...scope.params) as DashboardStats["byDepartment"];
+    SELECT a.id, a.asset_name, a.asset_type, a.status, a.ip_address, a.os, a.admin_name, t.team_name, a.created_at
+    FROM assets a LEFT JOIN teams t ON t.id = a.team_id
+    WHERE ${scopeA.sql} ORDER BY a.created_at DESC LIMIT 5
+  `).all(...scopeA.params) as DashboardStats["recentAssets"];
 
   const byAdmin = db.prepare(`
     SELECT admin_name, COUNT(*) as c FROM assets WHERE admin_name != '' AND ${scope.sql} GROUP BY admin_name ORDER BY c DESC
@@ -227,7 +224,7 @@ export function getDashboardStats(db: Database.Database, actor: Actor | null): D
 
   return {
     totalAssets, byType, activeAssets, totalRacks, totalPorts, usedPorts,
-    totalLocations, rackUsage, recentAssets, byDepartment, byAdmin, byOs,
+    totalLocations, rackUsage, recentAssets, byAdmin, byOs,
     byStatus, eosWarnings, warrantyWarnings, dataQuality,
     pendingMovements, recentMovements, openMaintenance, recentMaintenance, expiringContracts,
     bringInPending, bringOutInProgress,

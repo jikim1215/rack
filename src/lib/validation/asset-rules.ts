@@ -186,7 +186,6 @@ export function validateAssetRow(raw: Record<string, unknown>): ValidatedRow {
     access_ips,
     user_name: s(raw.user_name),
     admin_name: s(raw.admin_name),
-    // ADR-009: department는 운영 적재하지 않음(읽기전용 레거시 음영) — team_id가 소유 권위
     network_zone,
     cia_c: cia(raw.cia_c),
     cia_i: cia(raw.cia_i),

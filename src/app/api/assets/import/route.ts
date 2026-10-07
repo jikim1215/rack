@@ -12,7 +12,7 @@ import type { AssetRow, CustomFieldRow, RackRow, TeamRow } from "@/lib/db-types"
 import { readUploadSheet } from "@/lib/xlsx-upload";
 
 
-// 고정 필드 인덱스 (키 행 기반)
+// 고정 필드 인덱스 (키 행 기반). "department" 는 assets 컬럼이 아니라 관리부서(팀명) 입력 키 — team_id 로 해석한다.
 const FIXED_KEYS = [
   "asset_type", "asset_name", "manufacturer", "model", "serial_number",
   "ip_address", "asset_tag", "status", "os", "access_ip",
@@ -26,7 +26,7 @@ const FIXED_KEYS = [
 const FIXED_LABELS = [
   "유형", "이름", "제조사", "모델", "시리얼번호",
   "IP주소", "자산태그", "상태", "OS", "접근IP",
-  "사용자", "관리자", "부서",
+  "사용자", "관리자", "관리부서",
   "구매일", "보증만료", "EoS",
   "랙이름", "시작U", "크기U", "설명",
   "망구분", "기밀성", "무결성", "가용성",
@@ -189,7 +189,7 @@ export const POST = withApi(async (req: NextRequest) => {
     const r = dataRows[i];
     const sourceRow = i + dataRowOffset; // 1-indexed 시트 행
 
-    // 모든 고정 키의 원본값을 raw로 수집 (department 포함 — validateAssetRow가 ADR-009에 따라 무시)
+    // 모든 고정 키의 원본값을 raw로 수집 (department 는 validateAssetRow 가 쓰지 않고 아래 팀 해석에만 쓴다)
     const raw: Record<string, unknown> = {};
     for (const key of FIXED_KEYS) raw[key] = getVal(r, key);
 
@@ -262,7 +262,6 @@ export const POST = withApi(async (req: NextRequest) => {
 
   // 트랜잭션: 자산 INSERT + 이슈 기록 + 중복 의심 기록을 한 단위로
   const insertAll = db.transaction(() => {
-    // department는 운영 적재하지 않음(ADR-009) — INSERT 컬럼에서 제외(기본값 '')
     const assetStmt = db.prepare(`
       INSERT INTO assets (asset_type, asset_name, manufacturer, model, serial_number, ip_address, asset_tag,
         status, os, access_ip, user_name, admin_name,

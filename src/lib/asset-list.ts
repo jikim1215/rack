@@ -83,7 +83,7 @@ export function parseAssetListParams(sp: URLSearchParams): AssetListParams {
 
 const TEXT_SEARCH_COLUMNS = [
   "a.asset_name", "a.access_ip", "a.manufacturer", "a.model", "a.serial_number",
-  "a.os", "a.admin_name", "a.user_name", "a.department", "t.team_name",
+  "a.os", "a.admin_name", "a.user_name", "t.team_name",
 ];
 
 export function listAssets(db: Database.Database, actor: Actor | null, p: AssetListParams): AssetListResult {

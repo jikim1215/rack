@@ -85,7 +85,6 @@ export interface AssetRow {
   access_ip: string;
   user_name: string;
   admin_name: string;
-  department: string;
   team_id: number | null;
   cia_c: number | null;
   cia_i: number | null;

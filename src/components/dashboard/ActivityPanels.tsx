@@ -116,7 +116,7 @@ export function ContractsPanel({
 export function RecentAssetsPanel({
   recentAssets,
 }: {
-  recentAssets: Pick<AssetRow, "id" | "asset_name" | "asset_type" | "status" | "ip_address" | "os" | "admin_name" | "department">[];
+  recentAssets: (Pick<AssetRow, "id" | "asset_name" | "asset_type" | "status" | "ip_address" | "os" | "admin_name"> & { team_name: string | null })[];
 }) {
   return (
     <Panel title="최근 등록 자산" code="RECENT">
@@ -128,7 +128,7 @@ export function RecentAssetsPanel({
             <th className="pb-2 eyebrow font-normal">IP</th>
             <th className="pb-2 eyebrow font-normal">OS</th>
             <th className="pb-2 eyebrow font-normal">관리자</th>
-            <th className="pb-2 eyebrow font-normal">부서</th>
+            <th className="pb-2 eyebrow font-normal">관리부서</th>
             <th className="pb-2 eyebrow font-normal">상태</th>
           </tr>
         </thead>
@@ -144,7 +144,7 @@ export function RecentAssetsPanel({
               <td className="py-2 num text-ink-2 text-xs">{a.ip_address}</td>
               <td className="py-2 text-ink-2 text-xs">{a.os || "-"}</td>
               <td className="py-2 text-ink-2 text-xs">{a.admin_name || "-"}</td>
-              <td className="py-2 text-ink-2 text-xs">{a.department || "-"}</td>
+              <td className="py-2 text-ink-2 text-xs">{a.team_name || "미배정"}</td>
               <td className="py-2">
                 <span className="inline-flex items-center gap-1.5 text-xs">
                   <span className={`led ${a.status === "active" ? "led-up" : a.status === "maintenance" ? "led-warn" : a.status === "retired" ? "led-fault" : "led-idle"}`} />

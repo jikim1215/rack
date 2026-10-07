@@ -87,15 +87,14 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
     );
   }
 
-  // ADR-009: department는 앱이 쓰지 않으므로 기존 값을 보존한다(변조값 미반영).
-  const newValues = { ...columns, department: oldAsset.department ?? "", team_id: newTeamId };
+  const newValues = { ...columns, team_id: newTeamId };
 
   db.transaction(() => {
     db.prepare(`
       UPDATE assets SET
         asset_type=@asset_type, asset_name=@asset_name, manufacturer=@manufacturer, model=@model,
         serial_number=@serial_number, ip_address=@ip_address, asset_tag=@asset_tag, status=@status,
-        os=@os, access_ip=@access_ip, user_name=@user_name, admin_name=@admin_name, department=@department,
+        os=@os, access_ip=@access_ip, user_name=@user_name, admin_name=@admin_name,
         network_zone=@network_zone, cia_c=@cia_c, cia_i=@cia_i, cia_a=@cia_a,
         purchase_date=@purchase_date, warranty_date=@warranty_date, eos_date=@eos_date,
         rack_id=@rack_id, rack_unit_start=@rack_unit_start, rack_unit_size=@rack_unit_size, rack_side=@rack_side,

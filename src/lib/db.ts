@@ -155,7 +155,6 @@ function initSchema(db: Database.Database) {
       access_ip TEXT DEFAULT '',
       user_name TEXT DEFAULT '',
       admin_name TEXT DEFAULT '',
-      department TEXT DEFAULT '',
       team_id INTEGER REFERENCES teams(id),
       cia_c INTEGER,
       cia_i INTEGER,
@@ -420,7 +419,7 @@ function initSchema(db: Database.Database) {
       UNIQUE(menu_key, role)
     );
 
-    -- 팀(부서 대체 소유주체) — ADR-009: team_id가 자산 소유권의 권위, department는 레거시 음영 컬럼
+    -- 팀(= 관리부서) — ADR-009: assets.team_id 가 소유의 단일 정본, 부서명은 team_name 한 곳에만 둔다
     CREATE TABLE IF NOT EXISTS teams (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       team_name TEXT NOT NULL UNIQUE,
@@ -592,7 +591,7 @@ function initSchema(db: Database.Database) {
   for (const [name, def] of [
     ["os", "TEXT DEFAULT ''"], ["access_ip", "TEXT DEFAULT ''"],
     ["user_name", "TEXT DEFAULT ''"], ["admin_name", "TEXT DEFAULT ''"],
-    ["department", "TEXT DEFAULT ''"], ["eos_date", "TEXT DEFAULT ''"],
+    ["eos_date", "TEXT DEFAULT ''"],
     // 임포트 배치 추적 (외부 검토 R8-4 합의): 생성 자산 ↔ 업로드 배치 직접 연결 — 배치 롤백/사후 재구성 기반
     ["import_batch_id", "TEXT"],
   ]) {
@@ -879,7 +878,6 @@ function initSchema(db: Database.Database) {
           access_ip TEXT DEFAULT '',
           user_name TEXT DEFAULT '',
           admin_name TEXT DEFAULT '',
-          department TEXT DEFAULT '',
           team_id INTEGER REFERENCES teams(id),
           cia_c INTEGER,
           cia_i INTEGER,
@@ -897,7 +895,7 @@ function initSchema(db: Database.Database) {
           updated_at TEXT DEFAULT (datetime('now','localtime'))
         );
       `);
-      copyRows(db, "assets", "assets_new", { overrides: { status: ASSET_STATUS_MAP } });
+      copyRows(db, "assets", "assets_new", { overrides: { status: ASSET_STATUS_MAP }, drop: ["department"] });
       db.exec(`
         DROP TABLE assets;
         ALTER TABLE assets_new RENAME TO assets;
@@ -984,7 +982,6 @@ function initSchema(db: Database.Database) {
   }
 
   // 5. assets: team_id 추가 + status CHECK → ('active','maintenance','standby','retired')
-  //    department는 삭제하지 않음(ADR-009: team_id가 소유권의 권위, department는 읽기전용 레거시 음영 컬럼)
   {
     const aCols = db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[];
     const aColNames = new Set(aCols.map((c) => c.name));
@@ -1016,7 +1013,6 @@ function initSchema(db: Database.Database) {
             access_ip TEXT DEFAULT '',
             user_name TEXT DEFAULT '',
             admin_name TEXT DEFAULT '',
-            department TEXT DEFAULT '',
             team_id INTEGER REFERENCES teams(id),
             cia_c INTEGER,
             cia_i INTEGER,
@@ -1034,7 +1030,7 @@ function initSchema(db: Database.Database) {
             updated_at TEXT DEFAULT (datetime('now','localtime'))
           );
         `);
-        copyRows(db, "assets", "assets_new", { overrides: { status: ASSET_STATUS_MAP } });
+        copyRows(db, "assets", "assets_new", { overrides: { status: ASSET_STATUS_MAP }, drop: ["department"] });
         db.exec(`
           DROP TABLE assets;
           ALTER TABLE assets_new RENAME TO assets;
@@ -1266,6 +1262,18 @@ function initSchema(db: Database.Database) {
       db.pragma("legacy_alter_table = OFF");
       db.pragma("foreign_keys = ON");
       assertNoFkViolations(db, "asset_type/network_zone CHECK 해제 재빌드");
+    }
+  }
+
+  // assets.department 제거 (ADR-009 후속): 부서명의 정본은 teams.team_name(assets.team_id) 하나다. 이 컬럼은
+  //   ADR-009 이후 앱이 쓰지 않는 음영이었지만 대시보드·관리대장·내보내기가 읽고 있어, 부서명을 바꿔도 옛 값(또는 빈 값)이
+  //   보였다. 모든 재빌드 뒤에 떨굴다. 남아 있던 값은 업그레이드 직전 백업(preupgrade)에 보존되고, 건수를 로그로 남긴다.
+  {
+    const aCols = new Set((db.prepare("PRAGMA table_info(assets)").all() as PragmaColumn[]).map((c) => c.name));
+    if (aCols.has("department")) {
+      const filled = (db.prepare("SELECT COUNT(*) AS c FROM assets WHERE COALESCE(department, '') <> ''").get() as { c: number }).c;
+      db.exec("ALTER TABLE assets DROP COLUMN department");
+      if (filled) console.warn(`[MIGRATION] assets.department 제거 — 값이 있던 ${filled}건은 업그레이드 직전 백업에만 남는다(관리부서는 team_id)`);
     }
   }
 

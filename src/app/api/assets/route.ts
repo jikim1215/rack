@@ -62,11 +62,11 @@ export const POST = withApi(async (req: NextRequest) => {
   const assetId = db.transaction(() => {
     const result = db.prepare(`
       INSERT INTO assets (asset_type, asset_name, manufacturer, model, serial_number, ip_address, asset_tag, status,
-        os, access_ip, user_name, admin_name, department, network_zone, cia_c, cia_i, cia_a,
+        os, access_ip, user_name, admin_name, network_zone, cia_c, cia_i, cia_a,
         purchase_date, warranty_date, eos_date,
         rack_id, rack_unit_start, rack_unit_size, rack_side, description, team_id)
       VALUES (@asset_type, @asset_name, @manufacturer, @model, @serial_number, @ip_address, @asset_tag, @status,
-        @os, @access_ip, @user_name, @admin_name, '', @network_zone, @cia_c, @cia_i, @cia_a,
+        @os, @access_ip, @user_name, @admin_name, @network_zone, @cia_c, @cia_i, @cia_a,
         @purchase_date, @warranty_date, @eos_date,
         @rack_id, @rack_unit_start, @rack_unit_size, @rack_side, @description, @team_id)
     `).run({ ...columns, team_id: ownerTeamId });

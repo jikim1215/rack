@@ -26,13 +26,14 @@ export const GET = withApi(async () => {
 
   // 자산 조회 (권한 범위 적용)
   const assets = db.prepare(`
-    SELECT a.*, r.rack_name, l.location_name
+    SELECT a.*, r.rack_name, l.location_name, t.team_name
     FROM assets a
     LEFT JOIN racks r ON a.rack_id = r.id
     LEFT JOIN locations l ON r.location_id = l.id
+    LEFT JOIN teams t ON t.id = a.team_id
     WHERE ${scope.sql}
     ORDER BY a.id
-  `).all(...scope.params) as (AssetRow & { rack_name: string | null; location_name: string | null })[];
+  `).all(...scope.params) as (AssetRow & { rack_name: string | null; location_name: string | null; team_name: string | null })[];
 
   // 커스텀 필드 값 전체 조회
   const allCvs = db.prepare(`
@@ -52,7 +53,7 @@ export const GET = withApi(async () => {
   // 헤더 (템플릿과 동일 구조)
   const fixedHeaders = [
     "유형", "이름", "제조사", "모델", "시리얼번호", "IP주소", "자산태그",
-    "상태", "망구분", "OS", "접근IP", "사용자", "관리자", "부서",
+    "상태", "망구분", "OS", "접근IP", "사용자", "관리자", "관리부서",
     "구매일", "보증만료", "EoS",
     "기밀성", "무결성", "가용성",
     "랙이름", "시작U", "크기U", "설명", "등급",
@@ -60,7 +61,7 @@ export const GET = withApi(async () => {
   const customHeaders = customFields.map((f) => f.field_label);
   const allHeaders = [...fixedHeaders, ...customHeaders];
 
-  // 키 행 (import 호환)
+  // 키 행 (import 호환) — "department" 키 = 관리부서(팀명). 가져오기가 이 값으로 team_id 를 해석한다.
   const keyRow = [
     "asset_type", "asset_name", "manufacturer", "model", "serial_number",
     "ip_address", "asset_tag", "status", "network_zone", "os", "access_ip",
@@ -76,7 +77,7 @@ export const GET = withApi(async () => {
     const fixedData = [
       a.asset_type, a.asset_name, a.manufacturer, a.model, a.serial_number,
       a.ip_address, a.asset_tag, a.status, a.network_zone, a.os, a.access_ip,
-      a.user_name, a.admin_name, a.department,
+      a.user_name, a.admin_name, a.team_name ?? "",
       a.purchase_date ?? "", a.warranty_date ?? "", a.eos_date ?? "",
       a.cia_c ?? "", a.cia_i ?? "", a.cia_a ?? "",
       a.rack_name || "", a.rack_unit_start ?? "", a.rack_unit_size ?? "",

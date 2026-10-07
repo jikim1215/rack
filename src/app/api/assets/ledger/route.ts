@@ -33,12 +33,13 @@ export const GET = withApi(async () => {
   const codeFid = cf.find((f) => f.field_key === "asset_code")?.id ?? -1;
 
   const assets = db.prepare(`
-    SELECT a.*,
+    SELECT a.*, t.team_name,
       (SELECT value FROM custom_values WHERE asset_id=a.id AND field_id=?) AS asset_code
     FROM assets a
+    LEFT JOIN teams t ON t.id = a.team_id
     WHERE ${scope.sql}
     ORDER BY a.network_zone, a.asset_type, a.id
-  `).all(codeFid, ...scope.params) as (AssetRow & { asset_code: string | null })[];
+  `).all(codeFid, ...scope.params) as (AssetRow & { team_name: string | null; asset_code: string | null })[];
 
   const headers = [
     "본부명", "부서명", "사용여부", "관리자", "관리책임자",
@@ -53,7 +54,7 @@ export const GET = withApi(async () => {
     const priIp = ip && isPrivate(ip) ? ip : "";
     return [
       "",                                   // 본부명
-      a.department || "",                   // 부서명
+      a.team_name || "",                    // 부서명 (관리부서 = teams)
       a.status === "active" ? "O" : "X",    // 사용여부
       a.admin_name || "",                   // 관리자
       "",                                   // 관리책임자

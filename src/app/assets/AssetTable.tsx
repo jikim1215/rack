@@ -82,7 +82,6 @@ interface Asset {
   access_ip: string;
   user_name: string;
   admin_name: string;
-  department: string;
   team_name?: string | null;
   team_id: number | null;
   /** 현행 확인 도장 (빈 문자열 = 미확인) */
@@ -124,7 +123,7 @@ interface CustomField {
 const emptyAsset = {
   asset_type: "server", asset_name: "", manufacturer: "", model: "",
   serial_number: "", ip_address: "", asset_tag: "", status: "active",
-  os: "", access_ip: "", user_name: "", admin_name: "", department: "",
+  os: "", access_ip: "", user_name: "", admin_name: "",
   network_zone: "", cia_c: "", cia_i: "", cia_a: "",
   purchase_date: "", warranty_date: "", eos_date: "",
   rack_id: null as number | null, rack_unit_start: null as number | null,
@@ -572,7 +571,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
       cia_c: asset.cia_c == null ? "" : String(asset.cia_c),
       cia_i: asset.cia_i == null ? "" : String(asset.cia_i),
       cia_a: asset.cia_a == null ? "" : String(asset.cia_a),
-      department: asset.department, purchase_date: asset.purchase_date, warranty_date: asset.warranty_date,
+      purchase_date: asset.purchase_date, warranty_date: asset.warranty_date,
       eos_date: asset.eos_date, rack_id: asset.rack_id, rack_unit_start: asset.rack_unit_start,
       rack_unit_size: asset.rack_unit_size, rack_side: asset.rack_side ?? null, description: asset.description,
     });
@@ -1052,7 +1051,6 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
             <FormField label="접근 IP"><textarea value={form.access_ip} onChange={(e) => setForm({ ...form, access_ip: e.target.value })} className="form-input" rows={2} placeholder="여러 개면 줄바꿈/콤마로 구분" title="접근 IP가 여럿이면 줄바꿈 또는 콤마(,)로 구분해 입력하세요." /></FormField>
             <FormField label="사용자"><input value={form.user_name} onChange={(e) => setForm({ ...form, user_name: e.target.value })} className="form-input" /></FormField>
             <FormField label="관리자"><input value={form.admin_name} onChange={(e) => setForm({ ...form, admin_name: e.target.value })} className="form-input" /></FormField>
-            <FormField label="부서 (읽기전용·레거시)"><input value={form.department} readOnly disabled className="form-input bg-slate-50 text-ink-3 cursor-not-allowed" title="부서는 레거시 음영 컬럼입니다. 소유는 팀(team)으로 관리됩니다." /></FormField>
             <FormField label="기밀성(C)">
               <select value={form.cia_c} onChange={(e) => setForm({ ...form, cia_c: e.target.value })} className="form-input">
                 <option value="">-</option><option value="1">1 (Low)</option><option value="2">2 (Medium)</option><option value="3">3 (High)</option>

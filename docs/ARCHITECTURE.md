@@ -15,7 +15,7 @@ src/
 │   ├── portmap/            # 포트맵 (PortMapView.tsx, 포트 상태 및 연결)
 │   ├── distribution/       # 배선관리 (DistributionView.tsx, MDF/TPS 110블록)
 │   ├── locations/          # 위치/랙 관리 (LocationManager.tsx)
-│   ├── unassigned/         # 미배정 큐 (총괄 관리자 부서별 자산 일괄 배정)
+│   ├── unassigned/         # 미배정 큐 (총괄 관리자가 미배정 자산을 팀에 일괄 배정)
 │   ├── subassets/          # 부속자산 관리
 │   ├── maintenance/        # 유지보수/장애 관리
 │   ├── movements/          # 반입/반출 워크플로
@@ -100,7 +100,7 @@ src/
 | 테이블 | 용도 | 비고 |
 |--------|------|------|
 | `users` | 사용자 계정, 역할(admin/team/viewer), team_id, token_version, MFA | 비밀번호 scrypt 해시 |
-| `teams` | 부서/팀 조직 정의 | 부서별 데이터 격리 기준 |
+| `teams` | 부서/팀 조직 정의 | 부서별 데이터 격리 기준. 관리부서명의 유일한 정본(team_name) |
 | `locations` | 위치 (건물/층/실) | 랙 소속 |
 | `racks` | 랙 (위치 소속, U 단위) | total_units, width_type |
 | `assets` | 자산 대장 (서버/네트워크/보안/기타, 랙 배치, verified_at 현행 확인) | team_id 단일 소유권, rack_side(L/R) |
@@ -136,7 +136,7 @@ src/
    - 표준 SQL (FK, CHECK 제약, VIEW, TRIGGER)로 설계되어 향후 PostgreSQL 등 타 RDBMS로의 이관이 용이합니다.
 6. **자산 1만 건 규모 대응** (실측: `node scripts/bench-scale.mjs 10000` 으로 운영 DB 복사본을 키운 뒤 화면·API 응답 측정, `BENCH_KEEP=<경로>` 로 키운 DB 보존)
    - 화면이 자산 전량을 내려받지 않는다. 자산 목록·미배정 큐는 서버 페이지네이션(`src/lib/asset-list.ts` `listAssets`, 정렬 동률은 `id` 보조 키로 페이지 경계 고정), 부속 자산의 상위 자산 선택은 250ms 디바운스 서버 검색(50건 상한). 클라이언트의 `/api/assets?limit=0` 호출은 0건 — 전량은 내보내기 전용(`ASSET_ALL_CAP`).
-   - 미배정 큐(`/unassigned`)는 첫 페이지만 SSR 하고 다음 페이지는 `/api/assets?scope=unassigned`(총괄 전용). 선택은 페이지를 넘어 유지되고, 재배정 후엔 보던 페이지를 다시 받는다(비면 한 페이지 앞). 부서별 일괄 배정은 페이지와 무관하게 부서 집계 전량이 대상. 1만 건: 8.3MB·530ms → 117KB·45ms.
+   - 미배정 큐(`/unassigned`)는 첫 페이지만 SSR 하고 다음 페이지는 `/api/assets?scope=unassigned`(총괄 전용). 선택은 페이지를 넘어 유지되고, 재배정 후엔 보던 페이지를 다시 받는다(비면 한 페이지 앞). 1만 건: 8.3MB·530ms → 117KB·45ms.
    - 대시보드 랙 위치 충돌: SQL 자기조인(후보 쌍 200만, 인덱스 무효) 대신 `src/lib/rack-overlap.ts` `findRackConflicts` — 랙별 시작 위치 정렬 스윕, 판정은 정본 `overlaps()`. 1만 건 총괄 4.4s → 0.13s, 구 SQL 과 결과 동치(308건 비교).
    - IP 대역 화면(`/ipam`): 대역 감지·대역별 IP 조회를 정렬된 IP 수치 색인 + 이진 탐색(`lowerBound`)으로. 1만 건 16.3s → 0.36s.
    - 남은 대용량 SSR(1만 건 기준 3~5MB: 토폴로지·유지관리·IP 대역·현행 확인·랙)은 화면 특성상 전량 표시(그래프·랙 실장도)라 응답 0.4초 이내로 유지되는 범위에서 둔다.

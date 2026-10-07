@@ -3,7 +3,7 @@
 // scopeWhere()로 행을 제한하고, 모든 쓰기/삭제/다운로드 API는 assertCan*()로 권한을 강제한다.
 // default-deny: 알 수 없는 역할/미인증/팀 미배정 team 계정은 아무것도 보지 못한다.
 //
-// 소유 모델(ADR-009): assets.team_id 가 소유의 단일 권위. assets.department 는 읽기전용 레거시 음영.
+// 소유 모델(ADR-009): assets.team_id 가 소유(관리부서)의 단일 정본. 부서명은 teams.team_name 한 곳에만 있다.
 //  - admin(총괄): 전체 무제한 (읽기/쓰기/삭제/다운로드)
 //  - team(팀)  : 자기 팀 소유 자산만 (미배정 team_id IS NULL 제외), 자기 팀 범위 내 쓰기/삭제
 //  - viewer(전체열람): 전체 읽기/다운로드 가능하나 쓰기/삭제 불가 (ADR-010)

@@ -49,7 +49,8 @@ test("구버전 assets 재빌드 후에도 import_batch_id 컬럼이 존재하�
   const db = getDb();
   const cols = new Set((db.prepare("PRAGMA table_info(assets)").all() as { name: string }[]).map((c) => c.name));
   assert.ok(cols.has("import_batch_id"), "import_batch_id 탈락");
-  assert.ok(cols.has("rack_side") && cols.has("team_id") && cols.has("verified_at"), "재빌드 이후 컬럼 탈락");
+  assert.ok(cols.has("rack_side") && cols.has("team_id") && cols.has("verified_at"), "재빌드 이후 컨럼 탈락");
+  assert.ok(!cols.has("department"), "구버전 department 컨럼은 제거돼야 한다 (관리부서 정본 = team_id)");
   const row = db.prepare("SELECT asset_name, serial_number FROM assets WHERE asset_name='LEGACY-1'").get() as { asset_name: string; serial_number: string };
   assert.equal(row.serial_number, "SN-1");
 });
