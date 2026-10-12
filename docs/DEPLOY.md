@@ -20,7 +20,22 @@
 - 서비스 계정 `asset`, 앱 `/opt/asset-inventory`, systemd `asset-inventory` + `asset-backup.timer` + `asset-retention.timer`.
 - 인터넷 불필요: 번들에 Node 런타임·native 모듈·nginx RPM·앱·문서가 전부 들어 있다.
 
-## 2. 빌드 (스테이징/빌드 머신, Rocky 8.10)
+## 2. 빌드
+
+### 2-1. GitHub Release (정식 경로)
+
+`v<x.y.z>` 태그를 GitHub(`origin`)에 push 하면 `.github/workflows/release.yml` 이 Rocky Linux 8.10 컨테이너(glibc 2.28)에서 번들을 만들어 Releases 에 올린다.
+
+1. 태그 = `package.json` version 인지, `docs/CHANGELOG.md` 에 `## v<x.y.z> — <날짜>` 항목이 있는지 확인 (없으면 중단). 그 항목이 릴리스 노트가 된다
+2. 최신 Node 22(nodejs.org SHA256 검증) · nginx RPM 8종 내려받기 → `npm ci`(better-sqlite3 소스 빌드, glibc 2.28 이하 심볼 확인) → `npm run check` · `npm test`
+3. `build-release.sh` → `verify-build.mjs` → 번들 점검(체크섬 · `VERSION` 의 버전=태그 · 커밋 `-dirty` 아님 · server.js/native/Node/RPM 동봉 · `.env`/`*.db` 잔재 없음)
+4. Release `v<x.y.z>` 에 세 파일(`asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`) 첨부
+
+반입 담당자는 Releases 페이지에서 세 파일을 받아 그대로 반입한다. 이미 push 된 태그를 다시 빌드하려면 Actions → Release → Run workflow 에 태그를 넣는다(같은 이름 자산은 덮어쓴다). `main` push·PR 마다 `.github/workflows/ci.yml` 이 타입검사·테스트·빌드·`verify-build` 를 돌린다.
+
+### 2-2. 수동 빌드 (스테이징/빌드 머신, Rocky 8.10)
+
+GitHub 에 접근할 수 없을 때. `scripts/deploy/oneshot-build.sh` 가 아래 전제를 채운 뒤 같은 빌드를 한다.
 
 ```bash
 bash scripts/deploy/build-release.sh      # npm ci(오프라인 캐시) → next build → 스테이징 → tar + SHA256SUMS.txt + 배포방법.txt
@@ -29,7 +44,7 @@ node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (non
 
 산출물(`dist/`): `asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`(원본 `scripts/deploy/배포방법.txt`, 첫 줄에 버전·커밋·빌드 시각). 세 파일을 그대로 반입한다.
 
-**버전** — `package.json` 의 `version`(SemVer, 규칙은 `docs/CHANGELOG.md` 머리말)과 커밋·빌드 시각을 `scripts/build-meta.mjs` 가 한 번 계산해 화면(로그인 후) · `/api/health`(앱 포트 직접 호출) · 번들 최상위 `VERSION` 에 같은 값으로 박는다. 커밋은 `APP_COMMIT`(지정 시) > git(`APP_GIT_DIR` 또는 이 저장소) 순 — 소스를 복사해 빌드하는 머신은 `APP_GIT_DIR=<원본 저장소>` 를 넘긴다. 미커밋 변경이 있으면 커밋 뒤에 `-dirty` 가 붙고 빌드 로그에 `[WARN]` 이 찍힌다. 정식 릴리스: `npm version <x.y.z> --no-git-tag-version` → `docs/CHANGELOG.md` → 커밋 → `git tag -a v<x.y.z>` → push(태그 포함) → 깨끗한 트리에서 빌드.
+**버전** — `package.json` 의 `version`(SemVer, 규칙은 `docs/CHANGELOG.md` 머리말)과 커밋·빌드 시각을 `scripts/build-meta.mjs` 가 한 번 계산해 화면(로그인 후) · `/api/health`(앱 포트 직접 호출) · 번들 최상위 `VERSION` 에 같은 값으로 박는다. 커밋은 `APP_COMMIT`(지정 시) > git(`APP_GIT_DIR` 또는 이 저장소) 순 — 소스를 복사해 빌드하는 머신은 `APP_GIT_DIR=<원본 저장소>` 를 넘긴다. 미커밋 변경이 있으면 커밋 뒤에 `-dirty` 가 붙고 빌드 로그에 `[WARN]` 이 찍힌다. 정식 릴리스: `npm version <x.y.z> --no-git-tag-version` → `docs/CHANGELOG.md` → 커밋 → `git tag -a v<x.y.z>` → `git push origin main v<x.y.z>` → GitHub Release 가 빌드(§2-1).
 
 전제: `vendor/node-linux-x64.tar.xz`(Node 22.6+), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. **의존성이 바뀐 릴리스(package-lock 변경)는 인터넷 되는 시점에 빌드 머신에서 `npm ci --build-from-source` 를 한 번 돌려 캐시를 채운 뒤** 오프라인 빌드를 한다(예: 2026-10 next 15.5.27·nodemailer 10 전환, postcss 8.5.28 단일화).
 

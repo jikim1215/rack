@@ -1,0 +1,160 @@
+name: Release
+
+# v<x.y.z> 태그를 push 하면 폐쇄망 오프라인 번들을 Rocky Linux 8.10(glibc 2.28)에서 빌드해 GitHub Release 로 올린다.
+# 이미 push 된 태그를 다시 내려면 Actions → Release → Run workflow 에 태그를 넣는다(같은 이름 자산은 덮어씀).
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "릴리스할 태그 (예: v1.2.1)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  meta:
+    name: 태그 · 버전 · 변경이력 확인
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - name: 태그 = package.json version
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          [[ "$TAG" == "v${VERSION}" ]] || { echo "::error::태그 ${TAG} 와 package.json version ${VERSION} 가 다르다"; exit 1; }
+      - name: docs/CHANGELOG.md 에서 릴리스 노트 추출
+        run: |
+          awk -v tag="$TAG" '
+            index($0, "## " tag " ") == 1 || $0 == "## " tag { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' docs/CHANGELOG.md > release-notes.md
+          grep -q '[^[:space:]]' release-notes.md || { echo "::error::docs/CHANGELOG.md 에 '## ${TAG} — <날짜>' 항목이 없다"; exit 1; }
+          cat release-notes.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+
+  bundle:
+    name: 오프라인 번들 빌드 (Rocky 8.10)
+    needs: meta
+    runs-on: ubuntu-latest
+    container: rockylinux/rockylinux:8.10
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      TZ: Asia/Seoul
+      npm_config_build_from_source: "true"
+      npm_config_python: /usr/bin/python3.11
+    steps:
+      - name: 빌드 도구
+        run: |
+          dnf install -y git tar xz make binutils findutils diffutils 'dnf-command(download)' gcc-toolset-12 python3.11
+      # git 을 먼저 깔아야 checkout 이 .git 을 남긴다 — 번들 VERSION 의 커밋은 git 에서 읽는다
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - name: Node 22 (번들 동봉용, SHA256 검증)
+        run: |
+          set -euo pipefail
+          BASE=https://nodejs.org/dist/latest-v22.x
+          curl -fsSL "$BASE/SHASUMS256.txt" -o /tmp/SHASUMS256.txt
+          FILE="$(grep -oE 'node-v22\.[0-9]+\.[0-9]+-linux-x64\.tar\.xz' /tmp/SHASUMS256.txt | head -1)"
+          curl -fsSL "$BASE/$FILE" -o "/tmp/$FILE"
+          (cd /tmp && grep " $FILE\$" SHASUMS256.txt | sha256sum -c -)
+          mkdir -p vendor /opt/node22
+          cp "/tmp/$FILE" vendor/node-linux-x64.tar.xz
+          tar -xf "/tmp/$FILE" -C /opt/node22 --strip-components=1
+          echo /opt/node22/bin >> "$GITHUB_PATH"
+      - name: nginx RPM (오프라인 설치용)
+        run: |
+          set -euo pipefail
+          # el8 nginx 는 modular — 본체+모듈+filesystem 을 명시해 8종을 확보 (oneshot-build.sh 와 같은 목록)
+          dnf download --resolve --destdir vendor/rpms nginx nginx-all-modules nginx-filesystem \
+            nginx-mod-http-image-filter nginx-mod-http-perl nginx-mod-http-xslt-filter nginx-mod-mail nginx-mod-stream
+          CNT="$(ls vendor/rpms/*.rpm | wc -l)"
+          echo "vendor/rpms: ${CNT}개"
+          [[ "$CNT" -ge 8 ]] || { echo "::error::nginx RPM ${CNT}개 (8 미만)"; exit 1; }
+      - name: 의존성 (better-sqlite3 소스 빌드, glibc 2.28 링크)
+        run: |
+          set +u; source scl_source enable gcc-toolset-12; set -u
+          node -v
+          npm ci --no-audit --no-fund
+          node -e "require('better-sqlite3')(':memory:').prepare('select 1 as a').get(); console.log('native OK')"
+          MAXG="$(objdump -T node_modules/better-sqlite3/build/Release/better_sqlite3.node | grep -oE 'GLIBC_[0-9.]+' | sort -V | tail -1)"
+          echo "최고 glibc 심볼: ${MAXG}"
+          case "$MAXG" in
+            GLIBC_2.2.5|GLIBC_2.1*|GLIBC_2.2[0-8]|GLIBC_2.28) ;;
+            *) echo "::error::glibc ${MAXG} > 2.28 — Rocky 8.10 서버에서 로드 실패"; exit 1 ;;
+          esac
+      - name: 타입검사 · 테스트
+        run: |
+          npm run check
+          npm test
+      - name: 번들 빌드
+        run: |
+          set +u; source scl_source enable gcc-toolset-12; set -u
+          bash scripts/deploy/build-release.sh
+          npm run verify:build
+      - name: 번들 점검
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c SHA256SUMS.txt
+          tar -xOzf asset-inventory-offline.tar.gz asset-inventory/VERSION | tee /tmp/VERSION
+          grep -qx "version=${TAG#v}" /tmp/VERSION || { echo "::error::번들 버전이 태그와 다르다"; exit 1; }
+          grep -qE '^commit=[0-9a-f]{7,40}$' /tmp/VERSION || { echo "::error::번들 커밋이 없거나 -dirty"; exit 1; }
+          LIST="$(tar -tzf asset-inventory-offline.tar.gz)"
+          for f in .next/standalone/server.js .next/standalone/node_modules/better-sqlite3/build/Release/better_sqlite3.node \
+                   node-linux-x64.tar.xz scripts/deploy/deploy.sh; do
+            grep -qx "asset-inventory/$f" <<<"$LIST" || { echo "::error::번들 구성 누락: $f"; exit 1; }
+          done
+          [[ "$(grep -c '^asset-inventory/rpms/.*\.rpm$' <<<"$LIST")" -ge 8 ]] || { echo "::error::번들 nginx RPM 부족"; exit 1; }
+          ! grep -E '(^|/)(\.env(\..*)?|[^/]*\.db(-wal|-shm)?)$' <<<"$LIST" || { echo "::error::번들에 .env/*.db 잔재"; exit 1; }
+          ls -lh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bundle
+          path: |
+            dist/asset-inventory-offline.tar.gz
+            dist/SHA256SUMS.txt
+            dist/배포방법.txt
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    name: GitHub Release
+    needs: bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: out
+          merge-multiple: true
+      - name: 릴리스 생성 또는 갱신
+        run: |
+          set -euo pipefail
+          cd out
+          FILES=(asset-inventory-offline.tar.gz SHA256SUMS.txt 배포방법.txt)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file release-notes.md
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            gh release create "$TAG" "${FILES[@]}" --verify-tag --title "$TAG" --notes-file release-notes.md
+          fi

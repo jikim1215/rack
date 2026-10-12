@@ -11,7 +11,7 @@
 **확인하는 곳** — 로그인 후 사이드바 맨 아래(버전 · 커밋, 마우스를 올리면 빌드 시각), 서버 안에서 앱 포트로 부른 `/api/health` 의 `version`·`commit`·`builtAt`(nginx 경유 외부 요청은 `{"ok":true}` 만), 번들 최상위 `VERSION` 파일, 반입 안내 `배포방법.txt` 첫 줄, 업그레이드·롤백 출력(`현재 → 새`).
 커밋 뒤에 `-dirty` 가 붙어 있으면 커밋되지 않은 변경이 섞인 빌드다 — 정식 반입본이 아니다.
 
-**릴리스 절차** — `npm version <x.y.z> --no-git-tag-version` → 이 파일에 항목 추가 → 커밋 → `git tag -a v<x.y.z>` → push(태그 포함) → 깨끗한 트리에서 `build-release.sh`.
+**릴리스 절차** — `npm version <x.y.z> --no-git-tag-version` → 이 파일에 항목 추가 → 커밋 → `git tag -a v<x.y.z>` → `git push origin main v<x.y.z>` → GitHub Actions(Release)가 Rocky 8.10 에서 번들을 빌드해 Releases 에 올린다(이 파일의 해당 항목이 릴리스 노트). 상세는 `docs/DEPLOY.md` §2.
 
 ---
 
