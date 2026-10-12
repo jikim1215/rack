@@ -29,7 +29,7 @@
 1. 태그 = `package.json` version 인지, `docs/CHANGELOG.md` 에 `## v<x.y.z> — <날짜>` 항목이 있는지 확인 (없으면 중단). 그 항목이 릴리스 노트가 된다
 2. 최신 Node 22(nodejs.org SHA256 검증) · nginx RPM 8종 내려받기 → `npm ci`(better-sqlite3 소스 빌드, glibc 2.28 이하 심볼 확인) → `npm run check` · `npm test`
 3. `build-release.sh` → `verify-build.mjs` → 번들 점검(체크섬 · `VERSION` 의 버전=태그 · 커밋 `-dirty` 아님 · server.js/native/Node/RPM 동봉 · `.env`/`*.db` 잔재 없음)
-4. Release `v<x.y.z>` 에 세 파일(`asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`) 첨부
+4. Release `v<x.y.z>` 에 세 파일(`asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `deploy-guide.txt`) 첨부 — `deploy-guide.txt` 는 `배포방법.txt` 와 같은 파일이다(GitHub 이 비ASCII 파일명을 바꾸므로 ASCII 로 올린다)
 
 반입 담당자는 Releases 페이지에서 세 파일을 받아 그대로 반입한다. 이미 push 된 태그를 다시 빌드하려면 Actions → Release → Run workflow 에 태그를 넣는다(같은 이름 자산은 덮어쓴다). `main` push·PR 마다 `.github/workflows/ci.yml` 이 타입검사·테스트·빌드·`verify-build` 를 돌린다.
 

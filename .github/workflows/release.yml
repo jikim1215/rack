@@ -151,7 +151,10 @@ jobs:
         run: |
           set -euo pipefail
           cd out
-          FILES=(asset-inventory-offline.tar.gz SHA256SUMS.txt 배포방법.txt)
+          # GitHub 은 비ASCII 자산 이름을 default.txt 로 바꾼다 — 파일명은 ASCII, 화면 표시는 라벨로
+          mv 배포방법.txt deploy-guide.txt
+          FILES=(asset-inventory-offline.tar.gz SHA256SUMS.txt "deploy-guide.txt#배포방법.txt (반입 안내)")
+          gh release delete-asset "$TAG" default.txt --yes 2>/dev/null || true
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --title "$TAG" --notes-file release-notes.md
             gh release upload "$TAG" "${FILES[@]}" --clobber
