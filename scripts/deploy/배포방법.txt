@@ -63,7 +63,7 @@
     sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs integrity
     sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs restored
 
-    브라우저: 로그인 화면 맨 아래 v<버전>, 로그인 후 왼쪽 메뉴 맨 아래 v<버전> · 커밋
+    브라우저: 로그인 후 왼쪽 메뉴 맨 아래 v<버전> · 커밋  (로그인 화면에는 버전을 표기하지 않음)
 
 
 [E] 되돌리기
@@ -77,7 +77,15 @@
       원인 해결 후 새 판을 다시 적용하면 자동으로 다시 복구됩니다.
 
 
-[v1.2.0 변경 요약]   (전체 이력: asset-inventory/docs/CHANGELOG.md)
+[v1.2.1 변경 요약]   (전체 이력: asset-inventory/docs/CHANGELOG.md)
+  - 보안 점검 지적 수정: 외부에서 부르는 /api/health 는 {"ok":true} 만 냅니다
+      (버전·커밋·빌드 시각·스키마·가동 시간은 서버 안에서 앱 포트로 부를 때만 — 배포 출력은 그대로)
+  - 로그인 화면의 버전 표기 제거, 로그인 전 받는 JS 파일에 박혀 있던 커밋·빌드 시각 제거
+  - 로그인 응답 시간으로 계정 존재 여부를 알 수 있던 점 수정
+  - nginx 재구성 시 접속 도메인(server_name)이 기본값으로 되돌아가던 결함 수정
+  - 되돌리기는 앱만으로 충분합니다 (--with-db 불필요)
+
+[v1.2.0 변경 요약]
   - 관리부서명은 팀 이름 한 곳에서만 읽습니다 — 조직 개편으로 부서명을 바꾸면(설정 → 팀 관리)
       소속 자산·대시보드·관리대장·내보내기에 즉시 반영됩니다.
   - 대시보드 최근 등록 자산의 부서, 제출용 관리대장의 부서명, 자산 내보내기의 관리부서가

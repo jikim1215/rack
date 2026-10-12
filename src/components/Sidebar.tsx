@@ -10,11 +10,10 @@ import {
 } from "lucide-react";
 import { FEEDBACK_CHANGED_EVENT, openFeedbackModal } from "./FeedbackModal";
 import { MENUS, menuKeyForHref } from "@/lib/menus";
-import { APP_BUILD, buildLabel, kstMinute } from "@/lib/app-version";
+import { buildLabel, kstMinute, type AppBuild } from "@/lib/app-version";
 
-// 하단 버전 표기 — 빌드 때 박힌 상수(서버·클라이언트 동일). 빌드 시각은 마우스를 올리면 보인다.
-const VERSION_LABEL = buildLabel(APP_BUILD, { withCommit: true });
-const VERSION_TITLE = APP_BUILD.builtAt ? `빌드 ${kstMinute(APP_BUILD.builtAt)}` : undefined;
+// 하단 버전 표기 — 값은 /api/auth/me 의 build(로그인 사용자에게만). 클라이언트 번들에 상수로 박지 않는다
+// (무인증 JS 청크에 커밋·빌드 시각이 노출되므로 — lib/app-build.ts). 빌드 시각은 마우스를 올리면 보인다.
 
 // 메뉴 정본은 src/lib/menus.ts (순서·라벨·권한 기본값). 여기서는 key → 아이콘만 매핑한다.
 // 포트맵/토폴로지는 레지스트리에 없으므로 메뉴에 나오지 않는다(실데이터 도입 시 레지스트리에 추가, R3 비평).
@@ -55,7 +54,10 @@ export function Sidebar() {
   const [user, setUser] = useState<{
     displayName: string; role: string; username: string;
     permissions?: Record<string, { can_access: number }>;
+    build?: AppBuild;
   } | null>(null);
+  const versionLabel = user?.build ? buildLabel(user.build, { withCommit: true }) : "";
+  const versionTitle = user?.build?.builtAt ? `빌드 ${kstMinute(user.build.builtAt)}` : undefined;
 
   // 사용자 지정 메뉴 순서(href 배열). 빈 배열 = 기본 순서.
   const [order, setOrder] = useState<string[]>([]);
@@ -258,9 +260,9 @@ export function Sidebar() {
         >
           <HelpCircle size={14} /> 도움말 · 사용 안내 다시 보기
         </button>
-        {VERSION_LABEL && (
-          <p className="mt-2 text-center num text-[0.6875rem] text-krds-gray-60" title={VERSION_TITLE}>
-            {VERSION_LABEL}
+        {versionLabel && (
+          <p className="mt-2 text-center num text-[0.6875rem] text-krds-gray-60" title={versionTitle}>
+            {versionLabel}
           </p>
         )}
       </div>

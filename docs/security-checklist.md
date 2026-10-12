@@ -16,7 +16,9 @@
 - [x] **비밀번호 정책은 평문을 아는 클라이언트가 검사** (`src/lib/password-policy.ts`, 변경/초기화/계정생성 전부). 서버는 sha512 프리해시만 받으므로 평문 정책을 판정할 수 없다 — 과거 `validatePasswordPolicy(해시)` 는 항상 통과하는 허수 검사였고(그래서 정책 위반 비밀번호가 존재), 지금은 "프리해시 형식인가" 만 검증. 정책 미달 비밀번호로 로그인하면 브라우저가 `/api/auth/password/weak` 로 자진 신고 → must_change 강제(엄격해지는 방향만 가능하므로 악용 가치 없음).
 - [x] 엑셀 업로드 상한 20MB/2만 행 (`src/lib/validation/upload.ts`, 업로드 5종 — 자산·부속·유지관리대상·배선 일괄·선번장) — XLSX.read 전 차단. 5종 모두 공통 입구 `src/lib/xlsx-upload.ts`(크기→매직바이트→**압축 해제 총량 64MB**→파싱 실패 400→행 상한)로만 읽는다 — `XLSX.read` 직접 호출은 가드레일 테스트가 막는다. 압축 폭탄(20MB 이하가 수백 MB 로 풀리는 zip, 선언 크기 위조 포함)은 zlib `maxOutputLength` 로 실제 해제량을 세어 끊는다: 19.8MB·320만 셀 파일이 이전엔 1.7GB·23초 → 지금 400·2.5초(실측). 파싱은 dense 모드(최악 피크 588→435MB). 본문은 `readFormData`(선언 길이 초과·잘린 본문 → 400)로만 읽는다(가드레일 테스트). Next 15.5 미들웨어 본문 기본 10MB 절단은 `next.config.ts` `middlewareClientMaxBodySize: 25mb` 로 해제.
 - [x] **클라이언트 IP 위조 차단** — `TRUST_PROXY=true` 에서도 X-Forwarded-For 맨 앞값(클라이언트 입력)을 쓰지 않는다. 프록시가 덮어쓰는 X-Real-IP 우선 → 없으면 XFF 맨 끝. nginx 는 `X-Forwarded-For $remote_addr`(덮어쓰기), Node TLS 종단(`server-tls.mjs`)은 소켓 주소로 두 헤더를 재설정. 사용자별 허용 IP·로그인 잠금 키·접속기록이 이 값에 의존.
-- [x] `/api/health` 무인증 — 업무 수치 미노출(가드레일 테스트가 업무 테이블 조회를 금지), no-store.
+- [x] `/api/health` 무인증 — 외부(nginx 경유)는 `{"ok":true}` 만. 버전·커밋·빌드 시각·스키마·가동 시간은 서버 안 앱 포트 직접 호출에만(`lib/health-access.ts`: TRUST_PROXY=true + X-Real-IP/XFF 없음). 업무 테이블 조회 금지(가드레일 테스트), no-store.
+- [x] 미인증 표면에 빌드 정보 미노출 — 로그인 화면 버전 미표기, 빌드 상수(`lib/app-build.ts`)는 서버 전용이라 무인증 `/_next/static` JS 청크에 커밋·빌드 시각이 박히지 않는다(클라이언트 import 금지 테스트). 사이드바 버전은 로그인 후 `/api/auth/me`.
+- [x] 로그인 사용자 열거 차단 — 없는 계정·틀린 비밀번호가 같은 메시지 + 같은 scrypt 비용(`verifyLoginPassword` 더미 해시) — 응답 시간으로 계정 존재를 구별할 수 없다.
 - [x] 운영 DB 점검 도구(`scripts/deploy/db-query.cjs`)는 읽기 전용 — readonly 연결 + `query_only`, 쓰기 SQL 거부. 데이터 수정은 감사로그가 남는 화면/전용 CLI(비밀번호·MFA)로만.
 - [x] MFA 해제 경로 통제 — 본인: 현재 코드 필수(세션 탈취로는 못 끕) / 총괄: `/api/users/[id]/mfa` DELETE(감사로그 + 세션 무효화) / 서버 CLI `disable-mfa.cjs`(총괄 본인 잠김).
 

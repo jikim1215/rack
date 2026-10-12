@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withApi } from "@/lib/api-authz";
 import { clientMeta } from "@/lib/access-log";
 import type { MenuPermissionRow } from "@/lib/db-types";
+import { APP_BUILD } from "@/lib/app-build";
 
 export const GET = withApi(async (req: NextRequest) => {
   const session = await getSession();
@@ -29,5 +30,7 @@ export const GET = withApi(async (req: NextRequest) => {
     clientIp: ip,
     // 세션 만료 시각 (P0 합의: 만료 임박 배너용)
     exp: session.exp,
+    // 사이드바 하단 버전 표기 — 클라이언트 번들에 박지 않고 로그인 사용자에게만 내린다(lib/app-build.ts).
+    build: APP_BUILD,
   });
 });

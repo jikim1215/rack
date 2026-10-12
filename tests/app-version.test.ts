@@ -4,11 +4,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveBuildMeta, gitCommit } from "../scripts/build-meta.mjs";
 import { buildLabel, kstMinute } from "../src/lib/app-version.ts";
+import { isLocalHealthProbe } from "../src/lib/health-access.ts";
 
 const ROOT = process.cwd();
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
@@ -99,7 +100,51 @@ test("CLI 출력은 build-release.sh 가 읽는 KEY=값 세 줄", () => {
   assert.equal(out, `APP_VERSION=${pkg.version}\nAPP_COMMIT=e2999fd\nAPP_BUILT_AT=2026-10-02T06:00:00.000Z\n`);
 });
 
-test("화면 표기: 로그인 전 버전만, 로그인 후 커밋까지 — 값이 없으면 아무것도 안 보인다", () => {
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((n) => {
+    const p = join(dir, n);
+    return statSync(p).isDirectory() ? sourceFiles(p) : /\.tsx?$/.test(n) ? [p] : [];
+  });
+}
+
+test("빌드 메타는 서버 전용 — 클라이언트 컴포넌트·로그인 화면이 app-build 를 import 하면 무인증 JS 청크에 커밋이 박힌다", () => {
+  const offenders: string[] = [];
+  for (const f of sourceFiles(join(ROOT, "src"))) {
+    const src = readFileSync(f, "utf8");
+    const importsBuild = /from\s+["'][^"']*app-build["']/.test(src) || /process\.env\.APP_(COMMIT|BUILT_AT|VERSION)/.test(src);
+    if (!importsBuild || f.endsWith(join("lib", "app-build.ts"))) continue;
+    if (/^\s*["']use client["']/m.test(src) || f.includes(join("app", "login"))) offenders.push(f.slice(ROOT.length + 1));
+  }
+  assert.deepEqual(offenders, [], "빌드 메타는 /api/auth/me 의 build 로 받는다");
+  const login = readFileSync(join(ROOT, "src/app/login/page.tsx"), "utf8");
+  assert.doesNotMatch(login, /buildLabel|APP_BUILD/, "로그인 전 화면은 버전 미표기");
+});
+
+test("/api/health 상세는 nginx 를 거치지 않은 서버 내부 호출에만 (TRUST_PROXY=true + X-Real-IP 없음 + 루프백)", () => {
+  const h = (o: Record<string, string> = {}) => new Headers(o);
+  // Next 서버는 XFF 가 없으면 소켓 주소로 채운다 — 앱 포트 직접 호출은 루프백 한 개
+  assert.equal(isLocalHealthProbe(h({ "x-forwarded-for": "127.0.0.1" }), "true"), true, "배포 스크립트: 127.0.0.1:<PORT> 직접");
+  assert.equal(isLocalHealthProbe(h({ "x-forwarded-for": "::1" }), "true"), true, "IPv6 루프백");
+  assert.equal(isLocalHealthProbe(h({ "x-forwarded-for": "::ffff:127.0.0.1" }), "true"), true, "IPv4-mapped 루프백");
+  assert.equal(isLocalHealthProbe(h({ "x-real-ip": "10.0.0.5", "x-forwarded-for": "10.0.0.5" }), "true"), false, "nginx 경유(외부)");
+  assert.equal(isLocalHealthProbe(h({ "x-real-ip": "127.0.0.1", "x-forwarded-for": "127.0.0.1" }), "true"), false, "X-Real-IP 가 있으면 값과 무관하게 외부(nginx 가 붙인다)");
+  assert.equal(isLocalHealthProbe(h({ "x-forwarded-for": "10.0.0.5" }), "true"), false, "루프백이 아닌 출처");
+  assert.equal(isLocalHealthProbe(h({ "x-forwarded-for": "10.0.0.5, 127.0.0.1" }), "true"), false, "다단 홉");
+  assert.equal(isLocalHealthProbe(h(), "true"), false, "출처 불명");
+  for (const tp of [undefined, "", "false", "TRUE"]) {
+    assert.equal(isLocalHealthProbe(h({ "x-forwarded-for": "127.0.0.1" }), tp), false, `TRUST_PROXY=${tp}: 프록시 없이 직접 노출될 수 있어 출처 판별 불가 → 상세 없음`);
+  }
+});
+
+test("외부 /api/health 는 ok 만 — 버전·커밋·빌드 시각·스키마·가동 시간은 내부 호출 분기에만", () => {
+  const src = readFileSync(join(ROOT, "src/app/api/health/route.ts"), "utf8");
+  const pub = src.match(/if \(!isLocalHealthProbe\([^)]*\)\)\s*\{([\s\S]*?)\n  \}/);
+  assert.ok(pub, "외부 분기(isLocalHealthProbe 부정)가 있어야 한다");
+  assert.match(pub[1], /NextResponse\.json\(\{ ok \}/);
+  assert.doesNotMatch(pub[1], /version|commit|builtAt|schema|uptime|latency|db:/);
+});
+
+test("화면 표기: 버전·커밋 — 값이 없으면 아무것도 안 보인다", () => {
   const b = { version: "1.1.0", commit: "e2999fd", builtAt: "2026-10-02T06:00:00.000Z" };
   assert.equal(buildLabel(b), "v1.1.0");
   assert.equal(buildLabel(b, { withCommit: true }), "v1.1.0 · e2999fd");

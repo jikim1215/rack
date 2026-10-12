@@ -54,6 +54,22 @@ export function verifyPassword(password: string, stored: string): boolean {
   return expected.length === buf.length && timingSafeEqual(buf, expected);
 }
 
+// 없는 계정도 같은 scrypt 비용을 치르게 하는 더미 저장값(최초 사용 시 1회 생성).
+let dummyPasswordHash: string | null = null;
+
+/**
+ * 로그인 비밀번호 확인 — 계정이 없어도 더미 해시로 scrypt 를 돌려 응답 시간을 맞춘다.
+ * (없는 계정만 즉시 401 이면 메시지가 같아도 응답 시간으로 계정 존재 여부가 드러난다 — 사용자 열거.)
+ */
+export function verifyLoginPassword(password: string, stored: string | undefined): boolean {
+  if (stored === undefined) {
+    dummyPasswordHash ??= hashPassword(randomBytes(32).toString("hex"));
+    verifyPassword(password, dummyPasswordHash);
+    return false;
+  }
+  return verifyPassword(password, stored);
+}
+
 // 서버측 프리해시(sha512) + scrypt. 시드/초기화처럼 평문을 가진 경로에서
 // 클라이언트(LoginForm) 프리해시 규약과 동일한 저장물을 만든다.
 // 초기화(reset) 규약: 초기 비밀번호 = 사용자 이메일 → 서버에서 이 함수로 해시해 저장한다.

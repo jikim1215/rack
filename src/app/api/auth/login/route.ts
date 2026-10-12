@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { verifyPassword, createSessionToken, createMfaPendingToken, sessionCookieOptions, MFA_PENDING_TTL_MS, mfaRequiredRoles } from "@/lib/auth";
+import { verifyLoginPassword, createSessionToken, createMfaPendingToken, sessionCookieOptions, MFA_PENDING_TTL_MS, mfaRequiredRoles } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { withApi, readJson } from "@/lib/api-authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
@@ -116,8 +116,8 @@ export const POST = withApi(async (req: NextRequest) => {
   }
   const user = db.prepare("SELECT * FROM users WHERE username = ? AND is_active = 1").get(username) as UserRow | undefined;
 
-  // 고의적으로 동일한 에러 메시지 사용 (사용자 열거 방지)
-  if (!user || !verifyPassword(password, user.password_hash)) {
+  // 고의적으로 동일한 에러 메시지·동일한 해시 비용 사용 (사용자 열거 방지 — 없는 계정도 scrypt 를 거친다)
+  if (!verifyLoginPassword(password, user?.password_hash) || !user) {
     // 두 키 모두 실패 기록 — 남은 횟수는 각 키의 임계(직결 IP는 4배 완화)를 반영해 더 먼저 잠기는 쪽 기준 (외부 검토 R6-1)
     const userFails = recordFailedAttempt(db, userKey);
     const ipFails = recordFailedAttempt(db, ipKey);

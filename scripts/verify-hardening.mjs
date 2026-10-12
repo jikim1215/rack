@@ -55,12 +55,13 @@ function jar() {
 async function main() {
   console.log(`── verify-hardening: ${BASE} ──`);
 
-  // 1) /api/health — 무인증, 업무정보 미노출
+  // 1) /api/health — 무인증. 외부(nginx 경유 = X-Real-IP 있음)에는 ok 만, 버전·커밋·스키마 등 미노출
   const anon = jar();
-  let r = await anon.req("/api/health");
-  assert(r.status === 200 && r.body.ok === true && r.body.db === "ok" && typeof r.body.schema === "number", "/api/health 무인증 200 + db ok + schema", `${r.status} ${JSON.stringify(r.body)}`);
-  assert(!("assets" in r.body) && !("users" in r.body), "/api/health 는 업무 수치 미노출");
+  let r = await anon.req("/api/health", { headers: { "X-Real-IP": "203.0.113.7" } });
+  assert(r.status === 200 && JSON.stringify(r.body) === '{"ok":true}', "/api/health 외부 = 200 {ok:true} 만", `${r.status} ${JSON.stringify(r.body)}`);
   assert(r.headers.get("cache-control")?.includes("no-store"), "/api/health no-store");
+  r = await anon.req("/login");
+  assert(r.status === 200 && !/v\d+\.\d+\.\d+/.test(r.text), "로그인 화면에 버전 미표기", `${r.status}`);
 
   // 2) MFA 등록 강제: admin(미등록) 로그인 → 세션은 받되 msr 게이트
   const admin = jar();

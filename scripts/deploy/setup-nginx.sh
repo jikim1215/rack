@@ -20,11 +20,14 @@ APP_NAME="asset-inventory"
 APP_USER="asset"
 NEXT_PORT="${NEXT_INTERNAL_PORT:-3100}"   # share(공존시스템)가 3000 을 쓰므로 itam 은 3100 기본(같은 서버 공존)
 LOCK_DIR="/var/lib/${APP_NAME}"
-PUBLIC_FQDN="${PUBLIC_FQDN:-itam.example.go.kr}"
-
 [[ $(id -u) -eq 0 ]] || { echo "root 필요: sudo bash setup-nginx.sh"; exit 1; }
 
 read_env() { sed -n "s/^$1=//p" "$APP_DIR/.env" 2>/dev/null | head -n1; }
+
+# 접속 도메인: 환경변수 > 설치된 .env 의 PUBLIC_FQDN > 기본값.
+#   'nginx' 재구성 시 .env 값을 따라가야 server_name 이 운영 도메인에서 기본값으로 되돌아가지 않는다.
+PUBLIC_FQDN="${PUBLIC_FQDN:-$(read_env PUBLIC_FQDN)}"
+PUBLIC_FQDN="${PUBLIC_FQDN:-itam.example.go.kr}"
 
 # ── 공존시스템(share) 정식 인증서 공유 ──
 #   itam 은 자체 인증서를 만들지 않는다. 공존시스템 가 이미 배치한 *.example.go.kr 정식
@@ -80,6 +83,7 @@ setup_nginx() {
     # NGXVER <= 1.25.0 → 구식 구문 (listen 라인에 http2)
     H2=""
     sed -e "s|__ITAM_PORT__|${NEXT_PORT}|g" \
+        -e "s|__PUBLIC_FQDN__|${PUBLIC_FQDN}|g" \
         -e "s|__SSL_CRT__|${SSL_CRT}|g" \
         -e "s|__SSL_KEY__|${SSL_KEY}|g" \
         -e "s|    listen 443 ssl;|    listen 443 ssl http2;|" \
@@ -87,6 +91,7 @@ setup_nginx() {
   else
     # NGXVER >= 1.25.1 (또는 감지 실패 시 최신 가정) → http2 on;
     sed -e "s|__ITAM_PORT__|${NEXT_PORT}|g" \
+        -e "s|__PUBLIC_FQDN__|${PUBLIC_FQDN}|g" \
         -e "s|__SSL_CRT__|${SSL_CRT}|g" \
         -e "s|__SSL_KEY__|${SSL_KEY}|g" \
         -e "s|^__HTTP2__$|    http2 on;|" "$HERE/nginx-itam.conf" > /etc/nginx/conf.d/itam.conf

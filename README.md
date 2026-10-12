@@ -143,7 +143,7 @@ tar -xzf asset-inventory-offline.tar.gz
 sudo bash asset-inventory/scripts/deploy/deploy.sh          # --check 로 사전 점검만 가능
 
 # 3) 배포 후 확인 — Host 헤더 필수(nginx 가 SNI 로 갈라서 IP 직접 접속은 공존시스템으로 간다)
-curl -sk -H 'Host: <PUBLIC_FQDN>' https://127.0.0.1/api/health   # {"ok":true,"db":"ok","schema":2,...}
+curl -sk -H 'Host: <PUBLIC_FQDN>' https://127.0.0.1/api/health   # {"ok":true}  (버전·커밋 상세는 curl -s http://127.0.0.1:3100/api/health)
 
 # 4) https://<PUBLIC_FQDN>/ 접속 (nginx 리버스프록시, 공존시스템 인증서 공유)
 #    최초 계정 admin@example.go.kr / admin123 → 첫 로그인 시 비밀번호 변경 + 2단계 인증 등록

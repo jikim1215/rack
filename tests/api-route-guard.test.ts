@@ -103,6 +103,7 @@ for (const file of files) {
       if (sessionOnly) {
         if (url.startsWith("/api/auth")) continue; // 인증 흐름 자체
         // /api/health: 유일한 무인증 엔드포인트(미들웨어 예외). GET 만 허용하고 업무 데이터 조회가 없어야 한다.
+        //   외부에 ok 만 내는지는 tests/app-version.test.ts 가 본다.
         if (url === "/api/health") {
           assert.equal(c.method, "GET", `${label}: 헬스체크는 GET 만`);
           assert.ok(!/FROM\s+(assets|users|audit_logs|sub_assets|contracts)/i.test(c.body), `${label}: 무인증 엔드포인트가 업무 테이블을 읽음`);

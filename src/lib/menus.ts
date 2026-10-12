@@ -145,6 +145,6 @@ export const ADMIN_ONLY_API_PREFIXES: readonly string[] = [
 ];
 /**
  * 인증만 있으면 전 역할이 부르는 경로 (메뉴 인가 대상 아님): 인증 자체, 자기 역할 권한 조회(GET; PUT 은 assertAdmin),
- * 헬스체크(/api/health — 미들웨어 인증 예외, 업무 정보 미노출).
+ * 헬스체크(/api/health — 미들웨어 인증 예외, 외부에는 ok 만).
  */
 export const SESSION_ONLY_API_PREFIXES: readonly string[] = ["/api/auth", "/api/permissions", "/api/health"];

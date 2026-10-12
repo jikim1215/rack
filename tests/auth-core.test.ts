@@ -13,6 +13,7 @@ const {
   verifySessionToken,
   hashPassword,
   verifyPassword,
+  verifyLoginPassword,
   validatePasswordPolicy,
   hashPlaintextPassword,
   PASSWORD_MIN_LENGTH,
@@ -90,6 +91,19 @@ test("비밀번호 해시: 오답 거부", () => {
 test("비밀번호 해시: 저장 형식 불량 거부", () => {
   assert.equal(verifyPassword("anything", "no-colon-here"), false);
   assert.equal(verifyPassword("anything", ""), false);
+});
+
+test("로그인 비밀번호 확인: 없는 계정도 scrypt 를 돌려 응답 시간으로 계정 존재가 드러나지 않는다", () => {
+  const stored = hashPassword("correct-value");
+  assert.equal(verifyLoginPassword("correct-value", stored), true);
+  assert.equal(verifyLoginPassword("wrong-value", stored), false);
+  assert.equal(verifyLoginPassword("anything", undefined), false, "계정 없음은 항상 거부");
+  // 시간 비교: 더미 해시 생성(최초 1회)을 미리 치른 뒤, 없는 계정이 있는 계정 오답의 절반보다 빠르면 열거 가능.
+  verifyLoginPassword("warm", undefined);
+  const time = (fn: () => void) => { const t = process.hrtime.bigint(); for (let i = 0; i < 5; i++) fn(); return Number(process.hrtime.bigint() - t); };
+  const missing = time(() => verifyLoginPassword("x", undefined));
+  const wrong = time(() => verifyLoginPassword("x", stored));
+  assert.ok(missing > wrong / 2, `없는 계정 ${missing}ns vs 오답 ${wrong}ns — scrypt 를 건너뛰면 수십 배 차이`);
 });
 
 test("비밀번호 해시: 동일 입력도 솔트가 달라 저장물이 다르다", () => {

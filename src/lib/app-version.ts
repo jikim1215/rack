@@ -1,16 +1,9 @@
-// 앱 버전 표시 — 값은 빌드 때 next.config.ts 의 env 가 박아 넣는다(정본 계산: scripts/build-meta.mjs).
-// 서버·클라이언트 어디서 import 해도 같은 상수다(하이드레이션 불일치 없음). 테스트·tsc 처럼 next 빌드 밖이면 빈 값.
+// 앱 버전 표기 헬퍼 — 순수 함수(서버·클라이언트 공용). 값 자체(APP_BUILD)는 서버 전용 lib/app-build.ts 에 있다.
+// 정본 계산: scripts/build-meta.mjs → next.config.ts env → app-build.ts.
 export type AppBuild = { version: string; commit: string; builtAt: string };
 
-export const APP_BUILD: AppBuild = {
-  version: process.env.APP_VERSION ?? "",
-  commit: process.env.APP_COMMIT ?? "",
-  builtAt: process.env.APP_BUILT_AT ?? "",
-};
-
 /**
- * 화면 표기. 로그인 전에는 버전만("v1.1.0"), 로그인 후에는 커밋까지("v1.1.0 · e2999fd").
- * 커밋은 같은 버전 번호로 다시 빌드한 판을 구별하는 값이라 로그인 사용자에게만 보인다.
+ * 화면 표기: "v1.1.0", 커밋 포함 시 "v1.1.0 · e2999fd". 버전 정보는 로그인 후 사이드바에만 보인다(로그인 화면 미표기).
  */
 export function buildLabel(b: AppBuild, opts: { withCommit?: boolean } = {}): string {
   if (!b.version) return "";

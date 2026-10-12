@@ -106,7 +106,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
-    pathname === "/api/health" ||          // 모니터링·배포 스모크용 (업무 정보 미노출)
+    pathname === "/api/health" ||          // 모니터링·배포 스모크용 (외부에는 ok 만 — route.ts)
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
     pathname === "/icon.svg"             // app/icon.svg (로그인 화면에서도 보여야 함)

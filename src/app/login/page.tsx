@@ -2,12 +2,10 @@
 export const dynamic = "force-dynamic";
 import { Suspense } from "react";
 import { LoginForm } from "./LoginForm";
-import { APP_BUILD, buildLabel } from "@/lib/app-version";
 export const metadata = { title: "로그인" };
 
+// 로그인 전 화면에는 버전을 표기하지 않는다(무인증 정찰 정보 — 취약 판 특정). 버전은 로그인 후 사이드바.
 export default function LoginPage() {
-  // 로그인 전에는 버전 번호만(커밋·빌드 시각은 로그인 후 사이드바) — 화면 맨 아래 작은 글씨.
-  const version = buildLabel(APP_BUILD);
   return (
     <div className="min-h-screen flex items-center justify-center bg-rail px-4">
       <div className="w-full max-w-sm">
@@ -26,7 +24,6 @@ export default function LoginPage() {
           </div>
         </div>
         <p className="text-center eyebrow normal-case mt-4 text-slate-400">접속 계정이 필요하면 <span className="text-slate-200 font-medium">운영팀</span>에 문의하세요.</p>
-        {version && <p className="text-center num text-[0.6875rem] mt-2 text-slate-400">{version}</p>}
       </div>
     </div>
   );
