@@ -15,6 +15,13 @@
 
 ---
 
+## v1.2.2 — 2026-10-12
+
+기능 변화 없음. 번들을 GitHub Release 로 내기 시작한 판.
+
+- `v<x.y.z>` 태그를 push 하면 GitHub Actions 가 Rocky Linux 8.10(glibc 2.28)에서 타입검사·테스트 후 오프라인 번들을 빌드·점검해 Releases 에 세 파일(`asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`)을 올린다. `main` push·PR 마다 CI(타입검사·테스트·빌드) 실행
+- `build-release.sh` 가 시작 직후 아무 출력 없이 종료(exit 141)하던 간헐적 결함 수정 — glibc 버전을 `ldd --version | head -1` 로 읽다가 SIGPIPE 로 죽었다. `getconf GNU_LIBC_VERSION` 으로 읽는다
+
 ## v1.2.1 — 2026-10-12
 
 보안 점검 지적(미인증 내부 정보 노출, OWASP A05) 수정판.

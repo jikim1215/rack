@@ -17,11 +17,10 @@ NODE_TARBALL="${NODE_TARBALL:-${ROOT}/vendor/node-linux-x64.tar.xz}"
 echo "== 오프라인 릴리스 빌드 (Rocky 8.10 / glibc 2.28 가정) =="
 
 # ── 0. 동일 OS / glibc 2.28 검증 (ABI 재현성, AC-16) ──
-#   주의: `ldd|head|grep|head || echo 0` 패턴은 pipefail에서 head의 조기 종료(SIGPIPE)로
-#   파이프가 비정상 종료 판정되면 `|| echo 0`이 붙어 GLIBC="2.28\n0"가 되는 플래키 버그가 있다.
-#   → line1을 먼저 변수로 받은 뒤 추출하고, 빈 값만 :-0 폴백(문자열 오염 방지).
-GLIBC_LINE="$(ldd --version 2>/dev/null | head -1)"
-GLIBC="$(printf '%s' "$GLIBC_LINE" | grep -oE '[0-9]+\.[0-9]+' | head -1)"
+#   주의: `ldd --version | head -1` 은 pipefail 에서 head 가 먼저 끝나 ldd 가 SIGPIPE(141)로 죽으면
+#   set -e 로 스크립트가 조용히 종료된다(출력 버퍼링에 따라 간헐적). → 파이프 없이 한 줄로 내는 getconf 를 쓴다.
+GLIBC="$(getconf GNU_LIBC_VERSION 2>/dev/null || true)"   # "glibc 2.28"
+GLIBC="${GLIBC##* }"
 GLIBC="${GLIBC:-0}"
 echo "[INFO] glibc=${GLIBC}"
 if [[ "${ALLOW_GLIBC_MISMATCH:-0}" != "1" && "${GLIBC}" != "2.28" ]]; then
