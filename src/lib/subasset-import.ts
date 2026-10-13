@@ -1,6 +1,6 @@
 // 부속자산 엑셀 파서/직렬화 (import·export·test 공용, 순수 모듈 — DB/프레임워크 의존 없음).
 // 자산(assets)의 대량 업로드/다운로드와 동일한 UX를 부속자산에 제공한다.
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { parseUploadBuffer } from "./xlsx-upload.ts";
 
 export interface ParsedSubAsset {
@@ -124,14 +124,13 @@ export function parseSubAssetRows(rows: unknown[][]): { subs: ParsedSubAsset[]; 
   return { subs, skipped };
 }
 
-/** .xlsx 버퍼 → ParsedSubAsset[] */
 /** .xlsx 버퍼 → 파싱 결과. 매직바이트·압축 폭탄·파싱 실패·행 상한은 공통 입구(parseUploadBuffer)가 ValidationError 로 거른다. */
-export function parseSubAssetWorkbook(buffer: Buffer): { subs: ParsedSubAsset[]; skipped: number } {
-  return parseSubAssetRows(parseUploadBuffer(buffer, { cellDates: true, blankrows: false }));
+export async function parseSubAssetWorkbook(buffer: Buffer): Promise<{ subs: ParsedSubAsset[]; skipped: number }> {
+  return parseSubAssetRows(await parseUploadBuffer(buffer, { cellDates: true, blankrows: false }));
 }
 
 /** 부속자산 레코드 배열 → 엑셀 버퍼(내보내기). 입력은 DB row(parent_name/team_name JOIN 포함). */
-export function buildSubAssetWorkbook(records: Record<string, unknown>[]): Buffer {
+export async function buildSubAssetWorkbook(records: Record<string, unknown>[]): Promise<Buffer> {
   const headers = SUBASSET_HEADERS.map(([label]) => label);
   const aoa: unknown[][] = [headers];
   for (const rec of records) {
@@ -141,9 +140,9 @@ export function buildSubAssetWorkbook(records: Record<string, unknown>[]): Buffe
     });
     aoa.push(row);
   }
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = headers.map((h) => ({ wch: Math.min(Math.max(h.length * 2, 10), 40) }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "부속자산");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("부속자산");
+  ws.columns = headers.map((h) => ({ width: Math.min(Math.max(h.length * 2, 10), 40) }));
+  ws.addRows(aoa);
+  return Buffer.from(await wb.xlsx.writeBuffer());
 }

@@ -20,7 +20,7 @@ export const GET = withApi(async () => {
     ORDER BY mt.id
   `).all(...scope.params) as MaintenanceTargetRow[];
 
-  const buf = buildTargetWorkbook(rows as unknown as Record<string, unknown>[]);
+  const buf = await buildTargetWorkbook(rows as unknown as Record<string, unknown>[]);
 
   logAudit(db, {
     entityType: "maintenance",

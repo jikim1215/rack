@@ -23,7 +23,10 @@ test("postcss: 설치되는 모든 사본이 8.5.28 이상 (next 15 내장 8.4.3
   for (const [path, info] of copies) assert.ok(atLeast(info.version ?? "0.0.0", "8.5.28"), `${path}@${info.version}`);
 });
 
-test("xlsx: 패치판 0.20.3 이상 (CVE-2023-30533 프로토타입 오염 · CVE-2024-22363 ReDoS)", () => {
-  const x = lock.packages["node_modules/xlsx"];
-  assert.ok(x?.version && atLeast(x.version, "0.20.3"), `xlsx@${x?.version}`);
+test("exceljs: xlsx(SheetJS) 교체 확인 — 취약판 제거 (CVE-2023-30533·CVE-2024-22363)", () => {
+  // xlsx(SheetJS)는 프로토타입 오염·ReDoS 취약점 패치 버전 없음 → exceljs 로 교체
+  const xlsx = lock.packages["node_modules/xlsx"];
+  assert.ok(!xlsx, `xlsx 가 여전히 lock 에 있음: ${xlsx?.version}`);
+  const exceljs = lock.packages["node_modules/exceljs"];
+  assert.ok(exceljs?.version && atLeast(exceljs.version, "4.4.0"), `exceljs@${exceljs?.version}`);
 });

@@ -17,7 +17,7 @@ export const POST = withApi(async (req: NextRequest) => {
   const replace = String(formData.get("replace") || "") === "1";
   assertUploadSize(file);
   // 매직바이트·압축 폭탄·파싱 실패·행 상한 → 400 (lib/xlsx-upload.ts)
-  const { targets, skipped } = parseTargetWorkbook(Buffer.from(await file.arrayBuffer()));
+  const { targets, skipped } = await parseTargetWorkbook(Buffer.from(await file.arrayBuffer()));
   if (targets.length === 0) {
     return NextResponse.json({ error: "가져올 유효한 행이 없습니다.", skipped }, { status: 400 });
   }

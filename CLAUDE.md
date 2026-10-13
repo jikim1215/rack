@@ -6,7 +6,7 @@
 - SQLite (better-sqlite3) — 단일 파일 DB, 별도 서버 불필요
 - Tailwind CSS 4 — 빌드 시 번들링, 외부 CDN 미사용
 - Lucide React — 아이콘 (npm 번들)
-- xlsx (SheetJS) — 엑셀 처리
+- exceljs — 엑셀 처리 (xlsx/SheetJS 에서 교체 — 보안 취약점 제거)
 - Nodemailer — 사내 SMTP 릴레이 (알림 전용)
 - QR: 자체 구현 (`src/lib/qr.ts`, 외부 패키지 없음)
 

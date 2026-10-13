@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { getActor, withApi } from "@/lib/api-authz";
 import { assertMenuAccess, assertCanDownload } from "@/lib/authz";
 import type { CustomFieldRow } from "@/lib/db-types";
@@ -60,18 +60,15 @@ export const GET = withApi(async () => {
   });
   const exampleRows = fixedExamples.map((fx) => [...fx, ...customExample]);
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([allHeaders, keyRow, ...exampleRows]);
-
-  // 컬럼 너비 — 헤더/예시(첫 행) 중 넓은 쪽 기준
-  ws["!cols"] = allHeaders.map((h, i) => {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("자산양식");
+  ws.columns = allHeaders.map((h, i) => {
     const ex = String(fixedExamples[0][i] ?? customExample[i - fixedHeaders.length] ?? "");
-    return { wch: Math.max(h.length * 2, ex.length, 8) + 2 };
+    return { width: Math.max(h.length * 2, ex.length, 8) + 2 };
   });
+  ws.addRows([allHeaders, keyRow, ...exampleRows]);
 
-  XLSX.utils.book_append_sheet(wb, ws, "자산양식");
-
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
   return new Response(buf, {
     headers: {

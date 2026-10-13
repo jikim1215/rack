@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getActor, withApi } from "@/lib/api-authz";
 import { assertMenuAccess, assertCanDownload, scopeWhere } from "@/lib/authz";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { AssetRow, CustomFieldRow } from "@/lib/db-types";
 
 /**
@@ -83,12 +83,12 @@ export const GET = withApi(async () => {
   const untilRow = [...blank]; untilRow[10] = until;
 
   const aoa = [titleRow, untilRow, [...blank], headers, ...data];
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = headers.map((h, i) => ({ wch: Math.max(h.length, ...data.slice(0, 50).map((r) => String(r[i] ?? "").length), 6) + 2 }));
-  XLSX.utils.book_append_sheet(wb, ws, "정보시스템 관리대장");
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("정보시스템 관리대장");
+  ws.columns = headers.map((h, i) => ({ width: Math.max(h.length, ...data.slice(0, 50).map((r) => String(r[i] ?? "").length), 6) + 2 }));
+  ws.addRows(aoa);
 
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
   const fname = `정보시스템_관리대장_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}.xlsx`;
   return new Response(buf, {
     headers: {

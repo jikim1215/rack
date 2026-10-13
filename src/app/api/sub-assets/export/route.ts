@@ -22,7 +22,7 @@ export const GET = withApi(async (_req: NextRequest) => {
     ORDER BY s.asset_code, s.id
   `).all(...scope.params) as Record<string, unknown>[];
 
-  const buf = buildSubAssetWorkbook(rows);
+  const buf = await buildSubAssetWorkbook(rows);
 
   logAudit(db, {
     entityType: "sub_asset",

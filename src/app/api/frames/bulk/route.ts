@@ -5,7 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { ValidationError } from "@/lib/validation/input";
 import type { DistFrameRow, FrameType, LocationRow } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { readUploadSheet } from "@/lib/xlsx-upload";
 
 // ── 배선반 일괄 등록 (엑셀 왕복) ──
@@ -27,16 +27,16 @@ export const GET = withApi(async () => {
   assertMenuAccess(actor, "distribution");
   assertCanDownload(actor);
 
-  const ws = XLSX.utils.aoa_to_sheet([
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("배선반양식");
+  ws.columns = [{ width: 16 }, { width: 10 }, { width: 8 }, { width: 20 }, { width: 28 }];
+  ws.addRows([
     HEADERS,
     ["MDF-1F-01", "110블록", 100, "본관 1층 MDF실", "본관 국선 인입"],
     ["PP-2F-01", "패치패널", 48, "본관 2층 TPS", "2층 사무실 패치패널"],
     ["FDF-1F-01", "광패널", 24, "본관 1층 MDF실", "간선 광 분배함"],
   ]);
-  ws["!cols"] = [{ wch: 16 }, { wch: 10 }, { wch: 8 }, { wch: 20 }, { wch: 28 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "배선반양식");
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
   return new NextResponse(new Uint8Array(buf), {
     headers: {

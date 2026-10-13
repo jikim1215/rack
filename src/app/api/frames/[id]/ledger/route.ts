@@ -6,7 +6,7 @@ import { logAudit } from "@/lib/audit";
 import { pathId, ValidationError } from "@/lib/validation/input";
 import type { DistFrameRow, FramePairRow, PairStatus } from "@/lib/db-types";
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { readUploadSheet } from "@/lib/xlsx-upload";
 
 // ── 선번장 엑셀 왕복 (FDF A안 ④) ──
@@ -67,15 +67,15 @@ export const GET = withApi(async (_req: NextRequest, { params }: Ctx) => {
     p.description || "",
   ]);
 
-  const ws = XLSX.utils.aoa_to_sheet([
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("선번장");
+  ws.columns = [{ width: 6 }, { width: 8 }, { width: 8 }, { width: 18 }, { width: 14 }, { width: 20 }, { width: 22 }, { width: 14 }, { width: 16 }, { width: 9 }, { width: 20 }, { width: 10 }, { width: 24 }];
+  ws.addRows([
     [`선번장 — ${frame.frame_name} (${frame.frame_type}) · ${[frame.building, frame.floor, frame.location_name].filter(Boolean).join(" ")}`],
     HEADERS,
     ...rows,
   ]);
-  ws["!cols"] = [{ wch: 6 }, { wch: 8 }, { wch: 8 }, { wch: 18 }, { wch: 14 }, { wch: 20 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 9 }, { wch: 20 }, { wch: 10 }, { wch: 24 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "선번장");
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
   return new NextResponse(new Uint8Array(buf), {
     headers: {

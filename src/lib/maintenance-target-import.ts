@@ -1,5 +1,5 @@
 // 유지관리 대상/금액 엑셀 파서/직렬화 (import·export·seed·test 공용, 순수 모듈)
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { parseUploadBuffer } from "./xlsx-upload.ts";
 
 export interface ParsedTarget {
@@ -180,12 +180,12 @@ export function parseTargetRows(rows: unknown[][]): { targets: ParsedTarget[]; s
 }
 
 /** .xlsx 버퍼 → 파싱 결과. 매직바이트·압축 폭탄·파싱 실패·행 상한은 공통 입구(parseUploadBuffer)가 ValidationError 로 거른다. */
-export function parseTargetWorkbook(buffer: Buffer): { targets: ParsedTarget[]; skipped: number } {
-  return parseTargetRows(parseUploadBuffer(buffer, { cellDates: true, blankrows: false }));
+export async function parseTargetWorkbook(buffer: Buffer): Promise<{ targets: ParsedTarget[]; skipped: number }> {
+  return parseTargetRows(await parseUploadBuffer(buffer, { cellDates: true, blankrows: false }));
 }
 
 /** target 레코드 배열 → 엑셀 버퍼(내보내기). 입력은 DB row(문자열/숫자 혼재 허용). */
-export function buildTargetWorkbook(records: Record<string, unknown>[]): Buffer {
+export async function buildTargetWorkbook(records: Record<string, unknown>[]): Promise<Buffer> {
   const headers = TARGET_HEADERS.map(([label]) => label);
   const aoa: unknown[][] = [headers];
   for (const rec of records) {
@@ -199,11 +199,11 @@ export function buildTargetWorkbook(records: Record<string, unknown>[]): Buffer 
     }
     aoa.push(row);
   }
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = headers.map((h) => ({ wch: Math.min(Math.max(h.length * 2, 10), 40) }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "유지관리대상");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("유지관리대상");
+  ws.columns = headers.map((h) => ({ width: Math.min(Math.max(h.length * 2, 10), 40) }));
+  ws.addRows(aoa);
+  return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
 // INSERT 컬럼 순서(라우트·시드 공용)

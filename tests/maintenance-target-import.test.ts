@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseTargetRows, cellToText, buildTargetWorkbook } from "../src/lib/maintenance-target-import.ts";
-import * as XLSX from "xlsx";
+import { parseTargetRows, cellToText, buildTargetWorkbook, parseTargetWorkbook } from "../src/lib/maintenance-target-import.ts";
 
 // 엑셀 원본 헤더(일부 빈/분리 컬럼 포함)를 재현
 const HEADER = [
@@ -69,19 +68,15 @@ test("parseTargetRows: 핵심 식별자 없는 행은 스킵, 완전 빈 행은 
   assert.equal(skipped, 1); // onlyNo만 스킵(빈 행은 무시로 카운트 안 함)
 });
 
-test("buildTargetWorkbook → parseTargetRows 라운드트립(핵심 필드 보존)", () => {
+test("buildTargetWorkbook → parseTargetWorkbook 라운드트립(핵심 필드 보존)", async () => {
   const rec = {
     system_name: "공용센터", category: "네트워크", resource_name: "Cisco ASR1002",
     asset_code: "ASSET-0002", quantity: 1, location_text: "본원 / 공용센터 / 2",
     maintenance_start: "2025-01-01", maintenance_end: "2025-12-31", maintenance_months: 12,
     grade: "3", rate: "8", estimated_amount_input: "1619200", owner_department: "운영팀",
   };
-  const buf = buildTargetWorkbook([rec]);
-
-  const wb = XLSX.read(buf, { cellDates: true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: false });
-  const { targets } = parseTargetRows(rows);
+  const buf = await buildTargetWorkbook([rec]);
+  const { targets } = await parseTargetWorkbook(buf);
   assert.equal(targets.length, 1);
   const t = targets[0];
   assert.equal(t.system_name, "공용센터");

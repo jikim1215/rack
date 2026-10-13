@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { getActor, withApi } from "@/lib/api-authz";
 import { assertMenuAccess, assertCanDownload, scopeWhere } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
@@ -97,22 +97,17 @@ export const GET = withApi(async () => {
     return [...fixedData, ...customData];
   });
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([allHeaders, keyRow, ...data]);
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("자산목록");
+  ws.columns = allHeaders.map((h, i) => ({
+    width: Math.min(
+      Math.max(h.length * 2, ...data.slice(0, 20).map((row) => String(row[i] ?? "").length), 8) + 2,
+      40
+    ),
+  }));
+  ws.addRows([allHeaders, keyRow, ...data]);
 
-  // 컬럼 너비
-  ws["!cols"] = allHeaders.map((h, i) => {
-    const maxLen = Math.max(
-      h.length * 2,
-      ...data.slice(0, 20).map((row) => String(row[i] ?? "").length),
-      8
-    );
-    return { wch: Math.min(maxLen + 2, 40) };
-  });
-
-  XLSX.utils.book_append_sheet(wb, ws, "자산목록");
-
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
 
   // 필수 감사 기록: 내보내기 이벤트 (actor + scope + rowcount + 컬럼셋/시트)
   const exportScope = actor.role === "team" ? `team:${actor.teamId}` : "all";
