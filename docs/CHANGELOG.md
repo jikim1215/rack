@@ -15,6 +15,14 @@
 
 ---
 
+## v1.2.3 — 2026-10-13
+
+기능 변화 없음. 의존성 보안 패치 및 GitLab 반영판.
+
+- `source-map-js` 1.2.1 → 1.2.2 업그레이드 — 이벤트 루프 서비스 거부(DoS) 취약점(GHSA-68fv-2mgg-jv7q) 수정
+- `osv-scanner.toml` 추가 — SheetJS(`xlsx`) 두 건(GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)은 패치 버전 없음; 서버사이드 전용 사용이고 업로드 크기·매직바이트·압축 팽창 검증이 선행되므로 suppress 처리
+- GitLab(`gitlab.aigov.go.kr`) 저장소 동기화
+
 ## v1.2.2 — 2026-10-12
 
 기능 변화 없음. 번들을 GitHub Release 로 내기 시작한 판.
