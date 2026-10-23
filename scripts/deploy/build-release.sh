@@ -13,6 +13,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIST="${ROOT}/dist"
 STAGE="${DIST}/asset-inventory"
 NODE_TARBALL="${NODE_TARBALL:-${ROOT}/vendor/node-linux-x64.tar.xz}"
+# 번들 Node 하한 — 보안 릴리스가 나오면 올린다. 22.23.4: CVE-2026-111497(Brotli 디코더 OOB write → RCE) 외 2026-10-21 보안 릴리스
+NODE_MIN="22.23.4"
 
 echo "== 오프라인 릴리스 빌드 (Rocky 8.10 / glibc 2.28 가정) =="
 
@@ -26,6 +28,18 @@ echo "[INFO] glibc=${GLIBC}"
 if [[ "${ALLOW_GLIBC_MISMATCH:-0}" != "1" && "${GLIBC}" != "2.28" ]]; then
   echo "[ERROR] glibc ${GLIBC} != 2.28 — Rocky 8.10에서 빌드해야 native(better-sqlite3) ABI가 타깃과 일치합니다."
   echo "        (CI에서 다른 OS로 검증만 할 때는 ALLOW_GLIBC_MISMATCH=1)"
+  exit 1
+fi
+
+# ── 0-1. 번들 Node 버전 하한 (취약 런타임 반입 차단) ──
+[[ -f "$NODE_TARBALL" ]] || { echo "[ERROR] 번들 Node 없음: ${NODE_TARBALL} (node-v${NODE_MIN}+ linux-x64 tar.xz)"; exit 1; }
+#   tar 목록은 awk 가 끝까지 읽는다 — head 로 끊으면 SIGPIPE(141)로 set -e 종료(위 glibc 주석 참조)
+BUNDLED_NODE="$(tar -tJf "$NODE_TARBALL" | awk -F/ 'NR==1{print $1}')"   # node-v22.23.4-linux-x64
+BUNDLED_NODE="${BUNDLED_NODE#node-v}"; BUNDLED_NODE="${BUNDLED_NODE%-linux-x64}"
+echo "[INFO] 번들 Node v${BUNDLED_NODE} (하한 v${NODE_MIN})"
+if [[ "${BUNDLED_NODE%%.*}" != "${NODE_MIN%%.*}" || "$(printf '%s\n' "$NODE_MIN" "$BUNDLED_NODE" | sort -V | awk 'NR==1')" != "$NODE_MIN" ]]; then
+  echo "[ERROR] 번들 Node v${BUNDLED_NODE} — v${NODE_MIN} 이상(같은 22.x)이 필요합니다(보안 패치 미반영)."
+  echo "        https://nodejs.org/dist/latest-v22.x/ 에서 받아 SHA256SUMS 검증 후 ${NODE_TARBALL} 로 교체"
   exit 1
 fi
 
@@ -119,7 +133,7 @@ fi
 #   (독립 서버라 인증서가 필요하면 실서버에서 SSL_CRT/SSL_KEY 로 지정하거나 별도 배치.)
 cp -a "${ROOT}/scripts/deploy/nginx-itam.conf" "$STAGE/scripts/deploy/" 2>/dev/null || true
 # ── 4. 번들 Node 동봉 ──
-[[ -f "$NODE_TARBALL" ]] && cp "$NODE_TARBALL" "$STAGE/node-linux-x64.tar.xz" || echo "[WARN] 번들 Node(${NODE_TARBALL}) 없음 — 별도 동봉 필요"
+cp "$NODE_TARBALL" "$STAGE/node-linux-x64.tar.xz"
 
 # ── 4-1. 하이젠: 빌드 잔재(.env / *.db) 제거 — 실서버에 dev 시크릿·DB 유출 금지 ──
 #   next build 가 .next/standalone 에 남긴 개발 .env(빌드 AUTH_SECRET·Windows 경로)와

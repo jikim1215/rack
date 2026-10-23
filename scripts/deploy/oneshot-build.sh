@@ -16,7 +16,7 @@ set -euo pipefail
 
 SRC="${SRC:-/mnt/hgfs/asset}"        # 공유폴더 소스 (없으면 스크립트 위치 기준)
 WORK="${WORK:-$HOME/asset}"          # 로컬 작업 디렉터리 (ext4 — symlink 가능)
-NODE_VER="${NODE_VER:-22.11.0}"
+NODE_VER="${NODE_VER:-22.23.4}"     # build-release.sh NODE_MIN 이상 (CVE-2026-111497 패치판)
 NODE_DIR="$HOME/node22"
 
 log(){ echo -e "\n\033[1;36m== $* ==\033[0m"; }
@@ -39,12 +39,19 @@ export npm_config_python=/usr/bin/python3.11
 export npm_config_build_from_source=true
 
 # Node 22
-if [ ! -x "$NODE_DIR/bin/node" ]; then
-  log "0-1) Node ${NODE_VER} 확보"
+#   빌드용 Node 와 번들 동봉 tar 는 같은 판이어야 한다 — 버전이 다르면 다시 받는다(보안 패치 반영)
+NODE_TAR="/tmp/node-v${NODE_VER}-linux-x64.tar.xz"
+if [ ! -f "$NODE_TAR" ]; then
+  log "0-1) Node ${NODE_VER} 내려받기 (SHA256 검증)"
   cd /tmp
-  [ -f "node-v${NODE_VER}-linux-x64.tar.xz" ] || curl -fL -O "https://nodejs.org/dist/v${NODE_VER}/node-v${NODE_VER}-linux-x64.tar.xz"
+  curl -fL -O "https://nodejs.org/dist/v${NODE_VER}/node-v${NODE_VER}-linux-x64.tar.xz"
+  curl -fsSL "https://nodejs.org/dist/v${NODE_VER}/SHASUMS256.txt" | grep " node-v${NODE_VER}-linux-x64.tar.xz\$" | sha256sum -c - \
+    || { rm -f "$NODE_TAR"; die "Node tar SHA256 불일치"; }
+fi
+if [ "$("$NODE_DIR/bin/node" -v 2>/dev/null || true)" != "v${NODE_VER}" ]; then
+  log "0-2) Node ${NODE_VER} 설치 → $NODE_DIR"
   rm -rf "$NODE_DIR" && mkdir -p "$NODE_DIR"
-  tar -xf "node-v${NODE_VER}-linux-x64.tar.xz" -C "$NODE_DIR" --strip-components=1
+  tar -xf "$NODE_TAR" -C "$NODE_DIR" --strip-components=1
 fi
 export PATH="$NODE_DIR/bin:$PATH"
 echo "  node=$(node -v)  g++=$(g++ --version | head -1)  python=$(python3.11 --version)"
@@ -67,7 +74,7 @@ echo "  vendor/rpms: ${RPM_CNT}개"
 [ "$RPM_CNT" -ge 8 ] || die "nginx RPM ${RPM_CNT}개(8 미만) — module 저장소 활성 확인: 'dnf module enable nginx'"
 
 log "3) 번들 Node tar 배치"
-cp -f "/tmp/node-v${NODE_VER}-linux-x64.tar.xz" vendor/node-linux-x64.tar.xz
+cp -f "$NODE_TAR" vendor/node-linux-x64.tar.xz
 
 log "4) npm ci (better-sqlite3 소스빌드, glibc 2.28 링크)"
 rm -rf node_modules

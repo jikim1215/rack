@@ -7,7 +7,7 @@
 #   sudo bash deploy.sh --force-install   ← 기존 설치가 있어도 신규설치 경로(setup-nginx.sh) 강제
 #
 # 판별 기준: /opt/asset-inventory/data.db + .env 가 있으면 업그레이드, 없으면 신규설치.
-#   - 업그레이드: upgrade-inplace.sh  (data.db/.env/node/tls/backups 보존, 롤백본 생성)
+#   - 업그레이드: upgrade-inplace.sh  (data.db/.env/tls/backups 보존, 번들 Node 버전이 다르면 node/ 교체, 롤백본 생성)
 #   - 신규설치  : setup-nginx.sh      (앱 + nginx + 인증서 + systemd)
 #
 # 비대화형 옵션(신규설치 시): PUBLIC_FQDN, SERVER_IP, SSL_CRT, SSL_KEY, NEXT_INTERNAL_PORT
@@ -69,7 +69,12 @@ if [[ "$CHECK_ONLY" == "1" ]]; then
   if [[ "$MODE" == "upgrade" ]]; then
     say " 수행 예정:"
     say "   1) data.db 백업 → ${APP_DIR}/backups/"
-    say "   2) 앱 트리 교체(.next/src/scripts/docs/node_modules) — data.db·.env·node·tls·backups 보존"
+    say "   2) 앱 트리 교체(.next/src/scripts/docs/node_modules) — data.db·.env·tls·backups 보존"
+    if [[ -x "${APP_DIR}/node/bin/node" ]]; then
+      NODE_CUR="$("${APP_DIR}/node/bin/node" -v)"
+      NODE_BUNDLE="$(tar -tJf "${BUNDLE_ROOT}/node-linux-x64.tar.xz" | awk -F/ 'NR==1{sub(/^node-/,"",$1); sub(/-linux-x64$/,"",$1); print $1}')"
+      if [[ "$NODE_CUR" != "$NODE_BUNDLE" ]]; then say "      Node ${NODE_CUR} → ${NODE_BUNDLE} 교체 (구판은 롤백본)"; else say "      Node ${NODE_CUR} (변경 없음)"; fi
+    fi
     say "   3) 서비스 재시작 + 스모크(로그인 화면·CSP·마이그레이션 결과)"
     say "   * 첫 요청 시 스키마 마이그레이션 자동 실행(메뉴권한 시드·감사로그 확장·날짜 정규화)"
     if [[ -f "${HERE}/preflight-perms.cjs" && -x "${APP_DIR}/node/bin/node" ]]; then

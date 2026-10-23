@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ============================================================
 # 운영 중인 /opt/asset-inventory 를 새 번들로 in-place 업그레이드
-#   보존: data.db(+WAL/SHM) · .env · node/ · tls/ · backups/   ← 운영 데이터·시크릿·런타임은 건드리지 않는다
+#   보존: data.db(+WAL/SHM) · .env · tls/ · backups/   ← 운영 데이터·시크릿은 건드리지 않는다
 #   교체: .next · src · scripts · docs · node_modules · package*.json · next.config.ts · VERSION
+#         node/ — 번들 Node 버전이 다를 때만(보안 패치 반영, 예: CVE-2026-111497). 구판 런타임은 롤백본에 보관
 #   nginx: itam.conf 의 X-Forwarded-For 한 줄만 현행화(백업 → nginx -t → reload, 실패 시 복원)
 #   롤백: /opt/asset-inventory.rollback-<TS> 에 이전 앱 트리 + rollback.sh 보관 (스크립트 말미에 명령 출력)
 #
@@ -88,9 +89,32 @@ for d in "${REPLACE[@]}"; do [[ -e "$APP/$d" ]] && cp -a "$APP/$d" "$ROLLBACK/";
 [[ -f "$SRC/scripts/deploy/rollback.sh" ]] && cp -a "$SRC/scripts/deploy/rollback.sh" "$ROLLBACK/rollback.sh"
 echo "   $ROLLBACK ($(du -sh "$ROLLBACK" | cut -f1))"
 
-echo "== 5) 앱 트리 교체 (data.db/.env/node/tls/backups 미변경) =="
+echo "== 5) 앱 트리 교체 (data.db/.env/tls/backups 미변경) =="
 for d in "${REPLACE[@]}"; do rm -rf "${APP:?}/${d:?}"; done
 for d in "${REPLACE[@]}"; do [[ -e "$SRC/$d" ]] && cp -a "$SRC/$d" "$APP/"; done
+
+echo "== 5-1) 번들 Node 런타임 (버전이 다르면 교체) =="
+NEW_NODE_TAR="$SRC/node-linux-x64.tar.xz"
+if [[ -f "$NEW_NODE_TAR" ]]; then
+  # $APP 아래에 푼다 — /tmp 에서 mv 하면 SELinux 라벨(user_tmp_t)이 따라와 systemd 가 node 를 실행 못 한다(203/EXEC)
+  NODE_STAGE="$APP/node.new-${TS}"
+  rm -rf "$NODE_STAGE"; mkdir -p "$NODE_STAGE"
+  tar -xf "$NEW_NODE_TAR" -C "$NODE_STAGE" --strip-components=1
+  OLD_NODE_V="$("$APP/node/bin/node" -v)"
+  NEW_NODE_V="$("$NODE_STAGE/bin/node" -v)"
+  if [[ "$OLD_NODE_V" != "$NEW_NODE_V" ]]; then
+    mv "$APP/node" "$ROLLBACK/node"
+    mv "$NODE_STAGE" "$APP/node"
+    chmod 755 "$APP/node"
+    command -v restorecon >/dev/null && restorecon -R "$APP/node"
+    echo "   Node ${OLD_NODE_V} → ${NEW_NODE_V} (구판 런타임: $ROLLBACK/node)"
+  else
+    rm -rf "$NODE_STAGE"
+    echo "   Node ${NEW_NODE_V} (변경 없음)"
+  fi
+else
+  echo "   번들에 Node 없음 — 기존 $("$APP/node/bin/node" -v) 유지"
+fi
 chown -R "${APP_USER}:${APP_USER}" "$APP"
 chmod 600 "$APP/.env"
 chmod 600 "$APP/data.db" 2>/dev/null || true

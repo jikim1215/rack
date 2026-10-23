@@ -46,7 +46,7 @@ node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (non
 
 **버전** — `package.json` 의 `version`(SemVer, 규칙은 `docs/CHANGELOG.md` 머리말)과 커밋·빌드 시각을 `scripts/build-meta.mjs` 가 한 번 계산해 화면(로그인 후) · `/api/health`(앱 포트 직접 호출) · 번들 최상위 `VERSION` 에 같은 값으로 박는다. 커밋은 `APP_COMMIT`(지정 시) > git(`APP_GIT_DIR` 또는 이 저장소) 순 — 소스를 복사해 빌드하는 머신은 `APP_GIT_DIR=<원본 저장소>` 를 넘긴다. 미커밋 변경이 있으면 커밋 뒤에 `-dirty` 가 붙고 빌드 로그에 `[WARN]` 이 찍힌다. 정식 릴리스: `npm version <x.y.z> --no-git-tag-version` → `docs/CHANGELOG.md` → 커밋 → `git tag -a v<x.y.z>` → `git push origin main v<x.y.z>` → GitHub Release 가 빌드(§2-1).
 
-전제: `vendor/node-linux-x64.tar.xz`(Node 22.6+), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. **의존성이 바뀐 릴리스(package-lock 변경)는 인터넷 되는 시점에 빌드 머신에서 `npm ci --build-from-source` 를 한 번 돌려 캐시를 채운 뒤** 오프라인 빌드를 한다(예: 2026-10 next 15.5.27·nodemailer 10 전환, postcss 8.5.28 단일화).
+전제: `vendor/node-linux-x64.tar.xz`(Node 22.23.4+ — `build-release.sh` 의 `NODE_MIN` 미만이면 빌드 중단, CVE-2026-111497 등 보안 패치 하한), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. **의존성이 바뀐 릴리스(package-lock 변경)는 인터넷 되는 시점에 빌드 머신에서 `npm ci --build-from-source` 를 한 번 돌려 캐시를 채운 뒤** 오프라인 빌드를 한다(예: 2026-10 next 15.5.27·nodemailer 10 전환, postcss 8.5.28 단일화).
 
 번들에서 제외되는 것: `.next/cache`(빌드 증분 캐시, 런타임 미참조) · sharp/`@img/*`(이미지 최적화 네이티브 — `images.unoptimized` 라 미사용, `next.config.ts` `outputFileTracingExcludes`) · 개발 `.env`/`*.db`.
 
@@ -66,7 +66,7 @@ sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventor
 
 | 판별 | 조건 | 하는 일 |
 |---|---|---|
-| **업그레이드** | `/opt/asset-inventory/data.db` 있음 | `upgrade-inplace.sh` — DB 백업 → 롤백본 보관 → 앱 트리 교체(.next/src/scripts/docs/node_modules) → nginx `itam.conf` X-Forwarded-For 현행화(백업→`nginx -t`→reload, 실패 시 복원) → 재기동(`/api/health` 200 대기) → 재기동 유실 값 복구(`restore-lost-fields.cjs --apply` — 구판이 재시작마다 비운 소유 팀·랙 L/R·현행 확인·배치를 감사로그에서, 빈 값만) → 스모크 → 마이그레이션 결과. **data.db·.env·node/·tls/·backups/ 보존** |
+| **업그레이드** | `/opt/asset-inventory/data.db` 있음 | `upgrade-inplace.sh` — DB 백업 → 롤백본 보관 → 앱 트리 교체(.next/src/scripts/docs/node_modules) → 번들 Node 버전이 다르면 `node/` 교체(구판은 롤백본 — `rollback.sh` 가 함께 되돌림) → nginx `itam.conf` X-Forwarded-For 현행화(백업→`nginx -t`→reload, 실패 시 복원) → 재기동(`/api/health` 200 대기) → 재기동 유실 값 복구(`restore-lost-fields.cjs --apply` — 구판이 재시작마다 비운 소유 팀·랙 L/R·현행 확인·배치를 감사로그에서, 빈 값만) → 스모크 → 마이그레이션 결과. **data.db·.env·tls/·backups/ 보존** |
 | **신규설치** | 없음 | `setup-nginx.sh` — 번들 Node 전개 → 서비스 계정 → native smoke → .env 생성(강한 AUTH_SECRET) → nginx RPM 설치·사이트 설정 → systemd·타이머 등록 → 기동 |
 
 `--check` 는 설치 상태, 수행 예정 작업, **현재 메뉴 권한이 어느 화면을 막게 되는지**(`preflight-perms.cjs`)까지 출력한다.

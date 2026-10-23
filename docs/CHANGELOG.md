@@ -15,6 +15,15 @@
 
 ---
 
+## v1.3.0 — 2026-10-23
+
+기능 변화 없음. 번들 Node 보안 패치(22.11.0 → 22.23.4)와 업그레이드가 Node 를 교체하도록 배포 절차 변경.
+
+- 번들 Node 를 **22.23.4** 로 — CVE-2026-111497(Brotli 디코더 out-of-bounds write → 원격 코드 실행, high) 외 2026-10-21 Node.js 보안 릴리스(TLS 호스트명 검증 우회 CVE-2026-105483·CVE-2026-106069, dns.resolve NUL 절단 CVE-2026-105482 등) 반영. ABI(NODE_MODULE_VERSION 127) 동일 — better-sqlite3 재빌드 불필요
+- `build-release.sh` 가 번들 Node 버전 하한(`NODE_MIN=22.23.4`)을 빌드 시작 전에 검사 — 미만이거나 tar 가 없으면 중단(취약 런타임 반입 차단)
+- `upgrade-inplace.sh` 가 번들 Node 버전이 다르면 `node/` 를 교체한다(이전엔 보존 → 업그레이드해도 런타임 보안 패치가 반영되지 않았음). 구판 런타임은 롤백본 `node/` 에 보관, `rollback.sh` 가 함께 되돌림. SELinux Enforcing 에서 실행 라벨(`bin_t`)이 유지되도록 `$APP` 아래에서 풀고 `restorecon`
+- `oneshot-build.sh` 기본 Node 22.23.4, 설치된 빌드 Node 가 지정 버전과 다르면 다시 설치, 내려받은 tar 를 SHA256SUMS 로 검증
+
 ## v1.2.3 — 2026-10-13
 
 기능 변화 없음. 의존성 보안 패치 및 GitLab 반영판.

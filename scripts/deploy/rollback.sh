@@ -32,9 +32,16 @@ FQDN="$(grep -E '^PUBLIC_FQDN=' "$APP/.env" 2>/dev/null | cut -d= -f2 || hostnam
 echo "== 1) 서비스 중지 =="
 systemctl stop asset-inventory
 
-echo "== 2) 앱 트리 교체 (롤백본 → $APP, data.db/.env/node/tls/backups 미변경) =="
+echo "== 2) 앱 트리 교체 (롤백본 → $APP, data.db/.env/tls/backups 미변경) =="
 for d in "${REPLACE[@]}"; do rm -rf "${APP:?}/${d:?}"; done
 for d in "${REPLACE[@]}"; do [[ -e "$RB/$d" ]] && cp -a "$RB/$d" "$APP/"; done
+# 업그레이드가 Node 를 바꿨을 때만 롤백본에 node/ 가 있다 — 구판 런타임으로 되돌린다
+if [[ -x "$RB/node/bin/node" ]]; then
+  rm -rf "${APP:?}/node"
+  cp -a "$RB/node" "$APP/node"
+  command -v restorecon >/dev/null && restorecon -R "$APP/node"
+  echo "   Node → $("$APP/node/bin/node" -v) (롤백본 런타임)"
+fi
 chown -R "${APP_USER}:${APP_USER}" "$APP"
 
 if [[ "$WITH_DB" == "--with-db" ]]; then

@@ -144,10 +144,21 @@ echo "== ${APP_NAME} 오프라인 설치 (nginx + 내부 Next) =="
 # ── 1. 앱 + 번들 Node 배치 ──
 mkdir -p "$APP_DIR" "$LOCK_DIR"
 [[ "$BUNDLE_ROOT" != "$APP_DIR" ]] && cp -a "${BUNDLE_ROOT}/." "$APP_DIR/"
-if [[ ! -x "${NODE_DIR}/bin/node" ]]; then
-  NODE_TAR="${BUNDLE_ROOT}/node-linux-x64.tar.xz"; [[ -f "$NODE_TAR" ]] || NODE_TAR="${APP_DIR}/node-linux-x64.tar.xz"
-  [[ -f "$NODE_TAR" ]] || { echo "[ERROR] 번들 Node 없음"; exit 1; }
-  mkdir -p "$NODE_DIR"; tar -xf "$NODE_TAR" -C "$NODE_DIR" --strip-components=1
+# 이미 node/ 가 있어도(--force-install·재설치) 번들 버전과 다르면 교체한다 — 보안 패치 반영.
+#   $APP_DIR 아래에서 푼다(/tmp 에서 옮기면 SELinux user_tmp_t 라벨 → systemd 203/EXEC).
+NODE_TAR="${BUNDLE_ROOT}/node-linux-x64.tar.xz"; [[ -f "$NODE_TAR" ]] || NODE_TAR="${APP_DIR}/node-linux-x64.tar.xz"
+[[ -f "$NODE_TAR" ]] || { echo "[ERROR] 번들 Node 없음"; exit 1; }
+NODE_NEW="${APP_DIR}/node.new-$$"
+rm -rf "$NODE_NEW"; mkdir -p "$NODE_NEW"; tar -xf "$NODE_TAR" -C "$NODE_NEW" --strip-components=1
+if [[ "$("${NODE_DIR}/bin/node" -v 2>/dev/null || true)" != "$("${NODE_NEW}/bin/node" -v)" ]]; then
+  if [[ -e "$NODE_DIR" ]]; then
+    NODE_OLD="${APP_DIR}.node-$("${NODE_DIR}/bin/node" -v 2>/dev/null || echo broken)-$(date +%Y%m%d_%H%M%S)"
+    mv "$NODE_DIR" "$NODE_OLD"; echo "[INFO] 기존 Node → ${NODE_OLD}"
+  fi
+  mv "$NODE_NEW" "$NODE_DIR"; chmod 755 "$NODE_DIR"
+  command -v restorecon >/dev/null && restorecon -R "$NODE_DIR"
+else
+  rm -rf "$NODE_NEW"
 fi
 NODE="${NODE_DIR}/bin/node"
 echo "[OK] Node $($NODE -v)"
