@@ -5,8 +5,10 @@ import { menuTitle } from "@/lib/menus";
 export const metadata = menuTitle("feedback");
 
 // 개선의견·불편사항 — 전 역할 열람/작성(메뉴 권한 'feedback'), 처리(상태·답변)는 총괄.
-export default async function FeedbackPage() {
+// ?mine=1 — 답변 알림 메일의 링크가 '내 의견' 필터로 바로 연다.
+export default async function FeedbackPage({ searchParams }: { searchParams: Promise<{ mine?: string }> }) {
   const session = await requireMenuPage("feedback");
+  const { mine } = await searchParams;
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -18,7 +20,7 @@ export default async function FeedbackPage() {
           </p>
         </div>
       </div>
-      <FeedbackView isAdmin={session.role === "admin"} userId={session.userId} />
+      <FeedbackView isAdmin={session.role === "admin"} userId={session.userId} initialMine={mine === "1"} />
     </div>
   );
 }

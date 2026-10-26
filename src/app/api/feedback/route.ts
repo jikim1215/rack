@@ -5,6 +5,7 @@ import { assertMenuAccess, assertMenuWrite } from "@/lib/authz";
 import { FEEDBACK_CATEGORIES, FEEDBACK_STATUSES, validateFeedbackInput } from "@/lib/feedback";
 import { ValidationError, pageParams } from "@/lib/validation/input";
 import type { FeedbackRow, UserRow } from "@/lib/db-types";
+import { notifyFeedbackCreated } from "@/lib/feedback-notify";
 
 // ── 개선의견/불편사항 목록·접수 ──
 // 메뉴 권한 'feedback'(기본: 전 역할 접근+쓰기). 팀 스코프 없음 — 자산 데이터가 아니다. 처리는 /api/feedback/[id] (총괄).
@@ -66,5 +67,7 @@ export const POST = withApi(async (req: NextRequest) => {
     actor.userId, actor.username, me?.display_name || "", actor.teamId,
   );
   const row = db.prepare("SELECT * FROM feedback WHERE id = ?").get(result.lastInsertRowid) as FeedbackRow;
+  // 총괄 메일 알림 — 응답을 SMTP 에 묶지 않는다(실패는 서버 로그만).
+  void notifyFeedbackCreated(row.id).catch((e) => console.warn("[feedback-mail] 접수 알림 오류:", e));
   return NextResponse.json(row, { status: 201 });
 });

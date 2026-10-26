@@ -9,6 +9,7 @@ import {
 } from "@/lib/feedback";
 import { asBody, pathId, ValidationError } from "@/lib/validation/input";
 import type { FeedbackRow } from "@/lib/db-types";
+import { notifyFeedbackReplied } from "@/lib/feedback-notify";
 
 type Ctx = { params: Promise<{ id: string }> };
 type OwnerRow = Pick<FeedbackRow, "id" | "user_id" | "status" | "priority" | "admin_reply" | "title">;
@@ -44,6 +45,8 @@ export const PATCH = withApi(async (req: NextRequest, { params }: Ctx) => {
     if (!v.ok) throw new ValidationError(v.error);
     const sets: string[] = ["updated_at = datetime('now','localtime')"];
     const vals: unknown[] = [];
+    // 답변 내용이 실제로 바뀌고 비어 있지 않을 때만 작성자에게 메일 (상태·우선순위만 바꾸는 저장은 알림 없음)
+    const replyChanged = v.value.admin_reply !== undefined && v.value.admin_reply !== row.admin_reply && v.value.admin_reply !== "";
     if (v.value.status !== undefined) { sets.push("status = ?"); vals.push(v.value.status); }
     if (v.value.priority !== undefined) { sets.push("priority = ?"); vals.push(v.value.priority); }
     if (v.value.admin_reply !== undefined) {
@@ -63,6 +66,9 @@ export const PATCH = withApi(async (req: NextRequest, { params }: Ctx) => {
         admin_reply: v.value.admin_reply ?? row.admin_reply,
       },
     });
+    if (replyChanged) {
+      void notifyFeedbackReplied(row.id, actor.userId).catch((e) => console.warn("[feedback-mail] 답변 알림 오류:", e));
+    }
   } else {
     if (!canEditFeedback(actor, row)) throw new AuthzError("접수 상태의 본인 의견만 수정할 수 있습니다.");
     const v = validateFeedbackInput(body);

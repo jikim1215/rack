@@ -52,11 +52,12 @@ const PAGE_SIZE = 30;
 const CLAMP_LEN = 240;
 const outlineBtn = "rounded-md border border-line text-sm text-ink-2 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent";
 
-export function FeedbackView({ isAdmin, userId }: { isAdmin: boolean; userId: number }) {
+export function FeedbackView({ isAdmin, userId, initialMine = false }: { isAdmin: boolean; userId: number; initialMine?: boolean }) {
   const { addToast } = useToast();
-  const [status, setStatus] = useState<string>("active");
+  // 답변 메일 링크(?mine=1)로 오면 반영완료·보류로 닫힌 건도 보이도록 상태 필터를 '전체'로 연다.
+  const [status, setStatus] = useState<string>(initialMine ? "" : "active");
   const [category, setCategory] = useState("");
-  const [mine, setMine] = useState(false);
+  const [mine, setMine] = useState(initialMine);
   const [q, setQ] = useState("");
   const [qInput, setQInput] = useState("");
   const [sort, setSort] = useState<"recent" | "votes">("recent");
@@ -175,7 +176,7 @@ export function FeedbackView({ isAdmin, userId }: { isAdmin: boolean; userId: nu
             <>어느 화면에서든 좌측 하단 <strong className="text-ink-2">불편사항 · 개선의견 보내기</strong>를 누르면 그 화면 경로가 자동으로 첨부돼 접수됩니다</>,
             <>같은 불편을 겪었다면 <strong className="text-ink-2">공감</strong>을 눌러 주세요 — 공감이 많은 의견부터 우선 검토합니다 (본인 글은 공감 불가)</>,
             <>본인 의견은 <strong className="text-ink-2">접수</strong> 상태일 때만 수정·삭제할 수 있습니다. 검토가 시작되면 잠깁니다</>,
-            <>처리 흐름: 접수 → 검토중 → 반영예정 → 반영완료 (또는 보류). 총괄이 상태와 답변을 남기면 이 화면에서 확인할 수 있습니다</>,
+            <>처리 흐름: 접수 → 검토중 → 반영예정 → 반영완료 (또는 보류). 총괄이 상태와 답변을 남기면 이 화면에서 확인할 수 있고, 답변은 작성자에게 메일로도 전달됩니다(메일 릴레이 설정 시)</>,
           ]}
         />
         <button onClick={openFeedbackModal} className="btn-ink shrink-0">
@@ -370,7 +371,7 @@ function ModerationForm({
       </div>
       <textarea aria-label="작성자에게 남길 답변 (선택) — 반영 계획, 대안 안내, 보류 사유 등"
         className="form-input min-h-[80px] text-sm" value={reply} maxLength={4000}
-        placeholder="작성자에게 남길 답변 (선택) — 반영 계획, 대안 안내, 보류 사유 등"
+        placeholder="작성자에게 남길 답변 (선택) — 반영 계획, 대안 안내, 보류 사유 등. 답변을 새로 쓰거나 고치면 저장 시 작성자에게 메일로 전달됩니다"
         onChange={(e) => setReply(e.target.value)}
       />
       <div className="flex justify-end gap-2">

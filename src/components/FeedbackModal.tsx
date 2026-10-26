@@ -69,7 +69,7 @@ export function FeedbackModal() {
         </div>
         <div className="p-5">
           <p className="text-xs text-ink-3 mb-3">
-            쓰다가 막히거나 번거로운 점, 있었으면 하는 기능을 자유롭게 적어 주세요. 접수된 의견은 총괄이 검토해 처리 상태와 답변을 남깁니다.
+            쓰다가 막히거나 번거로운 점, 있었으면 하는 기능을 자유롭게 적어 주세요. 접수된 의견은 총괄이 검토해 처리 상태와 답변을 남기며, 답변은 로그인 이메일로도 알려 드립니다(메일 발송이 설정된 경우).
           </p>
           <FeedbackForm
             key={pagePath}
