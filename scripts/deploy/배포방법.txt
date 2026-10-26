@@ -8,6 +8,42 @@
   SHA256SUMS.txt                   ← 무결성 대조용
 
 
+[★] ITAM + K-Flow 가 같은 서버에 있을 때 — 한 줄로 둘 다 적용  (Node 보안 패치 포함)
+
+    반입 파일 두 개가 있는 폴더에서 그대로 복사·붙여넣기:
+
+    sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh && sudo bash -c 'set -e; systemctl cat dataflow >/dev/null 2>&1 || { echo "[k-flow] 미설치 - 건너뜀"; exit 0; }; T=asset-inventory/node-linux-x64.tar.xz; V=$(tar -tJf $T | head -1 | cut -d/ -f1); N=/usr/local/lib/nodejs/$V/bin/node; D=/etc/systemd/system/dataflow.service.d; mkdir -p /usr/local/lib/nodejs $D; tar -xJf $T -C /usr/local/lib/nodejs; if selinuxenabled 2>/dev/null; then semanage fcontext -a -t bin_t "/usr/local/lib/nodejs/[^/]+/bin(/.*)?" 2>/dev/null || true; restorecon -R /usr/local/lib/nodejs; ls -Z $N | grep -q bin_t || chcon -R -t bin_t /usr/local/lib/nodejs/$V/bin; echo "[k-flow] SELinux 라벨: $(ls -Z $N | cut -d: -f3)"; fi; ln -sfn $N /usr/local/bin/node; printf "[Service]\nExecStart=\nExecStart=/usr/local/bin/node /opt/dataflow/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000\n" > $D/node22.conf; systemctl daemon-reload; systemctl reset-failed dataflow || true; systemctl restart dataflow; ok=1; for i in $(seq 30); do sleep 2; curl -s -o /dev/null http://127.0.0.1:3000/login || true; if ! systemctl is-active -q dataflow || [ "$(systemctl show -p NRestarts --value dataflow)" != 0 ]; then ok=0; break; fi; done; C=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:3000/login || true); if [ $ok = 1 ] && [ "$C" = 200 ]; then echo "[k-flow] OK - node $($N -v) / 60초 무중단 / login 200"; else rm -f $D/node22.conf; systemctl daemon-reload; systemctl reset-failed dataflow || true; systemctl restart dataflow; sleep 8; echo "[k-flow] 실패 - node $($N -v) 가 이 서버에서 기동 불가(보안정책 추정). 기존 Node 로 자동 복귀: $(/usr/bin/node -v 2>&1) / login $(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:3000/login)"; exit 1; fi'
+
+    하는 일:
+      1) ITAM — 아래 [A] 와 똑같음 (앱 + 번들 Node 교체, DB 백업·롤백본 자동)
+      2) K-Flow — 번들 안 asset-inventory/node-linux-x64.tar.xz 의 Node 를
+         /usr/local/lib/nodejs/ 에 풀고 /usr/local/bin/node 로 연결,
+         SELinux 실행 라벨(bin_t) 지정 → dataflow 서비스를 그 Node 로 재시작한 뒤 60초간 지켜봄
+         (K-Flow 앱·DB 는 그대로)
+         · 라벨 지정이 빠지면 새 Node 가 lib_t 로 남아 systemd 서비스에서 실행 메모리가 거부되고
+           "Check failed: 12 == (*__errno_location ())" 로 core-dump 반복 → nginx 502
+           (2026-10-26 폐쇄망 share 장애 원인. 영구 규칙: semanage fcontext /usr/local/lib/nodejs/[^/]+/bin)
+         · 60초 동안 한 번도 죽지 않고 /login 200 이면 확정
+         · 죽거나 재시작되면 (예: 보안정책으로 새 Node 가 core-dump) 자동으로 기존 Node 로 복귀
+         · K-Flow 가 없는 서버면 "[k-flow] 미설치 - 건너뜀" 만 찍고 끝
+         · 1) 이 실패하면 2) 는 실행되지 않음
+
+    맨 끝 두 줄 — 정상:
+      [k-flow] SELinux 라벨: bin_t
+      [k-flow] OK - node v22.23.4 / 60초 무중단 / login 200          ← 적용 완료
+    실패하면:
+      [k-flow] 실패 - node v22.23.4 가 이 서버에서 기동 불가(…). 기존 Node 로 자동 복귀: v20.x / login 200
+                                                                     ← share 는 기존대로 정상, Node 만 미적용.
+                                                                       journalctl -u dataflow 로그를 개발 담당에게 전달
+
+    ITAM 은 이미 적용됐고 K-Flow Node 만 다시 할 때 (반입 파일 두 개가 있는 폴더에서):
+
+    sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash -c 'set -e; systemctl cat dataflow >/dev/null 2>&1 || { echo "[k-flow] 미설치 - 건너뜀"; exit 0; }; T=asset-inventory/node-linux-x64.tar.xz; V=$(tar -tJf $T | head -1 | cut -d/ -f1); N=/usr/local/lib/nodejs/$V/bin/node; D=/etc/systemd/system/dataflow.service.d; mkdir -p /usr/local/lib/nodejs $D; tar -xJf $T -C /usr/local/lib/nodejs; if selinuxenabled 2>/dev/null; then semanage fcontext -a -t bin_t "/usr/local/lib/nodejs/[^/]+/bin(/.*)?" 2>/dev/null || true; restorecon -R /usr/local/lib/nodejs; ls -Z $N | grep -q bin_t || chcon -R -t bin_t /usr/local/lib/nodejs/$V/bin; echo "[k-flow] SELinux 라벨: $(ls -Z $N | cut -d: -f3)"; fi; ln -sfn $N /usr/local/bin/node; printf "[Service]\nExecStart=\nExecStart=/usr/local/bin/node /opt/dataflow/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000\n" > $D/node22.conf; systemctl daemon-reload; systemctl reset-failed dataflow || true; systemctl restart dataflow; ok=1; for i in $(seq 30); do sleep 2; curl -s -o /dev/null http://127.0.0.1:3000/login || true; if ! systemctl is-active -q dataflow || [ "$(systemctl show -p NRestarts --value dataflow)" != 0 ]; then ok=0; break; fi; done; C=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:3000/login || true); if [ $ok = 1 ] && [ "$C" = 200 ]; then echo "[k-flow] OK - node $($N -v) / 60초 무중단 / login 200"; else rm -f $D/node22.conf; systemctl daemon-reload; systemctl reset-failed dataflow || true; systemctl restart dataflow; sleep 8; echo "[k-flow] 실패 - node $($N -v) 가 이 서버에서 기동 불가(보안정책 추정). 기존 Node 로 자동 복귀: $(/usr/bin/node -v 2>&1) / login $(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:3000/login)"; exit 1; fi'
+
+    K-Flow 만 수동으로 되돌리기 (RPM nodejs 20 이 설치돼 있을 때):
+      sudo rm -f /etc/systemd/system/dataflow.service.d/node22.conf && sudo systemctl daemon-reload && sudo systemctl reset-failed dataflow && sudo systemctl restart dataflow
+
+
 [A] 운영 중인 서버에 바로 적용 — 한 줄  (★ 일반적인 경우)
 
     반입 파일 두 개가 있는 폴더에서 그대로 복사·붙여넣기:
