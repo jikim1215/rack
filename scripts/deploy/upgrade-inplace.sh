@@ -8,7 +8,7 @@
 #   롤백: /opt/asset-inventory.rollback-<TS> 에 이전 앱 트리 + rollback.sh 보관 (스크립트 말미에 명령 출력)
 #
 # 사용: sudo bash upgrade-inplace.sh [번들경로 | __BUNDLE_TREE__:<이미_풀린_번들디렉터>]
-#   기본 번들: ~/asset/dist/asset-inventory-offline.tar.gz (build-release.sh 산출물)
+#   기본 번들: ~/asset/dist/asset-inventory-offline-v<버전>.tar.gz 중 가장 높은 버전 (build-release.sh 산출물)
 #   폐쇄망 반입 시엔 deploy.sh 가 풀린 트리를 직접 넘긴다(재압축 불필요).
 #
 # 주의: 앱 첫 기동 시 getDb() 가 스키마 마이그레이션을 실행한다(메뉴 권한 시드, audit_logs/import_issue
@@ -16,7 +16,8 @@
 #       7-1 단계는 구판 결함(재기동마다 자산 소유팀·L/R·현행화 도장 유실)으로 비워진 값을 감사로그에서 복구한다.
 # ============================================================
 set -euo pipefail
-BUNDLE="${1:-$HOME/asset/dist/asset-inventory-offline.tar.gz}"
+BUNDLE="${1:-$(ls -1 "$HOME"/asset/dist/asset-inventory-offline-v*.tar.gz 2>/dev/null | sort -V | tail -n1 || true)}"
+[[ -n "$BUNDLE" ]] || { echo "[ERROR] 번들 경로를 지정하세요 (~/asset/dist/asset-inventory-offline-v*.tar.gz 없음)"; exit 1; }
 APP=/opt/asset-inventory
 APP_USER=asset
 INTERNAL_PORT="$(grep -E '^PORT=' "$APP/.env" 2>/dev/null | cut -d= -f2 || echo 3100)"

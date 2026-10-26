@@ -111,11 +111,13 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          sha256sum -c SHA256SUMS.txt
-          tar -xOzf asset-inventory-offline.tar.gz asset-inventory/VERSION | tee /tmp/VERSION
+          V="${TAG#v}"
+          BUNDLE="asset-inventory-offline-v${V}.tar.gz"
+          sha256sum -c "SHA256SUMS-v${V}.txt"
+          tar -xOzf "$BUNDLE" asset-inventory/VERSION | tee /tmp/VERSION
           grep -qx "version=${TAG#v}" /tmp/VERSION || { echo "::error::번들 버전이 태그와 다르다"; exit 1; }
           grep -qE '^commit=[0-9a-f]{7,40}$' /tmp/VERSION || { echo "::error::번들 커밋이 없거나 -dirty"; exit 1; }
-          LIST="$(tar -tzf asset-inventory-offline.tar.gz)"
+          LIST="$(tar -tzf "$BUNDLE")"
           for f in .next/standalone/server.js .next/standalone/node_modules/better-sqlite3/build/Release/better_sqlite3.node \
                    node-linux-x64.tar.xz scripts/deploy/deploy.sh; do
             grep -qx "asset-inventory/$f" <<<"$LIST" || { echo "::error::번들 구성 누락: $f"; exit 1; }
@@ -127,9 +129,9 @@ jobs:
         with:
           name: bundle
           path: |
-            dist/asset-inventory-offline.tar.gz
-            dist/SHA256SUMS.txt
-            dist/배포방법.txt
+            dist/asset-inventory-offline-v*.tar.gz
+            dist/SHA256SUMS-v*.txt
+            dist/배포방법-v*.txt
           if-no-files-found: error
           compression-level: 0
 
@@ -152,8 +154,9 @@ jobs:
           set -euo pipefail
           cd out
           # GitHub 은 비ASCII 자산 이름을 default.txt 로 바꾼다 — 파일명은 ASCII, 화면 표시는 라벨로
-          mv 배포방법.txt deploy-guide.txt
-          FILES=(asset-inventory-offline.tar.gz SHA256SUMS.txt "deploy-guide.txt#배포방법.txt (반입 안내)")
+          V="${TAG#v}"
+          mv "배포방법-v${V}.txt" "deploy-guide-v${V}.txt"
+          FILES=("asset-inventory-offline-v${V}.tar.gz" "SHA256SUMS-v${V}.txt" "deploy-guide-v${V}.txt#배포방법-v${V}.txt (반입 안내)")
           gh release delete-asset "$TAG" default.txt --yes 2>/dev/null || true
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --title "$TAG" --notes-file release-notes.md

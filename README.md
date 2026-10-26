@@ -134,12 +134,11 @@ RockyLinux 8.10(OS만 설치)에 **완전 자립 오프라인 번들**로 배포
 
 ```bash
 # 1) 빌드(Rocky 8.10 동일 OS — native ABI 일치) — Node 런타임 + better-sqlite3 + nginx RPM + 배포 스크립트 포함
-bash scripts/deploy/build-release.sh          # → dist/asset-inventory-offline.tar.gz
+bash scripts/deploy/build-release.sh          # → dist/asset-inventory-offline-v<버전>.tar.gz
 node scripts/verify-build.mjs                 # nonce CSP 양립(정적 프리렌더 0건) 확인
-sha256sum dist/asset-inventory-offline.tar.gz > dist/SHA256SUMS.txt
 
 # 2) 서버로 번들 전송(USB/망연계) 후 한 줄 배포 — 신규설치/업그레이드 자동 판별, 데이터·설정 보존
-tar -xzf asset-inventory-offline.tar.gz
+tar -xzf asset-inventory-offline-v<버전>.tar.gz
 sudo bash asset-inventory/scripts/deploy/deploy.sh          # --check 로 사전 점검만 가능
 
 # 3) 배포 후 확인 — Host 헤더 필수(nginx 가 SNI 로 갈라서 IP 직접 접속은 공존시스템으로 간다)

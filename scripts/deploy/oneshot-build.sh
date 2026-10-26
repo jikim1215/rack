@@ -3,7 +3,7 @@
 # 원샷 오프라인 번들 빌드 (Rocky Linux 8.10 빌드머신, 인터넷 ON)
 #   VM/빌드서버에서 딱 한 번 실행하면:
 #     빌드툴 확인 → nginx RPM 8종 확보 → npm ci(소스빌드) → native 검증
-#     → next build → build-release.sh → dist/asset-inventory-offline.tar.gz
+#     → next build → build-release.sh → dist/asset-inventory-offline-v<버전>.tar.gz
 #
 #   사용법 (공유폴더 소스 기준):
 #     bash /mnt/hgfs/asset/scripts/deploy/oneshot-build.sh
@@ -95,7 +95,7 @@ npm run build
 bash scripts/deploy/build-release.sh
 
 log "완료"
-TARBALL="$WORK/dist/asset-inventory-offline.tar.gz"
+TARBALL="$WORK/dist/asset-inventory-offline-v$(node -p "require('./package.json').version").tar.gz"
 [ -f "$TARBALL" ] || die "번들 생성 실패"
 ls -lh "$TARBALL"
 echo "  번들 내용 점검:"
@@ -105,4 +105,4 @@ tar -tzf "$TARBALL" | grep -q 'node-linux-x64.tar.xz' && echo "   - 번들 Node:
 tar -tzf "$TARBALL" | grep -q 'standalone/node_modules/better-sqlite3' && echo "   - native: OK" || echo "   - native: 없음(경고)"
 echo
 echo "다음: 이 tar.gz 를 폐쇄망 서버로 옮겨 →"
-echo "  tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/setup-nginx.sh"
+echo "  tar -xzf $(basename "$TARBALL") && sudo bash asset-inventory/scripts/deploy/setup-nginx.sh"

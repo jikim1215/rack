@@ -29,7 +29,7 @@
 1. 태그 = `package.json` version 인지, `docs/CHANGELOG.md` 에 `## v<x.y.z> — <날짜>` 항목이 있는지 확인 (없으면 중단). 그 항목이 릴리스 노트가 된다
 2. 최신 Node 22(nodejs.org SHA256 검증) · nginx RPM 8종 내려받기 → `npm ci`(better-sqlite3 소스 빌드, glibc 2.28 이하 심볼 확인) → `npm run check` · `npm test`
 3. `build-release.sh` → `verify-build.mjs` → 번들 점검(체크섬 · `VERSION` 의 버전=태그 · 커밋 `-dirty` 아님 · server.js/native/Node/RPM 동봉 · `.env`/`*.db` 잔재 없음)
-4. Release `v<x.y.z>` 에 세 파일(`asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `deploy-guide.txt`) 첨부 — `deploy-guide.txt` 는 `배포방법.txt` 와 같은 파일이다(GitHub 이 비ASCII 파일명을 바꾸므로 ASCII 로 올린다)
+4. Release `v<x.y.z>` 에 세 파일(`asset-inventory-offline-v<버전>.tar.gz` · `SHA256SUMS-v<버전>.txt` · `deploy-guide-v<버전>.txt`) 첨부 — `deploy-guide-v<버전>.txt` 는 `배포방법-v<버전>.txt` 와 같은 파일이다(GitHub 이 비ASCII 파일명을 바꾸므로 ASCII 로 올린다)
 
 반입 담당자는 Releases 페이지에서 세 파일을 받아 그대로 반입한다. 이미 push 된 태그를 다시 빌드하려면 Actions → Release → Run workflow 에 태그를 넣는다(같은 이름 자산은 덮어쓴다). `main` push·PR 마다 `.github/workflows/ci.yml` 이 타입검사·테스트·빌드·`verify-build` 를 돌린다.
 
@@ -38,11 +38,11 @@
 GitHub 에 접근할 수 없을 때. `scripts/deploy/oneshot-build.sh` 가 아래 전제를 채운 뒤 같은 빌드를 한다.
 
 ```bash
-bash scripts/deploy/build-release.sh      # npm ci(오프라인 캐시) → next build → 스테이징 → tar + SHA256SUMS.txt + 배포방법.txt
+bash scripts/deploy/build-release.sh      # npm ci(오프라인 캐시) → next build → 스테이징 → dist/ 에 버전 파일명 세 개
 node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (nonce CSP 양립 — 필수)
 ```
 
-산출물(`dist/`): `asset-inventory-offline.tar.gz` · `SHA256SUMS.txt` · `배포방법.txt`(원본 `scripts/deploy/배포방법.txt`, 첫 줄에 버전·커밋·빌드 시각). 세 파일을 그대로 반입한다.
+산출물(`dist/`): `asset-inventory-offline-v<버전>.tar.gz` · `SHA256SUMS-v<버전>.txt` · `배포방법-v<버전>.txt`(원본 `scripts/deploy/배포방법.txt` — 판 무관 이름 `asset-inventory-offline.tar.gz`·`SHA256SUMS.txt` 을 빌드가 이 판의 파일명으로 바꿔 싣고, 첫 줄에 버전·커밋·빌드 시각을 적는다). 세 파일을 그대로 반입한다. dist/ 는 판별로 쌓인다 — 같은 버전을 다시 빌드하면 그 판 세 파일만 덮어쓴다.
 
 **버전** — `package.json` 의 `version`(SemVer, 규칙은 `docs/CHANGELOG.md` 머리말)과 커밋·빌드 시각을 `scripts/build-meta.mjs` 가 한 번 계산해 화면(로그인 후) · `/api/health`(앱 포트 직접 호출) · 번들 최상위 `VERSION` 에 같은 값으로 박는다. 커밋은 `APP_COMMIT`(지정 시) > git(`APP_GIT_DIR` 또는 이 저장소) 순 — 소스를 복사해 빌드하는 머신은 `APP_GIT_DIR=<원본 저장소>` 를 넘긴다. 미커밋 변경이 있으면 커밋 뒤에 `-dirty` 가 붙고 빌드 로그에 `[WARN]` 이 찍힌다. 정식 릴리스: `npm version <x.y.z> --no-git-tag-version` → `docs/CHANGELOG.md` → 커밋 → `git tag -a v<x.y.z>` → `git push origin main v<x.y.z>` → GitHub Release 가 빌드(§2-1).
 
@@ -52,14 +52,14 @@ node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (non
 
 ## 3. 배포 — 한 줄
 
-반입한 두 파일(`tar.gz` + `SHA256SUMS.txt`)이 있는 폴더에서:
+반입한 두 파일(`tar.gz` + `SHA256SUMS-v<버전>.txt`)이 있는 폴더에서:
 
 ```bash
 # 운영 중인 서비스에 바로 적용 (신규/업그레이드 자동 판별)
-sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh
+sha256sum -c SHA256SUMS-v<버전>.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline-v<버전>.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh
 
 # 변경 없이 점검만
-sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh --check
+sha256sum -c SHA256SUMS-v<버전>.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline-v<버전>.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh --check
 ```
 
 `rm -rf asset-inventory` 는 **현재 폴더에 전에 풀어둔 번들**만 지운다(운영 앱 `/opt/asset-inventory` 와 무관). 체크섬이 틀리면 그 뒤는 실행되지 않는다.

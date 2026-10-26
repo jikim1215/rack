@@ -1,8 +1,8 @@
 # 폐쇄망 반입·배포 안내
 
-반입 매체(USB/망연계)에 담을 것은 **`asset-inventory-offline.tar.gz` + `SHA256SUMS.txt`** 두 파일입니다.
+반입 매체(USB/망연계)에 담을 것은 **`asset-inventory-offline-v<버전>.tar.gz` + `SHA256SUMS-v<버전>.txt`** 두 파일입니다.
 (번들 안에 앱·Node 런타임·native 모듈·nginx RPM·배포 스크립트·문서가 모두 들어 있습니다. 인터넷 불필요.)
-같은 내용의 한 장짜리 안내는 빌드 산출물 `배포방법.txt` 입니다.
+같은 내용의 한 장짜리 안내는 빌드 산출물 `배포방법-v<버전>.txt` 입니다.
 
 ---
 
@@ -11,7 +11,7 @@
 두 파일을 서버의 같은 폴더(예: 운영자 홈)에 올린 뒤, 그 폴더에서:
 
 ```bash
-sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh
+sha256sum -c SHA256SUMS-v<버전>.txt && rm -rf asset-inventory && tar -xzf asset-inventory-offline-v<버전>.tar.gz && sudo bash asset-inventory/scripts/deploy/deploy.sh
 ```
 
 | 단계 | 하는 일 | 실패 시 |
@@ -23,7 +23,7 @@ sha256sum -c SHA256SUMS.txt && rm -rf asset-inventory && tar -xzf asset-inventor
 
 먼저 확인만 하려면 마지막을 `deploy.sh --check` 로 바꿉니다(아무것도 변경하지 않음 — 현재 상태, 수행 예정 작업, 현재 메뉴 권한이 막게 될 화면까지 출력).
 
-Windows 에서 반출 전 체크섬 확인: `certutil -hashfile asset-inventory-offline.tar.gz SHA256` → `SHA256SUMS.txt` 값과 비교.
+Windows 에서 반출 전 체크섬 확인: `certutil -hashfile asset-inventory-offline-v<버전>.tar.gz SHA256` → `SHA256SUMS-v<버전>.txt` 값과 비교.
 
 ---
 
@@ -64,7 +64,7 @@ sudo SSL_CRT=/경로/site.crt SSL_KEY=/경로/site.key PUBLIC_FQDN=itam.example.
 
 ## 4. 배포 후 확인
 
-스크립트 출력에서 `버전 : 현재 … → v<새 버전> (커밋)` · `✓ 가동 버전` · `서비스: active` · `내부 /login → 200` · `✓ nonce CSP 적용` · `https(nginx) /login → 200` 을 확인합니다. 새 버전·커밋은 `배포방법.txt` 첫 줄, 번들의 `asset-inventory/VERSION` 과 같아야 합니다(화면에서는 로그인 후 왼쪽 메뉴 맨 아래). 이어서 DB 를 직접 확인합니다(**읽기 전용** — 운영 중 실행해도 안전):
+스크립트 출력에서 `버전 : 현재 … → v<새 버전> (커밋)` · `✓ 가동 버전` · `서비스: active` · `내부 /login → 200` · `✓ nonce CSP 적용` · `https(nginx) /login → 200` 을 확인합니다. 새 버전·커밋은 `배포방법-v<버전>.txt` 첫 줄, 번들의 `asset-inventory/VERSION` 과 같아야 합니다(화면에서는 로그인 후 왼쪽 메뉴 맨 아래). 이어서 DB 를 직접 확인합니다(**읽기 전용** — 운영 중 실행해도 안전):
 
 ```bash
 Q="sudo -u asset /opt/asset-inventory/node/bin/node /opt/asset-inventory/scripts/deploy/db-query.cjs"
