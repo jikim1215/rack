@@ -264,7 +264,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
   const tableCustomFields = customFields.filter((f) => f.show_in_table);
 
   // 필터·검색은 서버(asset-list.ts)에서 이미 적용됐다 — 화면은 받은 페이지를 그대로 그린다.
-  //   (과거 클라이언트 필터의 검색 범위: 자산명/IP/접근IP/제조사/모델/시리얼/OS/관리자/사용자/팀/부서/추가IP — 서버가 동일 범위를 LIKE·UNION 으로 매칭)
+  //   (과거 클라이언트 필터의 검색 범위: 자산명/IP/접근IP/제조사/모델/시리얼/OS/관리자/사용자/설명/팀/부서/추가IP — 서버가 동일 범위를 LIKE·UNION 으로 매칭)
   const filtered = assets;
 
   // 유형 고정 정렬 순서: 서버 → 네트워크 → 정보보호 → 전화설비 → 가상머신 → 기타 → 그 외(가나다순)
@@ -712,7 +712,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
-          <input aria-label="이름, IP, 제조사, OS, 관리자, 부서 검색" type="text" placeholder="이름, IP, 제조사, OS, 관리자, 부서 검색..."
+          <input aria-label="이름, IP, 제조사, OS, 관리자, 부서, 설명 검색" type="text" placeholder="이름, IP, 제조사, OS, 관리자, 부서, 설명 검색..."
             value={search} onChange={(e) => setSearch(e.target.value)}
             className="form-input w-full pl-9" />
         </div>

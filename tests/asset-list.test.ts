@@ -86,6 +86,19 @@ test("검색 q: 이름 LIKE + 정렬 화이트리스트", () => {
   assert.equal(p.rack_id, null);
 });
 
+test("검색 q: 설명란 부분 일치(대소문자 무시)", () => {
+  const id = Number(db.prepare("INSERT INTO assets (asset_type, asset_name, description) VALUES ('server', 'desc-hit', 'OpenSSL 3.5.5.27 적용')").run().lastInsertRowid);
+  try {
+    for (const q of ["openssl", "3.5.5", "적용"]) {
+      const r = listAssets(db, admin, { q });
+      assert.deepEqual(r.rows.map((a) => a.id), [id], `q=${q}`);
+    }
+    assert.equal(listAssets(db, admin, { q: "openssh" }).total, 0);
+  } finally {
+    db.prepare("DELETE FROM assets WHERE id = ?").run(id);
+  }
+});
+
 test("withCustomValues: 페이지 행의 값만 (없으면 빈 맵)", () => {
   const r = listAssets(db, admin, { limit: 10, withCustomValues: true });
   assert.ok(r.customValues && typeof r.customValues === "object");
