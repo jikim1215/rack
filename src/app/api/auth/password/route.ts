@@ -1,5 +1,5 @@
 import { getDb } from '@/lib/db';
-import { getSession, hashPassword, verifyPassword, createSessionToken, sessionCookieOptions } from '@/lib/auth';
+import { getSession, hashPassword, verifyPassword, reissueSessionToken, sessionCookieOptions } from '@/lib/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { withApi, readJson } from "@/lib/api-authz";
 import { logAudit } from "@/lib/audit";
@@ -35,15 +35,9 @@ export const PUT = withApi(async (req: NextRequest) => {
     oldData: { password_changed: 0, must_change_password: user.must_change_password }, newData: { password_changed: 1, must_change_password: 0 },
   });
 
-  // 현재 세션은 새 버전으로 재발급해 로그인 상태 유지
-  const token = createSessionToken({
-    userId: session.userId,
-    username: session.username,
-    displayName: session.displayName,
-    role: session.role,
-    teamId: session.teamId,
-    tv: newTv,
-  });
+  // 현재 세션은 새 버전으로 재발급해 로그인 상태 유지. 강제변경(mcp)만 풀고 등록 강제(msr)는 유지 —
+  //   2단계 인증 미등록 총괄은 비밀번호를 바꾼 뒤 곧바로 등록 화면으로 간다(예전엔 msr 가 빠져 등록 강제가 풀렸다).
+  const token = reissueSessionToken(session, { tv: newTv, mcp: false });
   const res = NextResponse.json({ ok: true });
   const opts = sessionCookieOptions();
   res.cookies.set(opts.name, token, {

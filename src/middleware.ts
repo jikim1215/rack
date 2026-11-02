@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_ONLY_API_PREFIXES } from "@/lib/menus"; // 순수 모듈(Edge 안전) — 가드레일 테스트와 같은 배열
+import { forcedGate } from "@/lib/session-gate"; // 순수 모듈(Edge 안전) — tests/session-gate.test.ts 가 같은 판정을 검사
 
 const SESSION_COOKIE = "asset_session";
 
@@ -126,23 +127,16 @@ export async function middleware(request: NextRequest) {
     return redirectTo(loginUrl);
   }
 
-  // 비밀번호 강제변경(관리자 초기화 등): /change-password 외 모든 경로 차단.
-  //   /login·/api/auth·/_next 등은 상단 인증불필요 블록에서 이미 통과했다.
-  if (payload.mcp && pathname !== "/change-password") {
+  // 강제 게이트: 비밀번호 강제변경(mcp) → /change-password 만, 그다음 2단계 인증 등록 강제(msr) → /settings 만.
+  //   세션은 준다(변경·등록에 인증된 상태가 필요) — 단, 끝내기 전엔 업무 화면·API 어느 것도 열지 않는다.
+  //   /login·/api/auth/*(변경 API·등록 API 포함)·/_next 는 상단 인증불필요 블록에서 이미 통과했다.
+  //   둘이 동시에 켜져도 한 번에 하나만 건다 — 각자 검사하면 두 화면을 무한 왕복한다(session-gate.ts).
+  const gate = forcedGate(payload, pathname);
+  if (gate) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "PASSWORD_CHANGE_REQUIRED" }, { status: 403 });
+      return NextResponse.json({ error: gate.error }, { status: 403 });
     }
-    return redirectTo(new URL(`${forwardedOrigin(request)}/change-password`));
-  }
-
-  // 2단계 인증 등록 강제(MFA_REQUIRED_ROLES 에 속한 역할이 미등록): 설정 화면과 등록 API 밖은 차단.
-  //   세션은 준다(등록에 인증된 상태가 필요) — 단, 등록을 끝내기 전엔 업무 화면·API 어느 것도 열지 않는다.
-  //   /api/auth/* 는 상단에서 이미 통과(등록 API /api/auth/mfa/setup 포함).
-  if (payload.msr && pathname !== "/settings") {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "MFA_SETUP_REQUIRED" }, { status: 403 });
-    }
-    return redirectTo(new URL(`${forwardedOrigin(request)}/settings?tab=mfa&required=1`));
+    return redirectTo(new URL(`${forwardedOrigin(request)}${gate.page}`));
   }
 
   // 역할 게이트: 총괄 전용 API 접두사는 admin만 (방어적; 핸들러 assertAdmin이 최종 권위)

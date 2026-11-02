@@ -129,6 +129,25 @@ export function createSessionToken(payload: Omit<SessionPayload, "exp">, ttlMs: 
   return `${json}.${sig}`;
 }
 
+/**
+ * 로그인 중 세션 재발급(연장·비밀번호 변경·취약 신고·등록 완료) — 반드시 이 함수로.
+ * s 는 getSession() 결과(강제 플래그 mcp·msr 가 DB 기준)를 넘긴다. 플래그는 기본으로 그대로 싣고 바뀐 것만 patch 로 덮는다.
+ * 예전엔 호출부마다 필드를 손으로 나열해 연장이 mcp·msr 를, 비밀번호 변경이 msr 를 떨굴 채 발급했다 — 강제 게이트가 풀렸다.
+ */
+export function reissueSessionToken(s: SessionPayload, patch: Partial<Pick<SessionPayload, "tv" | "mcp" | "msr">> = {}): string {
+  return createSessionToken({
+    userId: s.userId,
+    username: s.username,
+    displayName: s.displayName,
+    role: s.role,
+    teamId: s.teamId ?? null,
+    tv: s.tv ?? 0,
+    mcp: !!s.mcp,
+    msr: !!s.msr,
+    ...patch,
+  });
+}
+
 export function verifySessionToken(token: string): SessionPayload | null {
   try {
     const [json, sig] = token.split(".");

@@ -1,5 +1,5 @@
 // ── 운영 결함 수정분 E2E ──
-// /api/health · MFA 등록 강제(msr) 미들웨어 게이트 · 취약 비밀번호 자진 신고 → 강제 변경 · 업로드 상한
+// /api/health · MFA 등록 강제(msr) 미들웨어 게이트 · 비밀번호 초기화된 미등록 총괄(mcp+msr) · 취약 비밀번호 자진 신고 → 강제 변경 · 업로드 상한
 // 사용: BASE_URL=http://localhost:3000 node scripts/verify-hardening.mjs   (시드 계정 3종 필요, 실운영 DB 금지)
 // 전제: 서버가 MFA_REQUIRED_ROLES=admin(기본) 으로 기동됨.
 import { createHash } from "crypto";
@@ -86,6 +86,43 @@ async function main() {
   assert(r.status === 200 && r.body.backupCodes?.length === 10, "등록 확인", `${r.status} ${JSON.stringify(r.body).slice(0, 100)}`);
   r = await admin.req("/api/assets?limit=1");
   assert(r.status === 200, "등록 후 재로그인 없이 업무 API 200 (세션 재발급)", `${r.status} ${JSON.stringify(r.body).slice(0, 80)}`);
+
+  // 2-1) 비밀번호 초기화된 2단계 인증 미등록 총괄 = mcp+msr 동시. 예전엔 /change-password ↔ /settings 무한 리다이렉트.
+  const resetName = `e2e-reset-${Date.now()}@example.go.kr`;
+  r = await admin.req("/api/users", { method: "POST" }, { username: resetName, password: sha512("Init-Pass-9"), role: "admin", display_name: "E2E 초기화" });
+  const resetId = r.body?.id;
+  assert(r.status === 201 && resetId, "초기화 대상 총괄 생성", `${r.status} ${JSON.stringify(r.body)}`);
+  r = await admin.req(`/api/users/${resetId}/reset-password`, { method: "POST" });
+  assert(r.status === 200, "관리자 비밀번호 초기화", `${r.status} ${JSON.stringify(r.body)}`);
+  const reset = jar();
+  r = await reset.req("/api/auth/login", { method: "POST" }, { username: resetName, password: sha512(resetName) });
+  assert(r.status === 200 && r.body.ok && r.body.mfaSetupRequired === true, "아이디 = 비밀번호로 로그인 (등록 강제 대상)", `${r.status} ${JSON.stringify(r.body)}`);
+  {
+    // 브라우저처럼 리다이렉트를 따라간다 — 순환이면 도착하지 못한다
+    let path = "/", hops = 0;
+    for (; hops < 5; hops++) {
+      r = await reset.req(path);
+      if (r.status < 300 || r.status >= 400) break;
+      path = new URL(r.headers.get("location") || "/", BASE).pathname;
+    }
+    assert(r.status === 200 && path === "/change-password" && hops === 1, "mcp+msr: / → /change-password 에서 멈춘다(무한 리다이렉트 없음)", `${r.status} ${path} hops=${hops}`);
+  }
+  r = await reset.req("/settings");
+  assert(r.status === 307 && (r.headers.get("location") || "").endsWith("/change-password"), "mcp+msr: /settings 도 변경 화면으로(비밀번호 먼저)", `${r.status} ${r.headers.get("location")}`);
+  r = await reset.req("/api/auth/refresh", { method: "POST" });
+  r = await reset.req("/api/assets?limit=1");
+  assert(r.status === 403 && r.body.error === "PASSWORD_CHANGE_REQUIRED", "세션 연장으로 강제변경이 풀리지 않는다", `${r.status} ${JSON.stringify(r.body)}`);
+  r = await reset.req("/api/auth/password", { method: "PUT" }, { currentPassword: sha512(resetName), newPassword: sha512("Changed-Pass-7") });
+  assert(r.status === 200, "비밀번호 변경", `${r.status} ${JSON.stringify(r.body)}`);
+  r = await reset.req("/");
+  assert(r.status === 307 && (r.headers.get("location") || "").includes("/settings?tab=mfa&required=1"), "변경 후 → 2단계 인증 등록 화면(등록 강제 유지)", `${r.status} ${r.headers.get("location")}`);
+  r = await reset.req("/settings");
+  assert(r.status === 200, "등록 화면은 열린다", `${r.status}`);
+  r = await reset.req("/api/auth/refresh", { method: "POST" });
+  r = await reset.req("/api/assets?limit=1");
+  assert(r.status === 403 && r.body.error === "MFA_SETUP_REQUIRED", "세션 연장으로 등록 강제가 풀리지 않는다", `${r.status} ${JSON.stringify(r.body)}`);
+  r = await admin.req(`/api/users/${resetId}`, { method: "DELETE" });
+  assert(r.status === 200, "정리: 초기화 대상 계정 삭제", `${r.status} ${JSON.stringify(r.body)}`);
   // 정리: 다음 창 코드로 해제
   r = await admin.req("/api/auth/mfa/setup", { method: "DELETE" }, { code: totpAt(secret, c0 + 1) });
   assert(r.status === 200, "정리: MFA 해제", `${r.status}`);

@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi } from "@/lib/api-authz";
 import { assertCanRead } from "@/lib/authz";
-import { getSession, createSessionToken, sessionCookieOptions } from "@/lib/auth";
+import { getSession, reissueSessionToken, sessionCookieOptions } from "@/lib/auth";
 import { logAccess, clientMeta } from "@/lib/access-log";
 
 // ── 취약 비밀번호 자진 신고 → 강제 변경 ──
@@ -21,11 +21,7 @@ export const POST = withApi(async (req: NextRequest) => {
   db.prepare("UPDATE users SET must_change_password = 1 WHERE id = ?").run(actor.userId);
   logAccess(db, { userId: actor.userId, username: actor.username, ip, userAgent, action: "login", resultCode: "200", failureReason: "weak_password_flagged" });
 
-  const token = createSessionToken({
-    userId: session.userId, username: session.username, displayName: session.displayName,
-    role: session.role, teamId: session.teamId ?? null, tv: session.tv ?? 0,
-    mcp: true, ...(session.msr ? { msr: true } : {}),
-  });
+  const token = reissueSessionToken(session, { mcp: true });
   const res = NextResponse.json({ ok: true, mustChangePassword: true });
   const opts = sessionCookieOptions();
   res.cookies.set(opts.name, token, { httpOnly: opts.httpOnly, secure: opts.secure, sameSite: opts.sameSite, path: opts.path, maxAge: opts.maxAge });
