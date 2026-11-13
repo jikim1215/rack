@@ -6,6 +6,7 @@ import { assertAdmin } from '@/lib/authz';
 import { parseRules } from '@/lib/ip-access';
 import { validateEmail, normalizeEmail } from '@/lib/user-admin';
 import { logAudit } from '@/lib/audit';
+import { USER_LIST_COLUMNS } from '@/lib/inactive-users';
 import { asBody, str, oneOf, idOrNull, ValidationError } from '@/lib/validation/input';
 import type { UserRow } from '@/lib/db-types';
 
@@ -15,8 +16,8 @@ export const GET = withApi(async () => {
 
   const db = getDb();
   const users = db
-    .prepare('SELECT id, username, display_name, role, team_id, is_active, allowed_ips, totp_enabled, created_at FROM users ORDER BY id')
-    .all() as Pick<UserRow, 'id' | 'username' | 'display_name' | 'role' | 'team_id' | 'is_active' | 'allowed_ips' | 'created_at'>[];
+    .prepare(`SELECT ${USER_LIST_COLUMNS} FROM users ORDER BY id`)
+    .all() as Pick<UserRow, 'id' | 'username' | 'display_name' | 'role' | 'team_id' | 'is_active' | 'allowed_ips' | 'created_at' | 'last_login_at'>[];
   return NextResponse.json(users);
 });
 

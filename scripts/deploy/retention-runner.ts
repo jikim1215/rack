@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// 로그 보존 프루닝 실행기 (AC-20). systemd timer가 1일 1회 호출. 백업과 공용 lockfile로 상호배제.
+// 일일 유지보수 실행기. systemd timer가 1일 1회 호출. 백업과 공용 lockfile로 상호배제.
+//   1) 로그 보존 프루닝 (AC-20) — 감사로그/접속기록 1년 초과분 삭제
+//   2) 장기 미사용 계정 비활성화 — 마지막 활동 후 6개월 지난 계정 is_active=0 (src/lib/inactive-users.ts)
 // 실행: node --experimental-strip-types scripts/deploy/retention-runner.ts
 // 환경변수: ASSET_DB_CWD(앱 cwd, data.db 위치), ASSET_LOCK_PATH(lock 경로), RETENTION_DAYS(기본 365)
 import { pathToFileURL, fileURLToPath } from "url";
@@ -14,11 +16,16 @@ const days = Number(process.env.RETENTION_DAYS || "365") || 365;
 
 const { getDb } = await import(pathToFileURL(join(libDir, "db.ts")).href);
 const { pruneOldLogs, withLock } = await import(pathToFileURL(join(libDir, "retention.ts")).href);
+const { deactivateInactiveUsers, INACTIVE_MONTHS } = await import(pathToFileURL(join(libDir, "inactive-users.ts")).href);
 
-const outcome = withLock(lockPath, () => pruneOldLogs(getDb(), days));
+const outcome = withLock(lockPath, () => {
+  const db = getDb();
+  return { prune: pruneOldLogs(db, days), deactivated: deactivateInactiveUsers(db, "system") };
+});
 if (!outcome.ran) {
   console.error(`[retention] lock busy (${lockPath}); 백업 등 다른 유지보수 작업 진행 중 — 건너뜀`);
   process.exit(0);
 }
 const r = outcome.result;
-console.log(`[retention] cutoff=${r.cutoff} audit_deleted=${r.auditDeleted} access_deleted=${r.accessDeleted}`);
+console.log(`[retention] cutoff=${r.prune.cutoff} audit_deleted=${r.prune.auditDeleted} access_deleted=${r.prune.accessDeleted}`);
+console.log(`[inactive] months=${INACTIVE_MONTHS} deactivated=${r.deactivated.length}${r.deactivated.length ? ` (${r.deactivated.map((u: { username: string }) => u.username).join(", ")})` : ""}`);

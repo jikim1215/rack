@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { withApi, readJson } from "@/lib/api-authz";
 import { logAccess, clientMeta } from "@/lib/access-log";
 import { isIpAllowed } from "@/lib/ip-access";
+import { recordLogin } from "@/lib/inactive-users";
 import { asBody, str } from "@/lib/validation/input";
 import type { UserRow, CountRow } from "@/lib/db-types";
 import type Database from "better-sqlite3";
@@ -174,6 +175,7 @@ export const POST = withApi(async (req: NextRequest) => {
 
   // 로그인 성공 → 두 키 모두 시도 횟수 초기화
   resetAttempts(db, userKey, ipKey);
+  recordLogin(db, user.id);
   logAccess(db, { userId: user.id, username: user.username, ip, userAgent, action: "login", resultCode: "200", failureReason: mfaSetupRequired ? "mfa_setup_required" : undefined });
 
   const token = createSessionToken({

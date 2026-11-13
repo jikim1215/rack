@@ -188,7 +188,7 @@ sudo bash /opt/asset-inventory.rollback-<시각>/rollback.sh <시각> --with-db 
 ## 8. 백업·보존
 
 - `asset-backup.timer` → `backup.sh`: SQLite online backup + gzip, `backups/` 30일 보관, 권한 600.
-- `asset-retention.timer` → `retention-runner.ts`: 감사로그·접속기록 1년 초과분 프루닝(append-only 트리거가 1년 이내 삭제를 막는다).
+- `asset-retention.timer` → `retention-runner.ts`: 감사로그·접속기록 1년 초과분 프루닝(append-only 트리거가 1년 이내 삭제를 막는다) + 6개월 장기 미사용 계정 비활성화(`src/lib/inactive-users.ts`).
 - 복구 리허설: `restore.sh <백업파일>` 을 스테이징에서 분기 1회.
 
 ## 9. 계정 문제

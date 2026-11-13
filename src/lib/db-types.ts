@@ -22,6 +22,9 @@ export interface UserRow {
   /** 1회용 백업 코드 scrypt 해시 JSON 배열 */
   backup_codes: string;
   created_at: string;
+  /** 마지막 로그인 성공 / 재활성화 시각 — 장기 미사용 비활성화 기준(src/lib/inactive-users.ts) */
+  last_login_at: string | null;
+  reactivated_at: string | null;
 }
 
 export interface TeamRow {

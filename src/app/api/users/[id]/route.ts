@@ -73,6 +73,10 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
     db.prepare('UPDATE users SET username = ?, display_name = ?, role = ?, is_active = ?, team_id = ? WHERE id = ?')
       .run(nextUsername, displayName, safeRole, nextIsActive, rawTeamId, targetId);
   }
+  // 재활성화(0→1): 장기 미사용 기간을 지금부터 다시 센다(src/lib/inactive-users.ts). 안 그러면 다음 점검에서 바로 다시 잠긴다.
+  if (!oldRow.is_active && nextIsActive === 1) {
+    db.prepare("UPDATE users SET reactivated_at = datetime('now','localtime') WHERE id = ?").run(targetId);
+  }
   // 허용 IP: 유효 규칙만 정규화(빈값=제한없음). 미전달 시 기존값 유지.
   let allowedIps = oldRow.allowed_ips;
   if (b.allowed_ips !== undefined) {

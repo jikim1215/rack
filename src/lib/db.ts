@@ -97,7 +97,12 @@ function initSchema(db: Database.Database) {
       totp_enabled INTEGER DEFAULT 0,
       totp_last_counter INTEGER DEFAULT 0,
       backup_codes TEXT DEFAULT '[]',
-      created_at TEXT DEFAULT (datetime('now','localtime'))
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      -- 장기 미사용 비활성화(src/lib/inactive-users.ts) 기준 시각. 둘 다 'YYYY-MM-DD HH:MM:SS' localtime, 없으면 NULL.
+      --   last_login_at  : 마지막 로그인 성공(2단계 인증까지 통과한 시점)
+      --   reactivated_at : 총괄이 비활성 계정을 다시 활성화한 시점 — 이때부터 미사용 기간을 다시 센다
+      last_login_at TEXT,
+      reactivated_at TEXT
     );
 
     -- 메일 릴레이 설정 (단일행, id=1). 폐쇄망 사내 SMTP 릴레이(허용 IP 방식, 무인증) 정보.
@@ -978,6 +983,15 @@ function initSchema(db: Database.Database) {
       if (!uCols2.has("totp_enabled")) db.exec(`ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0`);
       if (!uCols2.has("totp_last_counter")) db.exec(`ALTER TABLE users ADD COLUMN totp_last_counter INTEGER DEFAULT 0`);
       if (!uCols2.has("backup_codes")) db.exec(`ALTER TABLE users ADD COLUMN backup_codes TEXT DEFAULT '[]'`);
+      // 장기 미사용 비활성화 기준 컬럼. 추가하는 순간 접속기록(1년 보존)의 마지막 로그인 성공으로 채운다 —
+      //   비워 두면 기존 계정이 전부 "로그인 기록 없음 → 생성일 기준"이 되어 첫 점검에서 일제히 잠길 수 있다.
+      //   (2단계 인증 대기는 action='fail'·200 으로 남으므로 action='login' 만 센다)
+      if (!uCols2.has("last_login_at")) {
+        db.exec(`ALTER TABLE users ADD COLUMN last_login_at TEXT`);
+        db.exec(`UPDATE users SET last_login_at = (
+          SELECT MAX(created_at) FROM access_logs a WHERE a.user_id = users.id AND a.action = 'login' AND a.result_code = '200')`);
+      }
+      if (!uCols2.has("reactivated_at")) db.exec(`ALTER TABLE users ADD COLUMN reactivated_at TEXT`);
     }
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "asset-inventory",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "description": "정보시스템 자산 현황관리 시스템 (폐쇄망/멀티팀)",
   "scripts": {
@@ -12,6 +12,7 @@
     "check": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "verify:feedback": "node scripts/verify-feedback.mjs",
+    "verify:users": "node scripts/verify-users.mjs",
     "verify:authz": "node scripts/verify-authz.mjs",
     "verify:mfa": "node scripts/verify-mfa.mjs",
     "verify:hardening": "node scripts/verify-hardening.mjs",

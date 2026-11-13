@@ -4,13 +4,14 @@ import { getSession } from '@/lib/auth';
 import { SettingsView } from './SettingsView';
 import type { User, Team } from './tabs/types';
 import { menuTitle } from "@/lib/menus";
+import { USER_LIST_COLUMNS } from "@/lib/inactive-users";
 export const metadata = menuTitle("settings");
 
 export default async function SettingsPage() {
   const session = await getSession();
   const db = getDb();
   const users = session?.role === 'admin'
-    ? db.prepare('SELECT id, username, display_name, role, team_id, is_active, must_change_password, totp_enabled, created_at FROM users ORDER BY id').all()
+    ? db.prepare(`SELECT ${USER_LIST_COLUMNS} FROM users ORDER BY id`).all()
     : [];
   const teams = session?.role === 'admin'
     ? db.prepare(`SELECT t.id, t.team_name, t.created_at,

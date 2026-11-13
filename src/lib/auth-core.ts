@@ -8,7 +8,7 @@
 // 받는 `password` 인자는 이미 sha512(평문) 문자열이다. 시드(db-seed.mjs)는 평문을 갖고 있으므로
 // 서버측에서 sha512를 직접 적용해 동일한 규약을 만든다. 두 경로 모두 최종 저장물은 같다.
 // 주의: 프리해시는 전송구간 보호가 아니다(재전송 가능) — 전송 보호는 TLS(nginx 종단, docs/DEPLOY.md)가 담당.
-import { scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from "crypto";
+import { scrypt, scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from "crypto";
 
 export const SESSION_COOKIE = "asset_session";
 // 세션 수명: 기관 정책에 맞게 SESSION_TTL_HOURS 로 조정(기본 8h = 근무 1일, P4 보안 리뷰 반영 — 공용 PC에서 퇴근 후 세션이 다음날까지 살아있지 않게).
@@ -76,6 +76,15 @@ export function verifyLoginPassword(password: string, stored: string | undefined
 export function hashPlaintextPassword(plain: string): string {
   const pre = createHash("sha512").update(plain).digest("hex");
   return hashPassword(pre);
+}
+
+/** hashPlaintextPassword 의 비동기판(같은 저장물). 계정 일괄 등록처럼 수백 건을 해시할 때 이벤트 루프를 막지 않는다. */
+export function hashPlaintextPasswordAsync(plain: string): Promise<string> {
+  const pre = createHash("sha512").update(plain).digest("hex");
+  const salt = randomBytes(32).toString("hex");
+  return new Promise((resolve, reject) => {
+    scrypt(pre, salt, 64, { N: 16384, r: 8, p: 1 }, (err, key) => (err ? reject(err) : resolve(`${salt}:${key.toString("hex")}`)));
+  });
 }
 
 

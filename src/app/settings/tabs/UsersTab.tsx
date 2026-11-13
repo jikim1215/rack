@@ -1,10 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { Users, Plus, Save, ToggleLeft, ToggleRight, Trash2, KeyRound, ShieldOff } from "lucide-react";
+import { useRef, useState } from "react";
+import { Users, Plus, Save, ToggleLeft, ToggleRight, Trash2, KeyRound, ShieldOff, FileSpreadsheet, Download, UserX } from "lucide-react";
 import { sha512 } from "@/lib/sha512";
 import { validatePasswordPolicy } from "@/lib/password-policy";
 import { roleOptions, type Team, type User } from "./types";
+
+interface ImportPreviewRow { row: number; username: string; display_name: string; role: string; team_name: string; allowed_ips: string }
+interface ImportErrorRow { row: number; username: string; message: string }
+interface InactiveRow { id: number; username: string; display_name: string; last_login_at: string | null; last_activity: string }
+
+/** 비활성화(6개월) 전 미리 알리는 기준 — 약 5개월 */
+const IDLE_WARN_DAYS = 150;
+
+/** 'YYYY-MM-DD HH:MM:SS'(서버 localtime) → 오늘까지 경과 일수. 값이 없으면 0. */
+function idleDays(ts: string | undefined): number {
+  if (!ts) return 0;
+  const t = new Date(ts.replace(" ", "T")).getTime();
+  return Number.isFinite(t) ? Math.floor((Date.now() - t) / 86_400_000) : 0;
+}
 
 interface Props {
   users: User[];
@@ -34,6 +48,126 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
       const res = await fetch("/api/teams");
       if (res.ok) onTeamsChange(await res.json());
     } catch { /* ignore */ }
+  }
+
+  // --- 엑셀 일괄 등록: 검증(dryRun) → 미리보기 → 등록. 같은 파일을 두 번 올린다(서버는 등록 때 다시 검증). ---
+  const [showImport, setShowImport] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importPreview, setImportPreview] = useState<ImportPreviewRow[] | null>(null);
+  const [importErrors, setImportErrors] = useState<ImportErrorRow[]>([]);
+
+  function resetImport() {
+    setImportFile(null);
+    setImportPreview(null);
+    setImportErrors([]);
+    if (importRef.current) importRef.current.value = "";
+  }
+
+  async function postImport(file: File, dryRun: boolean) {
+    const fd = new FormData();
+    fd.append("file", file);
+    if (dryRun) fd.append("dryRun", "1");
+    const res = await fetch("/api/users/import", { method: "POST", body: fd });
+    return { res, data: await res.json().catch(() => ({})) };
+  }
+
+  async function handleImportCheck(file: File) {
+    setUserMsg("");
+    setUserError(false);
+    setImportFile(file);
+    setImportPreview(null);
+    setImportErrors([]);
+    setImportBusy(true);
+    try {
+      const { res, data } = await postImport(file, true);
+      if (res.ok) setImportPreview(data.users ?? []);
+      else {
+        setImportErrors(data.errors ?? []);
+        setUserMsg(data.error || "검증에 실패했습니다.");
+        setUserError(true);
+      }
+    } catch {
+      setUserMsg("서버 연결에 실패했습니다.");
+      setUserError(true);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  async function handleImportCommit() {
+    if (!importFile) return;
+    setImportBusy(true);
+    try {
+      const { res, data } = await postImport(importFile, false);
+      if (res.ok) {
+        setUserMsg(`${data.inserted}명을 등록했습니다. 초기 비밀번호는 각자의 이메일 주소이며, 첫 로그인 때 새 비밀번호를 설정해야 합니다.`);
+        setUserError(false);
+        resetImport();
+        setShowImport(false);
+        await refreshUsers();
+        await refreshTeams();
+      } else {
+        setImportPreview(null);
+        setImportErrors(data.errors ?? []);
+        setUserMsg(data.error || "등록에 실패했습니다.");
+        setUserError(true);
+      }
+    } catch {
+      setUserMsg("서버 연결에 실패했습니다.");
+      setUserError(true);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  // --- 장기 미사용 점검: 매일 자동 처리되지만, 총괄이 대상을 미리 보고 즉시 처리할 수 있다. ---
+  const [inactive, setInactive] = useState<{ months: number; cutoff: string; users: InactiveRow[] } | null>(null);
+  const [inactiveBusy, setInactiveBusy] = useState(false);
+
+  async function loadInactive() {
+    setUserMsg("");
+    setUserError(false);
+    setInactiveBusy(true);
+    try {
+      const res = await fetch("/api/users/inactive");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setInactive(data);
+      else {
+        setUserMsg(data.error || "조회에 실패했습니다.");
+        setUserError(true);
+      }
+    } catch {
+      setUserMsg("서버 연결에 실패했습니다.");
+      setUserError(true);
+    } finally {
+      setInactiveBusy(false);
+    }
+  }
+
+  async function deactivateInactive() {
+    if (!inactive || inactive.users.length === 0) return;
+    if (!confirm(`장기 미사용 계정 ${inactive.users.length}개를 비활성화하시겠습니까?\n\n계정은 삭제되지 않으며, 필요하면 목록에서 다시 활성화할 수 있습니다.`)) return;
+    setInactiveBusy(true);
+    try {
+      const res = await fetch("/api/users/inactive", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUserMsg(`${data.deactivated.length}개 계정을 비활성화했습니다.`);
+        setUserError(false);
+        setInactive(null);
+        await refreshUsers();
+      } else {
+        setUserMsg(data.error || "비활성화에 실패했습니다.");
+        setUserError(true);
+      }
+    } catch {
+      setUserMsg("서버 연결에 실패했습니다.");
+      setUserError(true);
+    } finally {
+      setInactiveBusy(false);
+    }
   }
 
   async function handleAddUser(e: React.FormEvent) {
@@ -240,12 +374,20 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
         <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
           <Users size={20} /> 사용자 관리
         </h2>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-1 btn-ink px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus size={14} /> 사용자 추가
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={loadInactive} disabled={inactiveBusy} className="btn inline-flex items-center gap-1">
+            <UserX size={14} /> 장기 미사용 점검
+          </button>
+          <button onClick={() => { setShowImport(!showImport); resetImport(); }} className="btn inline-flex items-center gap-1">
+            <FileSpreadsheet size={14} /> 엑셀 일괄 등록
+          </button>
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="flex items-center gap-1 btn-ink px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Plus size={14} /> 사용자 추가
+          </button>
+        </div>
       </div>
 
       {userMsg && (
@@ -342,6 +484,117 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
         </form>
       )}
 
+      {/* 장기 미사용 점검 결과 */}
+      {inactive && (
+        <div className="mb-4 p-4 bg-surface border border-line rounded-lg space-y-3">
+          <p className="text-sm text-ink-2">
+            마지막 활동(로그인·계정 생성·재활성화 중 가장 늦은 시각)이 <span className="num">{inactive.cutoff}</span> 이전인 활성 계정
+            ({inactive.months}개월 미사용) — <b className="num">{inactive.users.length}</b>개.
+            매일 03:30 자동으로 비활성화됩니다. 마지막 남은 총괄 계정은 제외됩니다.
+          </p>
+          {inactive.users.length > 0 && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-ink-2">
+                  <th className="py-1 px-2 font-medium">이메일</th>
+                  <th className="py-1 px-2 font-medium">이름</th>
+                  <th className="py-1 px-2 font-medium">마지막 로그인</th>
+                  <th className="py-1 px-2 font-medium">마지막 활동</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inactive.users.map((u) => (
+                  <tr key={u.id} className="border-b border-line">
+                    <td className="py-1 px-2">{u.username}</td>
+                    <td className="py-1 px-2">{u.display_name || "-"}</td>
+                    <td className="py-1 px-2 num">{u.last_login_at?.slice(0, 16) ?? "없음"}</td>
+                    <td className="py-1 px-2 num">{u.last_activity.slice(0, 16)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div className="flex gap-2">
+            {inactive.users.length > 0 && (
+              <button onClick={deactivateInactive} disabled={inactiveBusy} className="btn-ink px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                {inactive.users.length}개 지금 비활성화
+              </button>
+            )}
+            <button onClick={() => setInactive(null)} className="bg-slate-100 text-ink px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-200">닫기</button>
+          </div>
+        </div>
+      )}
+
+      {/* 엑셀 일괄 등록 */}
+      {showImport && (
+        <div className="mb-4 p-4 bg-surface border border-line rounded-lg space-y-3">
+          <p className="text-sm text-ink-2">
+            양식을 내려받아 이메일·이름·역할(팀/전체열람)·팀·허용IP를 적어 올리세요. 초기 비밀번호는 각자의 이메일 주소이고
+            첫 로그인 때 변경해야 합니다. 총괄 계정은 일괄 등록할 수 없습니다. 한 행이라도 오류가 있으면 아무도 등록되지 않습니다.
+          </p>
+          <div className="flex items-center gap-2">
+            <a href="/api/users/import" className="btn inline-flex items-center gap-1"><Download size={14} /> 양식 내려받기</a>
+            <button onClick={() => importRef.current?.click()} disabled={importBusy} className="btn inline-flex items-center gap-1">
+              <FileSpreadsheet size={14} /> {importBusy ? "처리중..." : "파일 선택·검증"}
+            </button>
+            <input ref={importRef} type="file" accept=".xlsx" className="hidden" aria-label="사용자 일괄 등록 파일"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCheck(f); }} />
+            {importFile && <span className="text-xs text-ink-3">{importFile.name}</span>}
+          </div>
+          {importErrors.length > 0 && (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-line text-left text-ink-2">
+                  <th className="py-1 px-2 font-medium w-16">행</th>
+                  <th className="py-1 px-2 font-medium">이메일</th>
+                  <th className="py-1 px-2 font-medium">오류</th>
+                </tr>
+              </thead>
+              <tbody>
+                {importErrors.map((er, i) => (
+                  <tr key={i} className="border-b border-line text-fault">
+                    <td className="py-1 px-2 num">{er.row}</td>
+                    <td className="py-1 px-2">{er.username || "-"}</td>
+                    <td className="py-1 px-2">{er.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {importPreview && (
+            <>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-line text-left text-ink-2">
+                    <th className="py-1 px-2 font-medium w-16">행</th>
+                    <th className="py-1 px-2 font-medium">이메일</th>
+                    <th className="py-1 px-2 font-medium">이름</th>
+                    <th className="py-1 px-2 font-medium">역할</th>
+                    <th className="py-1 px-2 font-medium">팀</th>
+                    <th className="py-1 px-2 font-medium">허용 IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.map((u) => (
+                    <tr key={u.row} className="border-b border-line">
+                      <td className="py-1 px-2 num">{u.row}</td>
+                      <td className="py-1 px-2">{u.username}</td>
+                      <td className="py-1 px-2">{u.display_name || "-"}</td>
+                      <td className="py-1 px-2">{roleOptions.find((r) => r.value === u.role)?.label ?? u.role}</td>
+                      <td className="py-1 px-2">{u.team_name || "-"}</td>
+                      <td className="py-1 px-2">{u.allowed_ips || "제한 없음"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button onClick={handleImportCommit} disabled={importBusy} className="btn-ink px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
+                {importBusy ? "등록중..." : `${importPreview.length}명 등록`}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {/* 사용자 목록 테이블 */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -352,6 +605,7 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
               <th className="py-2 px-3 font-medium text-ink-2">이름</th>
               <th className="py-2 px-3 font-medium text-ink-2">역할</th>
               <th className="py-2 px-3 font-medium text-ink-2">팀</th>
+              <th className="py-2 px-3 font-medium text-ink-2">마지막 로그인</th>
               <th className="py-2 px-3 font-medium text-ink-2">상태</th>
               <th className="py-2 px-3 font-medium text-ink-2">관리</th>
             </tr>
@@ -435,6 +689,15 @@ export function UsersTab({ users, onUsersChange, teams, onTeamsChange }: Props) 
                     )
                   ) : (
                     u.role === "team" ? teamNameOf(u.team_id) : "미배정"
+                  )}
+                </td>
+                <td className="py-2 px-3 text-ink-2 num whitespace-nowrap">
+                  {u.last_login_at ? u.last_login_at.slice(0, 16) : <span className="text-ink-3">없음</span>}
+                  {!!u.is_active && idleDays(u.last_activity) >= IDLE_WARN_DAYS && (
+                    <span className="ml-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
+                      title="마지막 활동 후 6개월이 지나면 자동으로 비활성화됩니다">
+                      미사용 {idleDays(u.last_activity)}일
+                    </span>
                   )}
                 </td>
                 <td className="py-2 px-3">

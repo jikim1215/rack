@@ -4,6 +4,7 @@ import { withApi, readJson } from "@/lib/api-authz";
 import { createSessionToken, sessionCookieOptions, verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { verifyTotp, findBackupCode } from "@/lib/totp";
 import { logAccess, clientMeta } from "@/lib/access-log";
+import { recordLogin } from "@/lib/inactive-users";
 import { asBody, str } from "@/lib/validation/input";
 import type { UserRow } from "@/lib/db-types";
 
@@ -100,6 +101,7 @@ export const POST = withApi(async (req: NextRequest) => {
       return Array.isArray(arr) ? arr.length : 0;
     } catch { return 0; }
   })();
+  recordLogin(db, user.id);
   logAccess(db, { userId: user.id, username: user.username, ip, userAgent, action: "login", resultCode: "200", failureReason: `mfa_${method}` });
 
   const token = createSessionToken({

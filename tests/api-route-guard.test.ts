@@ -129,7 +129,7 @@ for (const file of files) {
 // 쓰기 핸들러는 감사로그(audit_logs) 또는 접속기록(access_logs)을 남긴다 (AC-1 변경 추적).
 // 직접 logAudit/logAssetChange/logAccess 를 호출하거나, 감사 기록을 책임지는 lib 함수에 위임해야 한다.
 // 아래 예외는 "기록할 업무 변경이 없거나 다른 증적이 이미 있는" 경우만 — 늘릴 때는 사유를 같이 적는다.
-const AUDIT_CALL = /logAudit\(|logAssetChange\(|logAccess\(|INSERT INTO audit_logs|reassignUnassignedAssets\(|rollbackBatch\(/;
+const AUDIT_CALL = /logAudit\(|logAssetChange\(|logAccess\(|INSERT INTO audit_logs|reassignUnassignedAssets\(|rollbackBatch\(|deactivateInactiveUsers\(/;
 const AUDIT_EXEMPT: Record<string, string> = {
   "POST /api/admin/mail-config/test": "테스트 메일 발송 — 상태 변경 없음",
   "POST /api/auth/refresh": "세션 연장 — 상태 변경 없음",

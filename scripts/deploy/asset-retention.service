@@ -1,5 +1,5 @@
 [Unit]
-Description=정보시스템 자산관리 — 로그 보존 프루닝(감사로그/접속기록 1년 초과 삭제)
+Description=정보시스템 자산관리 — 일일 유지보수(로그 1년 초과 삭제, 6개월 장기 미사용 계정 비활성화)
 After=network.target
 
 [Service]
