@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/Toast";
 import { UsageGuide } from "@/components/UsageGuide";
+import { kstDate } from "@/lib/kst";
 
 interface Movement {
   id: number;
@@ -101,9 +102,14 @@ const statusLeds: Record<string, string> = {
 export default function MovementsView({
   movements: initialMovements,
   assets,
+  canWrite,
+  canApprove,
 }: {
   movements: Movement[];
   assets: Asset[];
+  /** 쓰기·승인 버튼 노출 힌트(메뉴 권한 + 역할). 강제는 API 가 한다. */
+  canWrite: boolean;
+  canApprove: boolean;
 }) {
   const { addToast } = useToast();
   const [movements, setMovements] = useState<Movement[]>(initialMovements);
@@ -124,9 +130,7 @@ export default function MovementsView({
   const [formRackPos, setFormRackPos] = useState("");
   const [formPowerWatts, setFormPowerWatts] = useState("");
   const [formPowerRedundant, setFormPowerRedundant] = useState("");
-  const [formDate, setFormDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [formDate, setFormDate] = useState(() => kstDate());
   const [formRequester, setFormRequester] = useState("");
   const [formDept, setFormDept] = useState("");
   const [formPurpose, setFormPurpose] = useState("");
@@ -206,7 +210,7 @@ export default function MovementsView({
     setFormRackPos("");
     setFormPowerWatts("");
     setFormPowerRedundant("");
-    setFormDate(new Date().toISOString().slice(0, 10));
+    setFormDate(kstDate());
     setFormRequester("");
     setFormDept("");
     setFormPurpose("");
@@ -373,15 +377,17 @@ export default function MovementsView({
               onChange={(e) => setFilterTo(e.target.value)}
             />
           </div>
-          <div className="ml-auto">
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className="btn-ink flex items-center gap-1.5 px-4 py-2 rounded-lg transition-colors text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              반입/반출 신청
-            </button>
-          </div>
+          {canWrite && (
+            <div className="ml-auto">
+              <button
+                onClick={() => setShowForm(!showForm)}
+                className="btn-ink flex items-center gap-1.5 px-4 py-2 rounded-lg transition-colors text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                반입/반출 신청
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 사용 가이드 (접기/펼치기) */}
@@ -700,7 +706,7 @@ export default function MovementsView({
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-1">
-                          {m.status === "requested" && (
+                          {canApprove && m.status === "requested" && (
                             <>
                               <button
                                 onClick={() =>
@@ -722,7 +728,7 @@ export default function MovementsView({
                               </button>
                             </>
                           )}
-                          {m.status === "approved" && (
+                          {canWrite && m.status === "approved" && (
                             <button
                               onClick={() =>
                                 updateStatus(m.id, "completed")
@@ -732,13 +738,15 @@ export default function MovementsView({
                               완료
                             </button>
                           )}
-                          <button
-                            onClick={() => handleDelete(m.id)}
-                            className="p-1 text-ink-3 hover:text-fault hover:bg-red-50 rounded"
-                            title="삭제"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                          {canWrite && (
+                            <button
+                              onClick={() => handleDelete(m.id)}
+                              className="p-1 text-ink-3 hover:text-fault hover:bg-red-50 rounded"
+                              title="삭제"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -7,20 +7,9 @@ import { asBody, str, idOrNull, pathId, ValidationError } from "@/lib/validation
 import { isValidIpv4 } from "@/lib/validation/asset-rules";
 import { splitAccessIps } from "@/lib/access-ip";
 import type { SubnetRow } from "@/lib/db-types";
+import { ipv4ToNum, subnetMaskError, subnetRange } from "@/lib/subnet";
 
 type Ctx = { params: Promise<{ id: string }> };
-
-function ipToNum(ip: string): number {
-  return ip.split(".").reduce((acc, o) => (acc << 8) + Number(o), 0) >>> 0;
-}
-
-function maskToCidr(mask: string): number {
-  const n = ipToNum(mask);
-  let bits = 0;
-  let v = n;
-  while (v & 0x80000000) { bits++; v <<= 1; }
-  return bits;
-}
 
 export const GET = withApi(async (_req: NextRequest, { params }: Ctx) => {
   const actor = await getActor();
@@ -52,17 +41,15 @@ export const GET = withApi(async (_req: NextRequest, { params }: Ctx) => {
      WHERE ${scope.sql}`
   ).all(...scope.params) as { ip_address: string; asset_name: string | null }[];
 
-  // 서브넷 범위 필터링
-  const netNum = ipToNum(subnet.network_address);
-  const cidr = maskToCidr(subnet.subnet_mask);
-  const mask = (0xFFFFFFFF << (32 - cidr)) >>> 0;
-  const netStart = netNum & mask;
-  const netEnd = netStart | (~mask >>> 0);
-
-  const assignedIps = allIps.filter((ip) => {
-    const ipNum = ipToNum(ip.ip_address);
-    return ipNum >= netStart && ipNum <= netEnd;
-  });
+  // 서브넷 범위 필터링 (마스크 검증 도입 전에 저장된 잘못된 마스크는 범위 없음 → 빈 목록)
+  const range = subnetRange(subnet.network_address, subnet.subnet_mask);
+  const assignedIps = range
+    ? allIps.filter((ip) => {
+        if (!isValidIpv4(ip.ip_address || "")) return false;
+        const ipNum = ipv4ToNum(ip.ip_address);
+        return ipNum >= range.start && ipNum <= range.end;
+      })
+    : [];
 
   return NextResponse.json({ ...subnet, assigned_ips: assignedIps });
 });
@@ -81,6 +68,8 @@ export const PUT = withApi(async (req: NextRequest, { params }: Ctx) => {
   const network_address = str(b, "network_address", { required: true, label: "네트워크 주소" });
   if (!isValidIpv4(network_address)) throw new ValidationError("네트워크 주소는 IPv4 형식이어야 합니다.");
   const subnet_mask = str(b, "subnet_mask", { default: "255.255.255.0" });
+  const maskError = subnetMaskError(subnet_mask);
+  if (maskError) throw new ValidationError(maskError);
   const gateway = str(b, "gateway");
   if (gateway && !isValidIpv4(gateway)) throw new ValidationError("게이트웨이는 IPv4 형식이어야 합니다.");
   const vlan_id = str(b, "vlan_id", { max: 20 });
@@ -120,15 +109,11 @@ export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
 
   // 사용중 IP가 있는 대역은 삭제 차단 — 실수로 조회 창을 잃는 것을 방지 (개수만 집계, 자산명 비노출).
   // 대역 정보가 잘못 등록된 경우는 삭제가 아니라 수정(PUT)으로 고친다.
-  const netNum = ipToNum(subnet.network_address);
-  const cidr = maskToCidr(subnet.subnet_mask);
-  const mask = (0xFFFFFFFF << (32 - cidr)) >>> 0;
-  const netStart = (netNum & mask) >>> 0;
-  const netEnd = netStart + (~mask >>> 0);
+  const range = subnetRange(subnet.network_address, subnet.subnet_mask);
   const inRange = (ip: string) => {
-    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test((ip || "").trim())) return false;
-    const n = ipToNum(ip.trim());
-    return n >= netStart && n <= netEnd;
+    if (!range || !isValidIpv4(ip || "")) return false;
+    const n = ipv4ToNum(ip);
+    return n >= range.start && n <= range.end;
   };
 
   let used = 0;

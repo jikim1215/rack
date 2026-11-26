@@ -15,7 +15,10 @@ interface RackFilterBarProps {
   setRackSearch: (val: string) => void;
   showWarningsOnly: boolean;
   setShowWarningsOnly: (val: boolean) => void;
+  /** 자산 배치(드래그·해제) 가능 — 자산관리 쓰기 권한 */
   canWrite: boolean;
+  /** 랙 추가 가능 — 랙 실장도 쓰기 권한 */
+  canAddRack: boolean;
   onOpenAddForm: () => void;
 }
 
@@ -30,6 +33,7 @@ export function RackFilterBar({
   showWarningsOnly,
   setShowWarningsOnly,
   canWrite,
+  canAddRack,
   onOpenAddForm,
 }: RackFilterBarProps) {
   // KPI 요약
@@ -121,7 +125,7 @@ export function RackFilterBar({
             className="rounded border-line" />
           이상 랙만 보기
         </label>
-        {canWrite && (
+        {canAddRack && (
           <button onClick={onOpenAddForm} className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
             <Plus size={14} /> 랙 추가
           </button>

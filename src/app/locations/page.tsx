@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
-import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
+import { scopeWhere, rackScopeWhere, locationScopeWhere, canWriteMenu } from "@/lib/authz";
 import { LocationManager } from "./LocationManager";
 import type { LocationRow, RackRow, TeamRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
@@ -47,7 +47,7 @@ export default async function LocationsPage() {
           <h2 className="text-2xl font-bold tracking-tight">위치관리</h2>
         </div>
       </div>
-      <LocationManager locations={locations} racks={racks} teams={teams} isAdmin={actor?.role === "admin"} />
+      <LocationManager locations={locations} racks={racks} teams={teams} isAdmin={actor?.role === "admin"} canWriteLocations={canWriteMenu(actor, "locations")} canWriteRacks={canWriteMenu(actor, "racks")} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 // ── 데이터 품질 패널 ──
+import Link from "next/link";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import Panel from "./Panel";
 
@@ -15,10 +16,11 @@ export default function QualityPanel({
     ? Math.round((1 - totalDefects / (totalAssets * 4)) * 100)
     : 100;
   const qualityItems = [
-    { label: "IP 미입력", count: dq.no_ip || 0, icon: AlertCircle },
-    { label: "관리자 미지정", count: dq.no_admin || 0, icon: AlertCircle },
-    { label: "랙 미배치", count: dq.no_rack || 0, icon: AlertCircle },
-    { label: "OS 미입력", count: dq.no_os || 0, icon: AlertCircle },
+    // 항목 클릭 → 자산관리 정비 필터(asset-list.ts ASSET_MISSING_FILTERS)로 바로 이동
+    { label: "IP 미입력", count: dq.no_ip || 0, href: "/assets?missing=ip" },
+    { label: "관리자 미지정", count: dq.no_admin || 0, href: "/assets?missing=admin" },
+    { label: "랙 미배치", count: dq.no_rack || 0, href: "/assets?missing=rack" },
+    { label: "OS 미입력", count: dq.no_os || 0, href: "/assets?missing=os" },
   ];
 
   return (
@@ -34,7 +36,8 @@ export default function QualityPanel({
           const pct = totalAssets > 0 ? Math.round((item.count / totalAssets) * 100) : 0;
           const isClean = item.count === 0;
           return (
-            <div key={item.label} className="flex items-center justify-between text-sm">
+            <Link key={item.label} href={item.href} title={`${item.label} 자산 모아보기`}
+              className="flex items-center justify-between text-sm rounded px-1 -mx-1 hover:bg-surface transition-colors">
               <div className="flex items-center gap-2">
                 {isClean ? (
                   <CheckCircle size={16} className="text-signal" />
@@ -47,7 +50,7 @@ export default function QualityPanel({
                 <span className={`num font-semibold ${isClean ? "text-signal" : "text-warn"}`}>{item.count}건</span>
                 <span className="num text-xs text-ink-3">({pct}%)</span>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>

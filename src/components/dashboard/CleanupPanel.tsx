@@ -50,7 +50,8 @@ export default function CleanupPanel({
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {cleanupQueue.map((q) => (
-                <div key={q.asset_id} className="flex items-center justify-between text-sm border-b border-line last:border-0 pb-1.5">
+                <Link key={q.asset_id} href={`/assets?q=${encodeURIComponent(q.asset_name)}`} title={`${q.asset_name} — 자산관리에서 열기`}
+                  className="flex items-center justify-between text-sm border-b border-line last:border-0 pb-1.5 hover:bg-surface transition-colors">
                   <div className="min-w-0">
                     <span className="truncate font-medium">{q.asset_name}</span>
                     <span className="eyebrow ml-2 text-[0.625rem]">{typeLabels[q.asset_type] || q.asset_type}</span>
@@ -62,7 +63,7 @@ export default function CleanupPanel({
                     {q.missing_rack === 1 && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-amber-50 text-warn">랙</span>}
                     {q.import_issue_count > 0 && <span className="text-[0.625rem] px-1.5 py-0.5 rounded bg-red-50 text-fault">이슈 {q.import_issue_count}</span>}
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           )}

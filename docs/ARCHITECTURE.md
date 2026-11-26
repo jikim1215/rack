@@ -28,16 +28,28 @@ src/
 │   ├── access-denied/      # 권한 부족 안내
 │   └── api/
 │       ├── health/         # 시스템 헬스체크 (/api/health)
-│       ├── auth/           # 인증 (login, logout, me, mfa, password)
-│       ├── assets/         # 자산 CRUD + 일괄등록/내보내기/현행확인/재배정
-│       ├── audit/          # 감사로그 조회 및 CSV 내보내기 (/api/audit/export)
-│       ├── users/          # 사용자 CRUD + MFA 해제 + 비번 초기화
-│       ├── frames/         # 배선반/페어 CRUD
-│       ├── racks/          # 랙 CRUD
-│       ├── locations/      # 위치 CRUD
+│       ├── auth/           # 인증 (login, logout, me, mfa, password, refresh)
+│       ├── assets/         # 자산 CRUD + 일괄등록/내보내기/양식/현행확인/재배정
 │       ├── custom-fields/  # 커스텀 필드 CRUD
-│       ├── uploads/        # 파일 서빙
-│       └── analyze-image/  # AI 분석 어댑터
+│       ├── ports/          # 자산 포트
+│       ├── sub-assets/     # 부속자산 CRUD + 일괄등록/내보내기
+│       ├── racks/          # 랙 CRUD
+│       ├── locations/      # 위치 CRUD (랙·배선반이 남은 위치는 삭제 409)
+│       ├── frames/         # 배선반/페어 CRUD, 선번장, 대향연결, 추적
+│       ├── subnets/        # IP 대역(IPAM)
+│       ├── movements/      # 반입/반출 신청·승인·완료
+│       ├── maintenance/    # 유지보수 이력 + 유지관리 대상(가져오기/내보내기)
+│       ├── contracts/      # 계약 + 자산 연결
+│       ├── vendors/        # 업체
+│       ├── inventory-audits/ # 자산실사
+│       ├── import-issues/  # 가져오기 이슈 처리
+│       ├── feedback/       # 개선의견
+│       ├── audit/          # 감사로그 조회 및 CSV 내보내기 (/api/audit/export)
+│       ├── access-logs/    # 접속로그 조회/내보내기
+│       ├── users/          # 사용자 CRUD + 일괄등록 + 장기 미사용 + MFA 해제 + 비번 초기화
+│       ├── teams/          # 팀(관리부서)
+│       ├── permissions/    # 역할별 메뉴 권한
+│       └── admin/          # 메일 설정
 ├── components/
 │   ├── Sidebar.tsx         # 사이드바 네비게이션
 │   ├── LayoutShell.tsx     # 조건부 레이아웃 (로그인 시 사이드바 제거)
@@ -55,8 +67,10 @@ src/
     ├── qr.ts               # SVG QR 코드 생성기 (ISO 18004, 패키지 0)
     ├── asset-reassign.ts   # 미배정 자산 팀 일괄 배정 로직
     ├── menus.ts            # 메뉴 권한 레지스트리 정본
-    ├── validation/         # 입력 검증 (input.ts, asset-rules.ts, upload.ts)
-    └── analyzers/          # 이미지 분석 어댑터 (types, manual, index)
+    ├── subnet.ts           # IPv4 서브넷 계산·마스크 검증 (API·IPAM 화면 공용)
+    ├── kst.ts              # KST 달력 날짜 (서버/브라우저 TZ 무관)
+    ├── movement-complete.ts # 반입 완료 시 직접입력 장비 자산 대장 자동 등록
+    └── validation/         # 입력 검증 (input.ts, asset-rules.ts, upload.ts)
 ```
 
 ---

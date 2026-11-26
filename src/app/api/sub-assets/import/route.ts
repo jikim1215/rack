@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { getActor, withApi, readFormData } from "@/lib/api-authz";
 import { assertUploadSize } from "@/lib/validation/upload";
-import { assertMenuWrite } from "@/lib/authz";
+import { assertMenuWrite, assertCanWrite, scopeWhere } from "@/lib/authz";
 import { logAudit } from "@/lib/audit";
 import { parseSubAssetWorkbook, SUBASSET_INSERT_COLUMNS } from "@/lib/subasset-import";
 
@@ -12,6 +12,7 @@ import { parseSubAssetWorkbook, SUBASSET_INSERT_COLUMNS } from "@/lib/subasset-i
 export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
   assertMenuWrite(actor, "subassets");
+  assertCanWrite(actor);
 
   const formData = await readFormData(req);
   const file = formData.get("file") as File | null;
@@ -43,7 +44,9 @@ export const POST = withApi(async (req: NextRequest) => {
   }
 
   // 상위장비명 → assets.id (동명 다수면 최소 id, 없으면 null)
-  const findParent = db.prepare("SELECT id FROM assets WHERE asset_name = ? ORDER BY id LIMIT 1");
+  //   팀은 자기 팀 자산만 부모로 연결(단건 등록의 assertCanReferenceAsset 과 동일) — 타팀 자산명은 미연결.
+  const parentScope = scopeWhere(actor, "team_id");
+  const findParent = db.prepare(`SELECT id FROM assets WHERE asset_name = ? AND ${parentScope.sql} ORDER BY id LIMIT 1`);
 
   const cols = [...SUBASSET_INSERT_COLUMNS, "parent_asset_id", "team_id"];
   const insert = db.prepare(`
@@ -56,7 +59,7 @@ export const POST = withApi(async (req: NextRequest) => {
     for (const s of subs) {
       const team_id = actor.role === "team" ? (actor.teamId ?? null) : resolveTeamId(s.team_name);
       const parent = s.parent_name
-        ? (findParent.get(s.parent_name) as { id: number } | undefined)
+        ? (findParent.get(s.parent_name, ...parentScope.params) as { id: number } | undefined)
         : undefined;
       const row: Record<string, unknown> = {};
       for (const c of SUBASSET_INSERT_COLUMNS) row[c] = s[c];

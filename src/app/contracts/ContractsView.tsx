@@ -93,11 +93,14 @@ export default function ContractsView({
   contracts: initContracts,
   teams = [],
   isAdmin = false,
+  canWrite,
 }: {
   vendors: Vendor[];
   contracts: Contract[];
   teams?: { id: number; team_name: string }[];
   isAdmin?: boolean;
+  /** 쓰기 버튼 노출 힌트(viewer·메뉴 쓰기 꺼짐이면 false). 강제는 API 가 한다. */
+  canWrite: boolean;
 }) {
   const [tab, setTab] = useState<"contracts" | "vendors">("contracts");
   const [vendors, setVendors] = useState(initVendors);
@@ -263,11 +266,13 @@ export default function ContractsView({
           </div>
 
           {/* Add Contract Button */}
-          <div className="flex justify-end mb-4">
-            <button onClick={() => setCFormOpen(!cFormOpen)} className={btnPrimary}>
-              <Plus size={16} /> 계약 등록
-            </button>
-          </div>
+          {canWrite && (
+            <div className="flex justify-end mb-4">
+              <button onClick={() => setCFormOpen(!cFormOpen)} className={btnPrimary}>
+                <Plus size={16} /> 계약 등록
+              </button>
+            </div>
+          )}
 
           {/* Contract Form */}
           {cFormOpen && (
@@ -430,9 +435,11 @@ export default function ContractsView({
                         </td>
                         <td className="px-4 py-2">{c.auto_renew ? "✓" : "-"}</td>
                         <td className="px-4 py-2">
-                          <button onClick={() => handleDeleteContract(c.id)} className="text-fault hover:bg-red-50 rounded p-1" title="삭제">
-                            <Trash2 size={15} />
-                          </button>
+                          {canWrite && (
+                            <button onClick={() => handleDeleteContract(c.id)} className="text-fault hover:bg-red-50 rounded p-1" title="삭제">
+                              <Trash2 size={15} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -447,18 +454,20 @@ export default function ContractsView({
       {tab === "vendors" && (
         <div>
           {/* Add Vendor Button */}
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => {
-                setEditingVendor(null);
-                setVForm(emptyVendor);
-                setVFormOpen(!vFormOpen);
-              }}
-              className={btnPrimary}
-            >
-              <Plus size={16} /> 업체 등록
-            </button>
-          </div>
+          {canWrite && (
+            <div className="flex justify-end mb-4">
+              <button
+                onClick={() => {
+                  setEditingVendor(null);
+                  setVForm(emptyVendor);
+                  setVFormOpen(!vFormOpen);
+                }}
+                className={btnPrimary}
+              >
+                <Plus size={16} /> 업체 등록
+              </button>
+            </div>
+          )}
 
           {/* Vendor Form */}
           {vFormOpen && (
@@ -573,12 +582,16 @@ export default function ContractsView({
                       <td className="px-4 py-2">{v.email || "-"}</td>
                       <td className="px-4 py-2">{vendorTypeLabels[v.vendor_type] || v.vendor_type}</td>
                       <td className="px-4 py-2 flex gap-2">
-                        <button onClick={() => startEditVendor(v)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-1" title="수정">
-                          <Pencil size={15} />
-                        </button>
-                        <button onClick={() => handleDeactivateVendor(v.id)} className="text-fault hover:bg-red-50 rounded p-1" title="비활성화">
-                          <Trash2 size={15} />
-                        </button>
+                        {canWrite && (
+                          <>
+                            <button onClick={() => startEditVendor(v)} className="text-ink-2 hover:text-ink hover:bg-slate-100 rounded p-1" title="수정">
+                              <Pencil size={15} />
+                            </button>
+                            <button onClick={() => handleDeactivateVendor(v.id)} className="text-fault hover:bg-red-50 rounded p-1" title="비활성화">
+                              <Trash2 size={15} />
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))

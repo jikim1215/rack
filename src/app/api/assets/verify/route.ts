@@ -13,6 +13,8 @@ const MAX_BULK = 500;
 export const POST = withApi(async (req: NextRequest) => {
   const actor = await getActor();
   assertMenuWrite(actor, "assets");
+  // 역할 쓰기 권한(viewer·팀 미배정 거부)은 대상 건수와 무관하게 먼저 강제. 팀 소유는 아래 scope 가 보장.
+  assertCanWrite(actor);
   const b = asBody(await readJson(req));
   const raw = Array.isArray(b.asset_ids) ? (b.asset_ids as unknown[]) : null;
   if (!raw || raw.length === 0) throw new ValidationError("확인할 자산을 선택하세요.");
@@ -25,8 +27,6 @@ export const POST = withApi(async (req: NextRequest) => {
   const targets = db.prepare(
     `SELECT id, asset_name, team_id, verified_at FROM assets WHERE id IN (${ids.map(() => "?").join(",")}) AND ${scope.sql}`,
   ).all(...ids, ...scope.params) as Pick<AssetRow, "id" | "asset_name" | "team_id" | "verified_at">[];
-  // 쓰기 권한(viewer 거부 등) — 첫 건으로 역할 검증, 팀 소유는 scope 가 이미 보장
-  if (targets.length > 0) assertCanWrite(actor, targets[0].team_id ?? null);
 
   const { now } = db.prepare("SELECT datetime('now','localtime') AS now").get() as { now: string };
   const upd = db.prepare("UPDATE assets SET verified_at = ?, verified_by = ? WHERE id = ?");

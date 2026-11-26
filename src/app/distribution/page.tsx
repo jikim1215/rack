@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
 import { DistributionView } from "./DistributionView";
-import { scopeWhere } from "@/lib/authz";
+import { scopeWhere, canWriteMenu } from "@/lib/authz";
 import type { DistFrameRow, FramePairRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
 export const metadata = menuTitle("distribution");
@@ -52,7 +52,7 @@ export default async function DistributionPage({ searchParams }: { searchParams:
           <h2 className="text-2xl font-bold tracking-tight">배선반 관리 (MDF/TPS)</h2>
         </div>
       </div>
-      <DistributionView frames={frames} pairs={pairs} buildings={buildings} initialFrameId={initialFrameId} />
+      <DistributionView frames={frames} pairs={pairs} buildings={buildings} initialFrameId={initialFrameId} canWrite={canWriteMenu(actor, "distribution")} />
     </div>
   );
 }

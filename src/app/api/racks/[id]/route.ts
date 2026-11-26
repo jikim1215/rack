@@ -102,7 +102,12 @@ export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
   const scope = scopeWhere(actor, "team_id");
   const affectedCount = (db.prepare(`SELECT COUNT(*) as c FROM assets WHERE rack_id = ? AND ${scope.sql}`).get(id, ...scope.params) as CountRow).c;
 
-  db.prepare("DELETE FROM racks WHERE id = ?").run(id);
+  // FK ON DELETE SET NULL 은 rack_id 만 비운다 — 슬롯 좌표(시작U·좌우)도 함께 지워 미실장 자산에 잔존값이 남지 않게 한다.
+  //   rack_unit_size 는 장비 고유 크기라 유지.
+  db.transaction(() => {
+    db.prepare("UPDATE assets SET rack_id = NULL, rack_unit_start = NULL, rack_side = NULL WHERE rack_id = ?").run(id);
+    db.prepare("DELETE FROM racks WHERE id = ?").run(id);
+  })();
 
   logAudit(db, {
     entityType: "rack", entityId: id, entityName: existing.rack_name || "",

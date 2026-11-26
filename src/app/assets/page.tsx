@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
 import { AssetTable } from "./AssetTable";
-import { rackScopeWhere } from "@/lib/authz";
+import { rackScopeWhere, canWriteMenu } from "@/lib/authz";
 import { listAssets, ASSET_MISSING_FILTERS, type AssetMissingFilter } from "@/lib/asset-list";
 import type { RackRow, CustomFieldRow, TeamRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
@@ -48,7 +48,7 @@ export default async function AssetsPage({ searchParams }: { searchParams: Promi
           <h2 className="text-2xl font-bold tracking-tight">자산관리</h2>
         </div>
       </div>
-      <AssetTable assets={assets} total={list.total} racks={racks} customFields={customFields} customValuesMap={cvMap} teams={teams} isAdmin={actor?.role === "admin"} initialRackId={sp.rack_id ?? null} initialMissing={sp.missing ?? null} initialSearch={sp.q ?? null} />
+      <AssetTable assets={assets} total={list.total} racks={racks} customFields={customFields} customValuesMap={cvMap} teams={teams} isAdmin={actor?.role === "admin"} canWrite={canWriteMenu(actor, "assets")} initialRackId={sp.rack_id ?? null} initialMissing={sp.missing ?? null} initialSearch={sp.q ?? null} />
     </div>
   );
 }

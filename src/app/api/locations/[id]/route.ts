@@ -60,6 +60,25 @@ export const DELETE = withApi(async (_req: NextRequest, { params }: Ctx) => {
   const existing = db.prepare("SELECT * FROM locations WHERE id = ?").get(id) as LocationRow | undefined;
   if (!existing) return NextResponse.json({ error: "위치를 찾을 수 없습니다." }, { status: 404 });
   assertCanDelete(actor, existing.team_id ?? null);
+  // 랙·배선반은 FK CASCADE 로 함께 삭제된다(타팀 소유 랙·배선 포함, 실장 자산 배치 유실). 암묵 연쇄 삭제를
+  //   막기 위해 빈 위치만 삭제한다 — 남아 있으면 409 로 건수를 알려 먼저 이동/삭제하게 한다.
+  const deps = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM racks WHERE location_id = @id) AS racks,
+      (SELECT COUNT(*) FROM assets a JOIN racks r ON a.rack_id = r.id WHERE r.location_id = @id) AS assets,
+      (SELECT COUNT(*) FROM dist_frames WHERE location_id = @id) AS frames
+  `).get({ id }) as { racks: number; assets: number; frames: number };
+  if (deps.racks > 0 || deps.frames > 0) {
+    const parts = [
+      deps.racks > 0 ? `랙 ${deps.racks}개` : "",
+      deps.assets > 0 ? `실장 자산 ${deps.assets}대` : "",
+      deps.frames > 0 ? `배선반 ${deps.frames}개` : "",
+    ].filter(Boolean).join(", ");
+    return NextResponse.json(
+      { error: `이 위치에 ${parts}가 남아 있어 삭제할 수 없습니다. 먼저 다른 위치로 옮기거나 삭제하세요.`, ...deps },
+      { status: 409 },
+    );
+  }
   db.prepare("DELETE FROM locations WHERE id = ?").run(id);
   logAudit(db, { entityType: "location", entityId: id, entityName: existing.location_name, action: "delete", changedBy: actor.username, oldData: existing });
   return NextResponse.json({ ok: true });

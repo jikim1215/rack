@@ -34,7 +34,11 @@ interface Rack {
   owner_team_name?: string | null;
 }
 
-export function LocationManager({ locations: initLocs, racks: initRacks, teams = [], isAdmin = false }: { locations: Location[]; racks: Rack[]; teams?: { id: number; team_name: string }[]; isAdmin?: boolean }) {
+export function LocationManager({ locations: initLocs, racks: initRacks, teams = [], isAdmin = false, canWriteLocations, canWriteRacks }: {
+  locations: Location[]; racks: Rack[]; teams?: { id: number; team_name: string }[]; isAdmin?: boolean;
+  /** 쓰기 버튼 노출 힌트 — 위치는 locations, 랙은 racks 메뉴 쓰기 권한(강제는 API). */
+  canWriteLocations: boolean; canWriteRacks: boolean;
+}) {
   const { addToast } = useToast();
   const [locations, setLocations] = useState(initLocs);
   const [racks, setRacks] = useState(initRacks);
@@ -91,7 +95,7 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
 
   function deleteLoc(id: number) {
     setConfirmDialog({
-      message: "위치와 소속 랙이 모두 삭제됩니다. 계속하시겠습니까?",
+      message: "위치를 삭제하시겠습니까? 랙·배선반이 남아 있으면 삭제되지 않습니다(먼저 이동하거나 삭제).",
       onConfirm: async () => {
         setConfirmDialog(null);
         const res = await fetch(`/api/locations/${id}`, { method: "DELETE" });
@@ -173,11 +177,12 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-lg flex items-center gap-2"><MapPin size={18} /> 위치 목록 <span className="text-xs font-normal text-ink-3 ml-1">— 클릭하면 우측 랙이 필터됩니다</span></h3>
-          <button onClick={() => { setShowLocForm(true); setEditLocId(null); setLocForm({ location_name: "", building: "", floor: "", room: "", team_id: "" }); }}
-
-            className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
-            <Plus size={14} /> 추가
-          </button>
+          {canWriteLocations && (
+            <button onClick={() => { setShowLocForm(true); setEditLocId(null); setLocForm({ location_name: "", building: "", floor: "", room: "", team_id: "" }); }}
+              className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
+              <Plus size={14} /> 추가
+            </button>
+          )}
         </div>
 
         {showLocForm && (
@@ -228,12 +233,12 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
                     : <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-ink-3">공유</span>}
                 </div>
               </div>
-              <div className="flex gap-1 text-xs" onClick={(e) => e.stopPropagation()}>
+              {canWriteLocations && <div className="flex gap-1 text-xs" onClick={(e) => e.stopPropagation()}>
                 <button onClick={() => { setEditLocId(loc.id); setLocForm({ location_name: loc.location_name, building: loc.building, floor: loc.floor, room: loc.room, team_id: loc.team_id ?? "" }); setShowLocForm(true); }}
                   className="flex items-center gap-1 px-2 py-1 text-ink-2 hover:text-ink hover:bg-surface rounded"><Pencil size={12} /> 수정</button>
                 <button onClick={() => deleteLoc(loc.id)}
                   className="flex items-center gap-1 px-2 py-1 text-fault hover:bg-red-50/10 rounded"><Trash2 size={12} /> 삭제</button>
-              </div>
+              </div>}
             </div>
           ))}
           {locations.length === 0 && (
@@ -259,11 +264,12 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
               </>
             ) : "전체 랙 목록"}
           </h3>
-          <button onClick={() => { if (locations.length === 0) { addToast("먼저 위치를 등록하세요. 랙은 위치에 소속됩니다.", "error"); return; } setShowRackForm(true); setEditRackId(null); setRackForm({ location_id: selectedLocId || lastRackDefaults.location_id || locations[0]?.id || 0, rack_name: "", total_units: lastRackDefaults.total_units || 42, description: lastRackDefaults.description, team_id: "" }); requestAnimationFrame(() => rackNameRef.current?.focus()); }}
-
-            className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
-            <Plus size={14} /> 추가
-          </button>
+          {canWriteRacks && (
+            <button onClick={() => { if (locations.length === 0) { addToast("먼저 위치를 등록하세요. 랙은 위치에 소속됩니다.", "error"); return; } setShowRackForm(true); setEditRackId(null); setRackForm({ location_id: selectedLocId || lastRackDefaults.location_id || locations[0]?.id || 0, rack_name: "", total_units: lastRackDefaults.total_units || 42, description: lastRackDefaults.description, team_id: "" }); requestAnimationFrame(() => rackNameRef.current?.focus()); }}
+              className="btn-ink flex items-center gap-1 px-3 py-1.5 text-sm">
+              <Plus size={14} /> 추가
+            </button>
+          )}
         </div>
 
         {showRackForm && (
@@ -335,14 +341,14 @@ export function LocationManager({ locations: initLocs, racks: initRacks, teams =
                     </div>
                   </div>
                   <div className="flex gap-1 text-xs">
-                    <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, rack_name: rack.rack_name, total_units: rack.total_units, description: rack.description, team_id: rack.team_id ?? "" }); setShowRackForm(true); }}
-                      className="flex items-center gap-1 px-2 py-1 text-ink-2 hover:text-ink hover:bg-surface rounded"><Pencil size={12} /> 수정</button>
+                    {canWriteRacks && <button onClick={() => { setEditRackId(rack.id); setRackForm({ location_id: rack.location_id, rack_name: rack.rack_name, total_units: rack.total_units, description: rack.description, team_id: rack.team_id ?? "" }); setShowRackForm(true); }}
+                      className="flex items-center gap-1 px-2 py-1 text-ink-2 hover:text-ink hover:bg-surface rounded"><Pencil size={12} /> 수정</button>}
                     <button onClick={async () => {
                       const logs = await fetchAuditLogs("rack", rack.id);
                       if (logs) { setAuditLogs(logs); setAuditRackName(rack.rack_name); }
                     }} className="flex items-center gap-1 px-2 py-1 text-ink-2 hover:text-ink hover:bg-surface rounded"><History size={12} /> 이력</button>
-                    <button onClick={() => deleteRack(rack.id)}
-                      className="flex items-center gap-1 px-2 py-1 text-fault hover:bg-red-50/10 rounded"><Trash2 size={12} /> 삭제</button>
+                    {canWriteRacks && <button onClick={() => deleteRack(rack.id)}
+                      className="flex items-center gap-1 px-2 py-1 text-fault hover:bg-red-50/10 rounded"><Trash2 size={12} /> 삭제</button>}
                   </div>
                 </div>
                 <div className="mt-2 h-1.5 bg-slate-100 rounded-full overflow-hidden">

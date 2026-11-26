@@ -295,6 +295,16 @@ export function assertCanWrite(
   deny(actor, "Forbidden");
 }
 
+/**
+ * 화면의 쓰기 버튼 노출 힌트 — 서버 assertMenuWrite + assertCanWrite(소유팀 미지정) 와 같은 판정.
+ * viewer·팀 미배정 team·메뉴 쓰기가 꺼진 역할은 false. 실제 강제는 여전히 API 가 한다.
+ */
+export function canWriteMenu(actor: Actor | null, menuKey: string): boolean {
+  if (!actor || !menuPermission(actor, menuKey).write) return false;
+  if (actor.role === "admin") return true;
+  return actor.role === "team" && actor.teamId != null;
+}
+
 /** 삭제 권한 강제 (쓰기와 동일 정책). */
 export function assertCanDelete(
   actor: Actor | null,

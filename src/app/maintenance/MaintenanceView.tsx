@@ -12,9 +12,11 @@ interface Props {
   targets: Target[];
   assets: AssetOption[];
   vendors: VendorOption[];
+  canWrite: boolean;
+  isAdmin: boolean;
 }
 
-export default function MaintenanceView({ logs: initialLogs, targets: initialTargets, assets, vendors }: Props) {
+export default function MaintenanceView({ logs: initialLogs, targets: initialTargets, assets, vendors, canWrite, isAdmin }: Props) {
   const [tab, setTab] = useState<"logs" | "targets">("logs");
   const [logs, setLogs] = useState(initialLogs);
   const [targets, setTargets] = useState(initialTargets);
@@ -43,10 +45,10 @@ export default function MaintenanceView({ logs: initialLogs, targets: initialTar
 
       {/* 탭은 상시 마운트하고 hidden 으로 토글해, 전환 시에도 각 탭의 로컬 state(검색어/필터/폼)를 보존한다. */}
       <div className={tab === "logs" ? "" : "hidden"}>
-        <LogsTab logs={logs} onLogsChange={setLogs} assets={assets} vendors={vendors} />
+        <LogsTab logs={logs} onLogsChange={setLogs} assets={assets} vendors={vendors} canWrite={canWrite} />
       </div>
       <div className={tab === "targets" ? "" : "hidden"}>
-        <TargetsTab targets={targets} onTargetsChange={setTargets} assets={assets} />
+        <TargetsTab targets={targets} onTargetsChange={setTargets} assets={assets} canWrite={canWrite} isAdmin={isAdmin} />
       </div>
     </div>
   );

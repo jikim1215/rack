@@ -21,6 +21,7 @@ export function RackView({
   unplacedAssets = [],
   distFrames = [],
   canWrite = false,
+  canAddRack = false,
   teams = [],
   isAdmin = false,
 }: {
@@ -29,7 +30,10 @@ export function RackView({
   assets: Asset[];
   unplacedAssets?: Asset[];
   distFrames?: DistFrame[];
+  /** 자산 배치(드래그·해제) — 자산관리 쓰기 권한(PATCH /api/assets) */
   canWrite?: boolean;
+  /** 랙 추가 — 랙 실장도 쓰기 권한(POST /api/racks) */
+  canAddRack?: boolean;
   teams?: Team[];
   isAdmin?: boolean;
 }) {
@@ -67,10 +71,11 @@ export function RackView({
         showWarningsOnly={showWarningsOnly}
         setShowWarningsOnly={setShowWarningsOnly}
         canWrite={canWrite}
+        canAddRack={canAddRack}
         onOpenAddForm={rackAdd.openAddForm}
       />
 
-      {rackAdd.showAddForm && canWrite && (
+      {rackAdd.showAddForm && canAddRack && (
         <RackAddForm
           locations={locations}
           teams={teams}

@@ -8,6 +8,7 @@ import { UsageGuide } from "@/components/UsageGuide";
 
 import { pressable } from "@/lib/a11y";
 import { useEscape } from "@/lib/use-escape";
+import { ipv4ToNum, maskToPrefix, prefixToMaskNum } from "@/lib/subnet";
 interface Subnet {
   id: number;
   subnet_name: string;
@@ -54,16 +55,11 @@ export function lowerBound(sorted: number[], x: number): number {
   return lo;
 }
 
-function ipToNum(ip: string): number {
-  return ip.split(".").reduce((acc, o) => (acc << 8) + Number(o), 0) >>> 0;
-}
+const ipToNum = ipv4ToNum;
 
+// 잘못된 마스크(검증 도입 전 저장분)는 단일 호스트(/32)로 취급 — 격자가 폭주하지 않게.
 function maskToCidr(mask: string): number {
-  const n = ipToNum(mask);
-  let bits = 0;
-  let v = n;
-  while (v & 0x80000000) { bits++; v = (v << 1) >>> 0; }
-  return bits;
+  return maskToPrefix(mask) ?? 32;
 }
 
 function numToIp(num: number): string {
@@ -78,11 +74,14 @@ function subnetGroupKey(s: { location_name: string | null; network_address: stri
   return oc.length >= 2 && oc[0] ? `${oc[0]}.${oc[1]}.x 대역` : "기타";
 }
 
-export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, teams = [], isAdmin = false }: {
+export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, canWriteSubnets, teams = [], isAdmin = false }: {
   subnets: Subnet[];
   assetIps: AssetIp[];
   locations: Location[];
+  /** 자산 대표 IP 수정 — 자산관리 쓰기 권한(PATCH /api/assets) */
   canWrite: boolean;
+  /** 서브넷 추가·수정·삭제 — IP관리 쓰기 권한(/api/subnets) */
+  canWriteSubnets: boolean;
   teams?: { id: number; team_name: string }[];
   isAdmin?: boolean;
 }) {
@@ -165,8 +164,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
   function isCoveredByRegistered(ipNum: number): boolean {
     for (const s of subnets) {
       const net = ipToNum(s.network_address);
-      const cidr = maskToCidr(s.subnet_mask);
-      const mask = (0xFFFFFFFF << (32 - cidr)) >>> 0;
+      const mask = prefixToMaskNum(maskToCidr(s.subnet_mask));
       const start = (net & mask) >>> 0;
       const end = start + (~mask >>> 0);
       if (ipNum >= start && ipNum <= end) return true;
@@ -215,8 +213,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
   // 서브넷별 IP 사용 매핑
   function getSubnetIps(subnet: Subnet) {
     const netNum = ipToNum(subnet.network_address);
-    const cidr = maskToCidr(subnet.subnet_mask);
-    const mask = (0xFFFFFFFF << (32 - cidr)) >>> 0;
+    const mask = prefixToMaskNum(maskToCidr(subnet.subnet_mask));
     // & 는 32비트 부호있는 연산이라 첫 옥텟 ≥128(172/192/211.x 등) 대역에서 음수가 된다 → >>>0 로 부호없는 정규화.
     const netStart = (netNum & mask) >>> 0;
     const count = ~mask >>> 0;
@@ -526,7 +523,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                             >
                               <div className="flex items-center justify-between">
                                 <div className="font-medium truncate">{s.subnet_name}</div>
-                                <span className="flex items-center gap-0.5 shrink-0">
+                                {canWriteSubnets && <span className="flex items-center gap-0.5 shrink-0">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); startEditSubnet(s); }}
                                     className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 hover:bg-slate-200 rounded p-0.5"
@@ -541,7 +538,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                                   >
                                     <Trash2 className="w-3 h-3" />
                                   </button>
-                                </span>
+                                </span>}
                               </div>
                               <div className="text-xs num">{s.network_address}/{cidr}
                                 {s.owner_team_name && <span className="ml-1 font-sans not-italic text-[10px] px-1 py-0.5 rounded bg-indigo-100 text-indigo-700">{s.owner_team_name}</span>}
@@ -579,7 +576,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                         >
                           <div className="flex items-center justify-between">
                             <div className="font-medium truncate num">{s.network_address}/24</div>
-                            {canWrite && (
+                            {canWriteSubnets && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); prefillRegister(s); }}
                                 className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 shrink-0"
@@ -598,7 +595,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
           </div>
 
           {/* 추가/수정 폼 (editingId 있으면 수정 모드) */}
-          <div className="panel p-3">
+          {canWriteSubnets && <div className="panel p-3">
             <h3 className="font-semibold text-sm mb-3 flex items-center gap-1 text-ink">
               {editingId != null ? <><Pencil className="w-4 h-4" /> 서브넷 수정</> : <><Plus className="w-4 h-4" /> 서브넷 추가</>}
             </h3>
@@ -673,7 +670,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                 )}
               </div>
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* 우측: IP 격자 */}
@@ -688,7 +685,7 @@ export function IpamView({ subnets: initSubnets, assetIps, locations, canWrite, 
                 {selectedSubnet._detected && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-warn font-medium">미등록 자동 감지</span>
                 )}
-                {selectedSubnet._detected && canWrite && (
+                {selectedSubnet._detected && canWriteSubnets && (
                   <button onClick={() => prefillRegister(selectedSubnet)} className="ml-auto btn-ink text-xs px-2.5 py-1">이 대역 등록</button>
                 )}
               </h3>

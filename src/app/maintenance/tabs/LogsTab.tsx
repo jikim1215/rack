@@ -22,9 +22,11 @@ interface Props {
   onLogsChange: (logs: Log[]) => void;
   assets: AssetOption[];
   vendors: VendorOption[];
+  /** 쓰기 버튼 노출 힌트. 강제는 API 가 한다. */
+  canWrite: boolean;
 }
 
-export function LogsTab({ logs, onLogsChange, assets, vendors }: Props) {
+export function LogsTab({ logs, onLogsChange, assets, vendors, canWrite }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState("");
@@ -139,13 +141,15 @@ export function LogsTab({ logs, onLogsChange, assets, vendors }: Props) {
           <option value="in_progress">진행중</option>
           <option value="resolved">해결</option>
         </select>
-        <button
-          className="btn-ink flex items-center gap-1 px-4 py-2 text-sm"
-          onClick={() => setShowForm(!showForm)}
-        >
-          {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showForm ? "취소" : "등록"}
-        </button>
+        {canWrite && (
+          <button
+            className="btn-ink flex items-center gap-1 px-4 py-2 text-sm"
+            onClick={() => setShowForm(!showForm)}
+          >
+            {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            {showForm ? "취소" : "등록"}
+          </button>
+        )}
       </div>
 
       {/* 등록 폼 */}
@@ -198,7 +202,7 @@ export function LogsTab({ logs, onLogsChange, assets, vendors }: Props) {
                   <td className="px-3 py-2 num text-ink-3">{l.occurred_at ? l.occurred_at.slice(0, 10) : "-"}</td>
                   <td className="px-3 py-2 text-ink-3">{l.handled_by || l.reported_by || "-"}</td>
                   <td className="px-3 py-2">
-                    <div className="flex items-center gap-1">
+                    {canWrite && <div className="flex items-center gap-1">
                       {l.status === "open" && (
                         <button
                           className="px-2 py-1 bg-amber-50 text-warn rounded text-xs hover:bg-amber-100"
@@ -215,7 +219,7 @@ export function LogsTab({ logs, onLogsChange, assets, vendors }: Props) {
                         className="px-2 py-1 text-fault rounded text-xs hover:bg-red-50"
                         onClick={() => handleDelete(l.id)}
                       >삭제</button>
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               );

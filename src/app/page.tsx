@@ -14,6 +14,7 @@ import CleanupPanel from "@/components/dashboard/CleanupPanel";
 import FreshnessPanel from "@/components/dashboard/FreshnessPanel";
 import { MovementsPanel, MaintenancePanel, ContractsPanel, RecentAssetsPanel } from "@/components/dashboard/ActivityPanels";
 import { menuTitle } from "@/lib/menus";
+import { kstDate } from "@/lib/kst";
 // 루트 레이아웃과 같은 세그먼트라 title.template 이 적용되지 않는다 → 전체 제목을 absolute 로 직접 둔다.
 export const metadata = { title: { absolute: `${menuTitle("dashboard").title} · 정보시스템 자산관리` } };
 
@@ -22,9 +23,9 @@ export default async function DashboardPage() {
   const actor = await requireMenuPage("dashboard");
   const isAdmin = actor.role === "admin";
   const stats = getDashboardStats(getDb(), actor);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = kstDate();
   // 기준 시각 (외부 검토 P1-1 합의): 대시보드는 조회 시점 스냅샷 — 새로고침해야 갱신됨을 명시
-  const asOf = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const asOf = new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Seoul" });
 
   const statusCount = (s: string) => stats.byStatus.find((x) => x.status === s)?.c ?? 0;
   const dqx = stats.dataQuality || { no_ip: 0, no_rack: 0 };

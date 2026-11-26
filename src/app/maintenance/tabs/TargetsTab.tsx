@@ -13,9 +13,13 @@ interface Props {
   targets: Target[];
   onTargetsChange: (targets: Target[]) => void;
   assets: AssetOption[];
+  /** 쓰기 버튼 노출 힌트. 강제는 API 가 한다. */
+  canWrite: boolean;
+  /** 전체 교체 가져오기는 총괄 전용(서버도 403). */
+  isAdmin: boolean;
 }
 
-export function TargetsTab({ targets, onTargetsChange, assets }: Props) {
+export function TargetsTab({ targets, onTargetsChange, assets, canWrite, isAdmin }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<TargetFormValues>(emptyTarget);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -155,8 +159,9 @@ export function TargetsTab({ targets, onTargetsChange, assets }: Props) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    const replace = confirm(
-      "가져오기 방식을 선택하세요.\n\n확인 = 기존 유지관리 대상을 모두 지우고 교체\n취소 = 기존 목록에 추가"
+    // 전체 교체는 전 부서 대상을 지우므로 총괄만 선택할 수 있다. 팀은 항상 추가.
+    const replace = isAdmin && confirm(
+      "가져오기 방식을 선택하세요.\n\n확인 = 기존 유지관리 대상(전 부서)을 모두 지우고 교체\n취소 = 기존 목록에 추가"
     );
     setImporting(true);
     try {
@@ -211,19 +216,23 @@ export function TargetsTab({ targets, onTargetsChange, assets }: Props) {
         >
           <Download className="h-4 w-4" /> 익스포트
         </button>
-        <label className="flex items-center gap-1 px-3 py-2 text-sm border border-line rounded-lg text-ink-2 hover:bg-slate-100 cursor-pointer">
-          <Upload className="h-4 w-4" /> {importing ? "가져오는 중..." : "임포트"}
-          <input
-            type="file"
-            accept=".xlsx"
-            className="hidden"
-            disabled={importing}
-            onChange={handleImport}
-          />
-        </label>
-        <button className="btn-ink flex items-center gap-1 px-4 py-2 text-sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> 대상 등록
-        </button>
+        {canWrite && (
+          <>
+            <label className="flex items-center gap-1 px-3 py-2 text-sm border border-line rounded-lg text-ink-2 hover:bg-slate-100 cursor-pointer">
+              <Upload className="h-4 w-4" /> {importing ? "가져오는 중..." : "임포트"}
+              <input
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                disabled={importing}
+                onChange={handleImport}
+              />
+            </label>
+            <button className="btn-ink flex items-center gap-1 px-4 py-2 text-sm" onClick={openCreate}>
+              <Plus className="h-4 w-4" /> 대상 등록
+            </button>
+          </>
+        )}
       </div>
 
       {/* 등록/수정 폼 */}
@@ -266,14 +275,14 @@ export function TargetsTab({ targets, onTargetsChange, assets }: Props) {
                 <td className="px-3 py-2">{t.grade || "-"}</td>
                 <td className="px-3 py-2 num text-right">{formatAmount(t.estimated_amount_input || t.estimated_amount_calc)}</td>
                 <td className="px-3 py-2">
-                  <div className="flex items-center gap-1">
+                  {canWrite && <div className="flex items-center gap-1">
                     <button className="px-2 py-1 text-ink-2 rounded text-xs hover:bg-slate-100" onClick={() => openEdit(t)} title="수정">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button className="px-2 py-1 text-fault rounded text-xs hover:bg-red-50" onClick={() => handleDelete(t.id)} title="삭제">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
-                  </div>
+                  </div>}
                 </td>
               </tr>
             ))}

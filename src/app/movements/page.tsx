@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
-import { scopeWhere } from "@/lib/authz";
+import { scopeWhere, canWriteMenu, menuPermission } from "@/lib/authz";
 import MovementsView from "./MovementsView";
 import type { MovementRow, AssetRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
@@ -38,7 +38,9 @@ export default async function MovementsPage() {
           <h2 className="text-2xl font-bold tracking-tight">반입/반출</h2>
         </div>
       </div>
-      <MovementsView movements={movements} assets={assets} />
+      <MovementsView movements={movements} assets={assets}
+        canWrite={canWriteMenu(actor, "movements")}
+        canApprove={canWriteMenu(actor, "movements") && menuPermission(actor, "movements").approve} />
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  menuPermission, assertMenuAccess, assertMenuWrite, assertMenuApprove, AuthzError, actorFromSession,
+  menuPermission, assertMenuAccess, assertMenuWrite, assertMenuApprove, AuthzError, actorFromSession, canWriteMenu,
 } from "../src/lib/authz.ts";
 import type { Actor } from "../src/lib/authz.ts";
 import { MENUS } from "../src/lib/menus.ts";
@@ -76,4 +76,20 @@ test("actorFromSession 은 perms 를 그대로 싣는다 (기본 빈 객체)", (
     { assets: { access: true, write: false, approve: false } },
   );
   assert.equal(b?.perms.assets?.write, false);
+});
+
+test("canWriteMenu: 화면 쓰기 버튼 힌트 = 메뉴 쓰기 권한 ∧ 역할 쓰기 가능(서버 assertMenuWrite+assertCanWrite 와 동일)", () => {
+  for (const m of MENUS.filter((x) => x.writable)) assert.equal(canWriteMenu(admin, m.key), true, m.key);
+  assert.equal(canWriteMenu(teamNoRows, "assets"), true);
+  assert.equal(canWriteMenu(teamNoRows, "racks"), false, "team 기본 랙 쓰기 없음");
+  assert.equal(canWriteMenu(teamNoRows, "locations"), false);
+  assert.equal(canWriteMenu(teamRows, "contracts"), true, "DB 행으로 열어준 쓰기");
+  assert.equal(canWriteMenu(teamRows, "assets"), false, "접근 꺼짐 → 쓰기 없음");
+  // viewer 는 메뉴 쓰기가 열려 있어도(총괄 설정 실수) 역할상 쓰기 불가 — assertCanWrite 와 일치
+  const viewerOpened: Actor = { ...viewer, perms: { assets: { access: true, write: true, approve: false } } };
+  assert.equal(canWriteMenu(viewerOpened, "assets"), false);
+  assert.equal(canWriteMenu(viewer, "feedback"), false, "개선의견은 메뉴 별도 정책 — 이 힌트 대상 아님");
+  const unassigned: Actor = { ...teamNoRows, teamId: null };
+  assert.equal(canWriteMenu(unassigned, "assets"), false, "팀 미배정 team 쓰기 불가");
+  assert.equal(canWriteMenu(null, "assets"), false);
 });

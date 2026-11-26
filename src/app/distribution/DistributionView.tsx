@@ -87,9 +87,11 @@ interface Props {
   pairs: Pair[];
   buildings: string[];
   initialFrameId?: number | null;
+  /** 쓰기 버튼 노출 힌트(배선관리 메뉴 쓰기 권한). 강제는 API 가 한다. */
+  canWrite: boolean;
 }
 
-export function DistributionView({ frames, pairs: initialPairs, buildings, initialFrameId = null }: Props) {
+export function DistributionView({ frames, pairs: initialPairs, buildings, initialFrameId = null, canWrite }: Props) {
   const [selectedBuilding, setSelectedBuilding] = useState<string | null>(null);
   const [selectedFloor, setSelectedFloor] = useState<string | null>(null);
   const [selectedFrame, setSelectedFrame] = useState<number | null>(
@@ -445,10 +447,12 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
           className="flex items-center gap-1 border border-line px-2.5 py-1.5 rounded text-xs hover:bg-slate-100 text-ink-2 hover:text-ink">
           <Download size={12} /> 프레임 양식
         </a>
-        <button onClick={() => bulkUploadRef.current?.click()} disabled={bulkUploading}
-          className="flex items-center gap-1 border border-line px-2.5 py-1.5 rounded text-xs hover:bg-slate-100 text-ink-2 hover:text-ink disabled:opacity-50">
-          <Upload size={12} /> {bulkUploading ? "등록중..." : "프레임 일괄 등록"}
-        </button>
+        {canWrite && (
+          <button onClick={() => bulkUploadRef.current?.click()} disabled={bulkUploading}
+            className="flex items-center gap-1 border border-line px-2.5 py-1.5 rounded text-xs hover:bg-slate-100 text-ink-2 hover:text-ink disabled:opacity-50">
+            <Upload size={12} /> {bulkUploading ? "등록중..." : "프레임 일괄 등록"}
+          </button>
+        )}
         <input ref={bulkUploadRef} type="file" accept=".xlsx" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFramesBulk(f); }} />
       </div>
@@ -618,10 +622,12 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                     className="flex items-center gap-1 border border-line px-2 py-1 rounded hover:bg-slate-100 text-ink-2 hover:text-ink">
                     <Download size={12} /> 선번장
                   </a>
-                  <button onClick={() => uploadRef.current?.click()} disabled={uploading}
-                    className="flex items-center gap-1 border border-line px-2 py-1 rounded hover:bg-slate-100 text-ink-2 hover:text-ink disabled:opacity-50">
-                    <Upload size={12} /> {uploading ? "반영중..." : "업로드"}
-                  </button>
+                  {canWrite && (
+                    <button onClick={() => uploadRef.current?.click()} disabled={uploading}
+                      className="flex items-center gap-1 border border-line px-2 py-1 rounded hover:bg-slate-100 text-ink-2 hover:text-ink disabled:opacity-50">
+                      <Upload size={12} /> {uploading ? "반영중..." : "업로드"}
+                    </button>
+                  )}
                   <input ref={uploadRef} type="file" accept=".xlsx" className="hidden"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLedger(f); }} />
                 </div>
@@ -716,7 +722,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
               <div>
                 <label className="block text-xs font-medium text-ink-2 mb-1">상태</label>
                 <select aria-label="상태"
-                  className="form-input w-full"
+                  className="form-input w-full" disabled={!canWrite}
                   value={editingPair.status}
                   onChange={(e) => setEditingPair({ ...editingPair, status: e.target.value })}
                 >
@@ -728,7 +734,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
               <div>
                 <label className="block text-xs font-medium text-ink-2 mb-1">라벨</label>
                 <input aria-label="라벨"
-                  className="form-input w-full"
+                  className="form-input w-full" disabled={!canWrite}
                   value={editingPair.label}
                   onChange={(e) => setEditingPair({ ...editingPair, label: e.target.value })}
                 />
@@ -738,7 +744,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                   <label className="block text-xs font-medium text-ink-2 mb-1">코어/회선번호</label>
                   <input aria-label="코어/회선번호"
                     type="number"
-                    className="form-input w-full"
+                    className="form-input w-full" disabled={!canWrite}
                     value={editingPair.core_number ?? ""}
                     onChange={(e) => setEditingPair({ ...editingPair, core_number: e.target.value === "" ? null : Number(e.target.value) })}
                   />
@@ -746,7 +752,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                 <div>
                   <label className="block text-xs font-medium text-ink-2 mb-1">케이블 ID</label>
                   <input aria-label="케이블 ID"
-                    className="form-input w-full"
+                    className="form-input w-full" disabled={!canWrite}
                     value={editingPair.cable_id}
                     onChange={(e) => setEditingPair({ ...editingPair, cable_id: e.target.value })}
                   />
@@ -756,7 +762,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                 <div>
                   <label className="block text-xs font-medium text-ink-2 mb-1">소스</label>
                   <input aria-label="소스"
-                    className="form-input w-full"
+                    className="form-input w-full" disabled={!canWrite}
                     value={editingPair.source}
                     onChange={(e) => setEditingPair({ ...editingPair, source: e.target.value })}
                   />
@@ -764,7 +770,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                 <div>
                   <label className="block text-xs font-medium text-ink-2 mb-1">목적지</label>
                   <input aria-label="목적지"
-                    className="form-input w-full"
+                    className="form-input w-full" disabled={!canWrite}
                     value={editingPair.destination}
                     onChange={(e) => setEditingPair({ ...editingPair, destination: e.target.value })}
                   />
@@ -778,11 +784,15 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                     <span className="font-medium">{editingPair.linked_frame_name} <span className="num">#{editingPair.linked_pair_number}</span></span>
                     <button onClick={() => jumpToPair(editingPair.linked_frame_id)}
                       className="text-xs text-signal hover:underline flex items-center gap-0.5">이동 <ArrowRight size={10} /></button>
-                    <button onClick={() => unlinkPair(editingPair)} disabled={linking}
-                      className="ml-auto text-xs text-fault hover:underline flex items-center gap-0.5 disabled:opacity-50">
-                      <Unlink size={10} /> 해제
-                    </button>
+                    {canWrite && (
+                      <button onClick={() => unlinkPair(editingPair)} disabled={linking}
+                        className="ml-auto text-xs text-fault hover:underline flex items-center gap-0.5 disabled:opacity-50">
+                        <Unlink size={10} /> 해제
+                      </button>
+                    )}
                   </div>
+                ) : !canWrite ? (
+                  <p className="text-xs text-ink-3">연결 없음</p>
                 ) : editingPair.id ? (
                   <div className="flex items-center gap-2">
                     <select aria-label="대향 배선반" value={linkFrameId} onChange={(e) => setLinkFrameId(e.target.value ? Number(e.target.value) : "")}
@@ -805,7 +815,7 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
               <div>
                 <label className="block text-xs font-medium text-ink-2 mb-1">사용자 정보</label>
                 <input aria-label="사용자 정보"
-                  className="form-input w-full"
+                  className="form-input w-full" disabled={!canWrite}
                   value={editingPair.user_info}
                   onChange={(e) => setEditingPair({ ...editingPair, user_info: e.target.value })}
                 />
@@ -817,16 +827,18 @@ export function DistributionView({ frames, pairs: initialPairs, buildings, initi
                 onClick={() => setEditingPair(null)}
                 className="px-4 py-2 text-sm text-ink-2 border border-line rounded-lg hover:text-ink hover:bg-slate-100"
               >
-                취소
+                {canWrite ? "취소" : "닫기"}
               </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="btn-ink flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5" />
-                {saving ? "저장중..." : "저장"}
-              </button>
+              {canWrite && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="btn-ink flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {saving ? "저장중..." : "저장"}
+                </button>
+              )}
             </div>
           </div>
         </div>

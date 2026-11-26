@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
-import { scopeWhere, locationScopeWhere } from "@/lib/authz";
+import { scopeWhere, locationScopeWhere, canWriteMenu } from "@/lib/authz";
 import { IpamView } from "./IpamView";
 import { splitAccessIps } from "@/lib/access-ip";
 import type { SubnetRow, LocationRow, TeamRow } from "@/lib/db-types";
@@ -77,7 +77,7 @@ export default async function IpamPage() {
           <h2 className="text-2xl font-bold tracking-tight">IP관리</h2>
         </div>
       </div>
-      <IpamView subnets={subnets} assetIps={assetIps} locations={locations} canWrite={!!actor && actor.role !== "viewer"} teams={teams} isAdmin={actor?.role === "admin"} />
+      <IpamView subnets={subnets} assetIps={assetIps} locations={locations} canWrite={canWriteMenu(actor, "assets")} canWriteSubnets={canWriteMenu(actor, "ipam")} teams={teams} isAdmin={actor?.role === "admin"} />
     </div>
   );
 }

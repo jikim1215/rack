@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
-import { scopeWhere } from "@/lib/authz";
+import { scopeWhere, canWriteMenu } from "@/lib/authz";
 import SubAssetsView from "./SubAssetsView";
 import type { SubAssetRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
@@ -31,9 +31,8 @@ export default async function SubAssetsPage() {
     ORDER BY cnt DESC
   `).all(...scope.params) as { category_mid: string; category_minor: string; cnt: number }[];
 
-  // 쓰기 버튼 노출 조건 — viewer 제외, 팀 미배정 team 계정 제외 (서버 assertCanWrite 와 동일 정책)
-  const canWrite =
-    actor?.role === "admin" || (actor?.role === "team" && actor.teamId != null);
+  // 쓰기 버튼 노출 조건 — 메뉴 쓰기 권한 + viewer·팀 미배정 team 제외 (서버 assertMenuWrite·assertCanWrite 와 동일)
+  const canWrite = canWriteMenu(actor, "subassets");
 
   return (
     <div>

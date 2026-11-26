@@ -4,7 +4,7 @@ import { requireMenuPage } from "@/lib/page-authz";
 import { RackView } from "./RackView";
 import type { Asset as RackAsset } from "./parts/types";
 import Link from "next/link";
-import { scopeWhere, rackScopeWhere, locationScopeWhere } from "@/lib/authz";
+import { scopeWhere, rackScopeWhere, locationScopeWhere, canWriteMenu } from "@/lib/authz";
 import type { LocationRow, RackRow, AssetRow, DistFrameRow, TeamRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
 export const metadata = menuTitle("racks");
@@ -69,7 +69,7 @@ export default async function RacksPage() {
           <Link href="/assets" className="btn-ink px-3 py-1.5 text-sm">자산관리</Link>
         </div>
       </div>
-      <RackView locations={locations} racks={racks} assets={assets} unplacedAssets={unplacedAssets} distFrames={distFrames} canWrite={!!actor && actor.role !== "viewer"} teams={teams} isAdmin={actor?.role === "admin"} />
+      <RackView locations={locations} racks={racks} assets={assets} unplacedAssets={unplacedAssets} distFrames={distFrames} canWrite={canWriteMenu(actor, "assets")} canAddRack={canWriteMenu(actor, "racks")} teams={teams} isAdmin={actor?.role === "admin"} />
     </div>
   );
 }

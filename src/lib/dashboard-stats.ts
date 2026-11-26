@@ -6,6 +6,7 @@ import { scopeWhere, rackScopeWhere, locationScopeWhere } from "./authz.ts";
 import type { CountRow, MovementRow, MaintenanceLogRow, ContractRow, AssetStatus } from "./db-types";
 import { freshnessCaseSql } from "./freshness.ts";
 import { findRackConflicts } from "./rack-overlap.ts";
+import { kstDate } from "./kst.ts";
 
 export interface DupGroup {
   asset_name: string;
@@ -87,8 +88,14 @@ export function getDashboardStats(db: Database.Database, actor: Actor | null): D
   const rackScopeC = rackScopeWhere(actor, "team_id", "id");
   const locScope = locationScopeWhere(actor, "team_id", "id");
   const totalRacks = (db.prepare(`SELECT COUNT(*) as c FROM racks WHERE ${rackScopeC.sql}`).get(...rackScopeC.params) as CountRow).c;
-  const totalPorts = (db.prepare("SELECT COUNT(*) as c FROM ports").get() as CountRow).c;
-  const usedPorts = (db.prepare("SELECT COUNT(*) as c FROM ports WHERE status='used'").get() as CountRow).c;
+  // 포트는 자산 귀속 — 자산 스코프로 제한(팀은 자기 팀 장비 포트만)
+  const portCounts = db.prepare(`
+    SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN p.status='used' THEN 1 ELSE 0 END), 0) AS used
+    FROM ports p JOIN assets a ON a.id = p.asset_id
+    WHERE ${scopeA.sql}
+  `).get(...scopeA.params) as { total: number; used: number };
+  const totalPorts = portCounts.total;
+  const usedPorts = portCounts.used;
   const totalLocations = (db.prepare(`SELECT COUNT(*) as c FROM locations WHERE ${locScope.sql}`).get(...locScope.params) as CountRow).c;
 
   const rackUsage = db.prepare(`
@@ -121,7 +128,7 @@ export function getDashboardStats(db: Database.Database, actor: Actor | null): D
   `).all(...scope.params) as DashboardStats["byStatus"];
 
   // EoS 경고 (이미 EoS이거나 90일 이내)
-  const days90 = new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+  const days90 = kstDate(new Date(), 90);
   const eosWarnings = db.prepare(`
     SELECT id, asset_name, asset_type, eos_date FROM assets
     WHERE eos_date != '' AND eos_date <= ? AND ${scope.sql}

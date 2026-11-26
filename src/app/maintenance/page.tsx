@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
-import { scopeWhere } from "@/lib/authz";
+import { scopeWhere, canWriteMenu } from "@/lib/authz";
 import MaintenanceView from "./MaintenanceView";
 import type { MaintenanceLogRow, MaintenanceTargetRow, AssetRow, VendorRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
@@ -47,7 +47,8 @@ export default async function MaintenancePage() {
           <p className="text-sm text-ink-3 mt-1">장애·유지보수·점검 이력과 <strong className="text-ink-2">유지관리 대상/금액 산정 기록</strong>을 함께 관리합니다.</p>
         </div>
       </div>
-      <MaintenanceView logs={logs} targets={targets} assets={assets} vendors={vendors} />
+      <MaintenanceView logs={logs} targets={targets} assets={assets} vendors={vendors}
+        canWrite={canWriteMenu(actor, "maintenance")} isAdmin={actor.role === "admin"} />
     </div>
   );
 }

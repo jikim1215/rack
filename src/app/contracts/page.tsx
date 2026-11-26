@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { getDb } from "@/lib/db";
 import { requireMenuPage } from "@/lib/page-authz";
 import ContractsView from "./ContractsView";
-import { scopeWhere } from "@/lib/authz";
+import { scopeWhere, canWriteMenu } from "@/lib/authz";
 import type { VendorRow, ContractRow, TeamRow } from "@/lib/db-types";
 import { menuTitle } from "@/lib/menus";
 export const metadata = menuTitle("contracts");
@@ -24,5 +24,5 @@ export default async function ContractsPage() {
 
   const teams = actor?.role === "admin" ? (db.prepare("SELECT id, team_name FROM teams ORDER BY team_name").all() as Pick<TeamRow, "id" | "team_name">[]) : [];
 
-  return <ContractsView vendors={vendors} contracts={contracts} teams={teams} isAdmin={actor?.role === "admin"} />;
+  return <ContractsView vendors={vendors} contracts={contracts} teams={teams} isAdmin={actor?.role === "admin"} canWrite={canWriteMenu(actor, "contracts")} />;
 }

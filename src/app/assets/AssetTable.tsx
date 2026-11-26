@@ -140,12 +140,14 @@ interface Props {
   customValuesMap: Record<number, Record<number, string>>;
   teams: { id: number; team_name: string }[];
   isAdmin: boolean;
+  /** 쓰기 버튼 노출 힌트(viewer·메뉴 쓰기 꺼짐이면 false). 강제는 API 가 한다. */
+  canWrite: boolean;
   initialRackId?: string | null;
   initialMissing?: string | null;
   initialSearch?: string | null;
 }
 
-export function AssetTable({ assets: initialAssets, total: initialTotal, racks, customFields: initFields, customValuesMap: initCvMap, teams, isAdmin, initialRackId, initialMissing, initialSearch }: Props) {
+export function AssetTable({ assets: initialAssets, total: initialTotal, racks, customFields: initFields, customValuesMap: initCvMap, teams, isAdmin, canWrite, initialRackId, initialMissing, initialSearch }: Props) {
   const [assets, setAssets] = useState(initialAssets);
   const [total, setTotal] = useState(initialTotal);
   const [search, setSearch] = useState(initialSearch || "");
@@ -741,18 +743,22 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
           title="유형 그룹 전체 펼치기/접기">
           {allExpanded ? <ChevronRight size={16} /> : <ChevronDown size={16} />} {allExpanded ? "모두 접기" : "모두 펼치기"}
         </button>
-        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ ...emptyAsset, ...lastAssetCommon }); setCustomValues({}); }}
-          className="btn-ink flex items-center gap-1.5">
-          <Plus size={16} /> 자산 등록
-        </button>
-        <button onClick={() => setShowFieldManager(!showFieldManager)}
-          className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
-          <Settings size={16} /> 확장필드
-        </button>
-        <button onClick={() => { setShowBulkImport(true); setImportResult(null); }}
-          className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
-          <Upload size={16} /> 일괄등록
-        </button>
+        {canWrite && (
+          <>
+            <button onClick={() => { setShowForm(true); setEditId(null); setForm({ ...emptyAsset, ...lastAssetCommon }); setCustomValues({}); }}
+              className="btn-ink flex items-center gap-1.5">
+              <Plus size={16} /> 자산 등록
+            </button>
+            <button onClick={() => setShowFieldManager(!showFieldManager)}
+              className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
+              <Settings size={16} /> 확장필드
+            </button>
+            <button onClick={() => { setShowBulkImport(true); setImportResult(null); }}
+              className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
+              <Upload size={16} /> 일괄등록
+            </button>
+          </>
+        )}
         <a href="/api/assets/export"
           className="flex items-center gap-1.5 border border-line px-3 py-2 rounded-lg text-sm hover:bg-slate-100 text-ink-2">
           <Download size={16} /> 내보내기
@@ -1145,7 +1151,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
       )}
 
       {/* 검색결과 일괄수정 바 — 행 선택 시 노출 */}
-      {selectedVisibleIds.length > 0 && (
+      {canWrite && selectedVisibleIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-3 p-3 rounded-lg border border-ink/30 bg-surface">
           <span className="text-sm font-semibold text-ink">선택 <span className="num">{selectedVisibleIds.length}</span>건 일괄수정</span>
           <select aria-label="일괄수정 항목" value={bulkField} onChange={(e) => { setBulkField(e.target.value as BulkField); setBulkValue(""); }} className="form-input">
@@ -1257,6 +1263,7 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
                       <TableRow key={a.id} asset={a} expanded={expandedId === a.id}
                         selected={selectedIds.has(a.id)} onSelect={() => toggleSelect(a.id)}
                         onToggle={() => setExpandedId(expandedId === a.id ? null : a.id)}
+                        canWrite={canWrite}
                         onEdit={() => startEdit(a)} onDelete={() => handleDelete(a.id)} onVerify={() => handleVerify(a.id)}
                         tableCustomFields={tableCustomFields} allCustomFields={customFields}
                         cvMap={cvMap} renderCustomValue={renderCustomValue}
@@ -1296,10 +1303,10 @@ export function AssetTable({ assets: initialAssets, total: initialTotal, racks, 
 }
 
 // --- 테이블 행 ---
-function TableRow({ asset: a, expanded, selected, onSelect, onToggle, onEdit, onDelete, onVerify,
+function TableRow({ asset: a, expanded, selected, canWrite, onSelect, onToggle, onEdit, onDelete, onVerify,
   tableCustomFields, allCustomFields, cvMap, renderCustomValue, getFieldsForType,
 }: {
-  asset: Asset; expanded: boolean; selected: boolean; onSelect: () => void; onToggle: () => void; onEdit: () => void; onDelete: () => void; onVerify: () => void;
+  asset: Asset; expanded: boolean; selected: boolean; canWrite: boolean; onSelect: () => void; onToggle: () => void; onEdit: () => void; onDelete: () => void; onVerify: () => void;
   tableCustomFields: CustomField[]; allCustomFields: CustomField[];
   cvMap: Record<number, Record<number, string>>;
   renderCustomValue: (f: CustomField, v: string | undefined) => string;
@@ -1337,9 +1344,15 @@ function TableRow({ asset: a, expanded, selected, onSelect, onToggle, onEdit, on
         <td className="p-3"><span className={`inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${statusColors[a.status] || "text-idle"}`}><span className={`led ${statusLed[a.status] || "led-idle"}`} />{statusLabels[a.status]}</span></td>
         <td className="p-3" onClick={(e) => e.stopPropagation()}>
           <div className="flex gap-0.5">
-            <button onClick={onVerify} className={`p-1.5 rounded hover:bg-slate-100 ${freshnessTone(a.verified_at)}`} title={`현행 확인 도장 — ${freshnessLabel(a.verified_at)}${a.verified_at ? ` (${a.verified_at.slice(0, 10)} ${a.verified_by || ""})` : ""}`}><ShieldCheck size={14} /></button>
-            <button onClick={onEdit} className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="수정"><Pencil size={14} /></button>
-            <button onClick={onDelete} className="p-1.5 text-fault hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
+            {canWrite ? (
+              <>
+                <button onClick={onVerify} className={`p-1.5 rounded hover:bg-slate-100 ${freshnessTone(a.verified_at)}`} title={`현행 확인 도장 — ${freshnessLabel(a.verified_at)}${a.verified_at ? ` (${a.verified_at.slice(0, 10)} ${a.verified_by || ""})` : ""}`}><ShieldCheck size={14} /></button>
+                <button onClick={onEdit} className="p-1.5 text-ink-2 hover:text-ink hover:bg-slate-100 rounded" title="수정"><Pencil size={14} /></button>
+                <button onClick={onDelete} className="p-1.5 text-fault hover:bg-red-50 rounded" title="삭제"><Trash2 size={14} /></button>
+              </>
+            ) : (
+              <span className={`p-1.5 ${freshnessTone(a.verified_at)}`} title={`현행 확인 — ${freshnessLabel(a.verified_at)}${a.verified_at ? ` (${a.verified_at.slice(0, 10)} ${a.verified_by || ""})` : ""}`}><ShieldCheck size={14} /></span>
+            )}
           </div>
         </td>
       </tr>

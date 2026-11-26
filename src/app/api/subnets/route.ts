@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import { NextRequest, NextResponse } from "next/server";
 import { asBody, str, idOrNull, ValidationError } from "@/lib/validation/input";
 import { isValidIpv4 } from "@/lib/validation/asset-rules";
+import { subnetMaskError } from "@/lib/subnet";
 import type { SubnetRow } from "@/lib/db-types";
 
 export const GET = withApi(async (_req: NextRequest) => {
@@ -40,6 +41,8 @@ export const POST = withApi(async (req: NextRequest) => {
   const network_address = str(b, "network_address", { required: true, label: "네트워크 주소" });
   if (!isValidIpv4(network_address)) throw new ValidationError("네트워크 주소는 IPv4 형식이어야 합니다.");
   const subnet_mask = str(b, "subnet_mask", { default: "255.255.255.0" });
+  const maskError = subnetMaskError(subnet_mask);
+  if (maskError) throw new ValidationError(maskError);
   const gateway = str(b, "gateway");
   if (gateway && !isValidIpv4(gateway)) throw new ValidationError("게이트웨이는 IPv4 형식이어야 합니다.");
   const vlan_id = str(b, "vlan_id", { max: 20 });
