@@ -45,6 +45,18 @@ if [[ "${BUNDLED_NODE%%.*}" != "${NODE_MIN%%.*}" || "$(printf '%s\n' "$NODE_MIN"
   exit 1
 fi
 
+# ── 0-2. 번들 nginx 고정판 (취약 nginx 반입 차단) — nginx-pin.sh 의 판·서명키로 검증 ──
+# shellcheck source=nginx-pin.sh
+source "${ROOT}/scripts/deploy/nginx-pin.sh"
+NGINX_RPM_SRC="${ROOT}/vendor/rpms/${NGINX_PIN_RPM}"
+NGINX_KEY_SRC="${ROOT}/vendor/rpms/${NGINX_KEY_FILE}"
+if ! nginx_verify_rpm "$NGINX_RPM_SRC" "$NGINX_KEY_SRC"; then
+  echo "[ERROR] 번들 nginx ${NGINX_PIN_VERSION} 없음 또는 검증 실패 — 인터넷 되는 빌드 머신에서:"
+  echo "        bash -c 'source scripts/deploy/nginx-pin.sh && nginx_fetch_pinned vendor/rpms'"
+  exit 1
+fi
+echo "[INFO] 번들 nginx ${NGINX_PIN_VERSION} (${NGINX_PIN_RPM}, nginx.org 서명 확인)"
+
 # ── 1. 클린 빌드 ──
 cd "$ROOT"
 rm -rf .next "$STAGE"
@@ -122,15 +134,11 @@ PB
 chmod +x "$STAGE/scripts/deploy/native-planb.sh"
 
 # ── 3-1. 폐쇄망 외부접속 자산 동봉 (nginx RPM + nginx conf) — 인증서는 공존시스템 공유라 미동봉 ──
-# nginx는 오프라인 설치를 위해 사전에 vendor/rpms/ 에 받아둔 RPM을 사용한다.
-#   (인터넷 되는 시점에 1회: dnf download --resolve --destdir vendor/rpms nginx)
+#   nginx.org 고정판 RPM 하나 + 서명키만 싣는다(0-2 에서 검증). vendor/rpms 에 남은 다른 RPM(구 AppStream 1.14 등)은 넣지 않는다.
+#   서버: nginx 가 없으면 setup-nginx.sh 가 설치, 있으면 nginx-upgrade.sh 가 취약 판만 교체.
 mkdir -p "$STAGE/rpms"
-if compgen -G "${ROOT}/vendor/rpms/*.rpm" >/dev/null 2>&1; then
-  cp -a "${ROOT}/vendor/rpms/"*.rpm "$STAGE/rpms/" 2>/dev/null || true
-  echo "[OK] nginx/런타임 RPM 동봉: $(ls "$STAGE/rpms" | tr '\n' ' ')"
-else
-  echo "[WARN] vendor/rpms/*.rpm 없음 — nginx 오프라인 설치 불가. 인터넷 PC에서 'dnf download --resolve --destdir vendor/rpms nginx' 후 재빌드"
-fi
+cp -a "$NGINX_RPM_SRC" "$NGINX_KEY_SRC" "$STAGE/rpms/"
+echo "[OK] nginx RPM 동봉: $(ls "$STAGE/rpms" | tr '\n' ' ')"
 # 정식 SSL 인증서는 번들에 넣지 않는다 — itam 은 공존시스템(share)의 인증서를 공유한다.
 #   실서버에 이미 배치된 /etc/ssl/certs/shared.crt (*.example.go.kr) 를 setup-nginx.sh 가 참조.
 #   (독립 서버라 인증서가 필요하면 실서버에서 SSL_CRT/SSL_KEY 로 지정하거나 별도 배치.)

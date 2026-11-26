@@ -60,7 +60,7 @@ jobs:
     steps:
       - name: 빌드 도구
         run: |
-          dnf install -y git tar xz make binutils findutils diffutils 'dnf-command(download)' gcc-toolset-12 python3.11
+          dnf install -y git tar xz make binutils findutils diffutils gcc-toolset-12 python3.11
       # git 을 먼저 깔아야 checkout 이 .git 을 남긴다 — 번들 VERSION 의 커밋은 git 에서 읽는다
       - uses: actions/checkout@v7
         with:
@@ -77,15 +77,12 @@ jobs:
           cp "/tmp/$FILE" vendor/node-linux-x64.tar.xz
           tar -xf "/tmp/$FILE" -C /opt/node22 --strip-components=1
           echo /opt/node22/bin >> "$GITHUB_PATH"
-      - name: nginx RPM (오프라인 설치용)
+      - name: nginx 고정판 RPM (오프라인 설치·교체용, nginx.org 서명 검증)
         run: |
           set -euo pipefail
-          # el8 nginx 는 modular — 본체+모듈+filesystem 을 명시해 8종을 확보 (oneshot-build.sh 와 같은 목록)
-          dnf download --resolve --destdir vendor/rpms nginx nginx-all-modules nginx-filesystem \
-            nginx-mod-http-image-filter nginx-mod-http-perl nginx-mod-http-xslt-filter nginx-mod-mail nginx-mod-stream
-          CNT="$(ls vendor/rpms/*.rpm | wc -l)"
-          echo "vendor/rpms: ${CNT}개"
-          [[ "$CNT" -ge 8 ]] || { echo "::error::nginx RPM ${CNT}개 (8 미만)"; exit 1; }
+          source scripts/deploy/nginx-pin.sh
+          nginx_fetch_pinned vendor/rpms
+          ls -l vendor/rpms
       - name: 의존성 (better-sqlite3 소스 빌드, glibc 2.28 링크)
         run: |
           set +u; source scl_source enable gcc-toolset-12; set -u
@@ -122,7 +119,10 @@ jobs:
                    node-linux-x64.tar.xz scripts/deploy/deploy.sh; do
             grep -qx "asset-inventory/$f" <<<"$LIST" || { echo "::error::번들 구성 누락: $f"; exit 1; }
           done
-          [[ "$(grep -c '^asset-inventory/rpms/.*\.rpm$' <<<"$LIST")" -ge 8 ]] || { echo "::error::번들 nginx RPM 부족"; exit 1; }
+          source ../scripts/deploy/nginx-pin.sh
+          for f in "rpms/${NGINX_PIN_RPM}" "rpms/${NGINX_KEY_FILE}" scripts/deploy/nginx-pin.sh scripts/deploy/nginx-upgrade.sh; do
+            grep -qx "asset-inventory/$f" <<<"$LIST" || { echo "::error::번들 nginx 구성 누락: $f"; exit 1; }
+          done
           ! grep -E '(^|/)(\.env(\..*)?|[^/]*\.db(-wal|-shm)?)$' <<<"$LIST" || { echo "::error::번들에 .env/*.db 잔재"; exit 1; }
           ls -lh
       - uses: actions/upload-artifact@v7

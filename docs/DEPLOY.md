@@ -27,7 +27,7 @@
 `v<x.y.z>` 태그를 GitHub(`origin`)에 push 하면 `.github/workflows/release.yml` 이 Rocky Linux 8.10 컨테이너(glibc 2.28)에서 번들을 만들어 Releases 에 올린다.
 
 1. 태그 = `package.json` version 인지, `docs/CHANGELOG.md` 에 `## v<x.y.z> — <날짜>` 항목이 있는지 확인 (없으면 중단). 그 항목이 릴리스 노트가 된다
-2. 최신 Node 22(nodejs.org SHA256 검증) · nginx RPM 8종 내려받기 → `npm ci`(better-sqlite3 소스 빌드, glibc 2.28 이하 심볼 확인) → `npm run check` · `npm test`
+2. 최신 Node 22(nodejs.org SHA256 검증) · nginx 고정판 RPM(nginx.org, `scripts/deploy/nginx-pin.sh` 의 판·서명키로 검증) 내려받기 → `npm ci`(better-sqlite3 소스 빌드, glibc 2.28 이하 심볼 확인) → `npm run check` · `npm test`
 3. `build-release.sh` → `verify-build.mjs` → 번들 점검(체크섬 · `VERSION` 의 버전=태그 · 커밋 `-dirty` 아님 · server.js/native/Node/RPM 동봉 · `.env`/`*.db` 잔재 없음)
 4. Release `v<x.y.z>` 에 세 파일(`asset-inventory-offline-v<버전>.tar.gz` · `SHA256SUMS-v<버전>.txt` · `deploy-guide-v<버전>.txt`) 첨부 — `deploy-guide-v<버전>.txt` 는 `배포방법-v<버전>.txt` 와 같은 파일이다(GitHub 이 비ASCII 파일명을 바꾸므로 ASCII 로 올린다)
 
@@ -46,7 +46,7 @@ node scripts/verify-build.mjs             # 정적 프리렌더 0건 확인 (non
 
 **버전** — `package.json` 의 `version`(SemVer, 규칙은 `docs/CHANGELOG.md` 머리말)과 커밋·빌드 시각을 `scripts/build-meta.mjs` 가 한 번 계산해 화면(로그인 후) · `/api/health`(앱 포트 직접 호출) · 번들 최상위 `VERSION` 에 같은 값으로 박는다. 커밋은 `APP_COMMIT`(지정 시) > git(`APP_GIT_DIR` 또는 이 저장소) 순 — 소스를 복사해 빌드하는 머신은 `APP_GIT_DIR=<원본 저장소>` 를 넘긴다. 미커밋 변경이 있으면 커밋 뒤에 `-dirty` 가 붙고 빌드 로그에 `[WARN]` 이 찍힌다. 정식 릴리스: `npm version <x.y.z> --no-git-tag-version` → `docs/CHANGELOG.md` → 커밋 → `git tag -a v<x.y.z>` → `git push origin main v<x.y.z>` → GitHub Release 가 빌드(§2-1).
 
-전제: `vendor/node-linux-x64.tar.xz`(Node 22.23.4+ — `build-release.sh` 의 `NODE_MIN` 미만이면 빌드 중단, CVE-2026-111497 등 보안 패치 하한), `vendor/rpms/*.rpm`(nginx 오프라인 설치용), npm 캐시에 의존성 전부. **의존성이 바뀐 릴리스(package-lock 변경)는 인터넷 되는 시점에 빌드 머신에서 `npm ci --build-from-source` 를 한 번 돌려 캐시를 채운 뒤** 오프라인 빌드를 한다(예: 2026-10 next 15.5.27·nodemailer 10 전환, postcss 8.5.28 단일화).
+전제: `vendor/node-linux-x64.tar.xz`(Node 22.23.4+ — `build-release.sh` 의 `NODE_MIN` 미만이면 빌드 중단, CVE-2026-111497 등 보안 패치 하한), `vendor/rpms/nginx-<고정판>-1.el8.ngx.x86_64.rpm` + `nginx_signing.key`(nginx 오프라인 설치·교체용 — `bash -c 'source scripts/deploy/nginx-pin.sh && nginx_fetch_pinned vendor/rpms'`. 없거나 서명이 다르면 `build-release.sh` 가 중단. Rocky AppStream nginx(1.14~1.24)는 2026-11 F5 권고 해결판이 없어 쓰지 않는다), npm 캐시에 의존성 전부. **의존성이 바뀐 릴리스(package-lock 변경)는 인터넷 되는 시점에 빌드 머신에서 `npm ci --build-from-source` 를 한 번 돌려 캐시를 채운 뒤** 오프라인 빌드를 한다(예: 2026-10 next 15.5.27·nodemailer 10 전환, postcss 8.5.28 단일화).
 
 번들에서 제외되는 것: `.next/cache`(빌드 증분 캐시, 런타임 미참조) · sharp/`@img/*`(이미지 최적화 네이티브 — `images.unoptimized` 라 미사용, `next.config.ts` `outputFileTracingExcludes`) · 개발 `.env`/`*.db`.
 
@@ -66,8 +66,8 @@ sha256sum -c SHA256SUMS-v<버전>.txt && rm -rf asset-inventory && tar -xzf asse
 
 | 판별 | 조건 | 하는 일 |
 |---|---|---|
-| **업그레이드** | `/opt/asset-inventory/data.db` 있음 | `upgrade-inplace.sh` — DB 백업 → 롤백본 보관 → 앱 트리 교체(.next/src/scripts/docs/node_modules) → 번들 Node 버전이 다르면 `node/` 교체(구판은 롤백본 — `rollback.sh` 가 함께 되돌림) → nginx `itam.conf` X-Forwarded-For 현행화(백업→`nginx -t`→reload, 실패 시 복원) → 재기동(`/api/health` 200 대기) → 재기동 유실 값 복구(`restore-lost-fields.cjs --apply` — 구판이 재시작마다 비운 소유 팀·랙 L/R·현행 확인·배치를 감사로그에서, 빈 값만) → 스모크 → 마이그레이션 결과. **data.db·.env·tls/·backups/ 보존** |
-| **신규설치** | 없음 | `setup-nginx.sh` — 번들 Node 전개 → 서비스 계정 → native smoke → .env 생성(강한 AUTH_SECRET) → nginx RPM 설치·사이트 설정 → systemd·타이머 등록 → 기동 |
+| **업그레이드** | `/opt/asset-inventory/data.db` 있음 | `upgrade-inplace.sh` — DB 백업 → 롤백본 보관 → 앱 트리 교체(.next/src/scripts/docs/node_modules) → 번들 Node 버전이 다르면 `node/` 교체(구판은 롤백본 — `rollback.sh` 가 함께 되돌림) → nginx `itam.conf` X-Forwarded-For 현행화(백업→`nginx -t`→reload, 실패 시 복원) → nginx 수정판 교체(`nginx-upgrade.sh` — 설치된 nginx 가 취약 판(1.30.7 / 1.31.9 미만)이면 새 바이너리로 현재 설정을 먼저 검사한 뒤 번들 RPM 으로 패키지만 교체→restart, 설정 불변. 동적 모듈 등으로 못 하면 아무것도 안 바꾸고 「조치 필요」) → nginx2root 완화(`nginx-harden.sh` — itam.conf HTTP/2·HTTP/3 끄기→`nginx -t`→restart, SCTP 모듈 차단, 공존 설정은 점검만) → 재기동(`/api/health` 200 대기) → 재기동 유실 값 복구(`restore-lost-fields.cjs --apply` — 구판이 재시작마다 비운 소유 팀·랙 L/R·현행 확인·배치를 감사로그에서, 빈 값만) → 스모크 → 마이그레이션 결과. **data.db·.env·tls/·backups/ 보존** |
+| **신규설치** | 없음 | `setup-nginx.sh` — 번들 Node 전개 → 서비스 계정 → native smoke → .env 생성(강한 AUTH_SECRET) → nginx 설치(번들 nginx.org 고정판, 서명 확인 — 이미 있으면 `nginx-upgrade.sh` 로 취약 판만 교체)·사이트 설정(HTTP/1.1 — HTTP/2 미사용) → `nginx-harden.sh` → systemd·타이머 등록 → 기동 |
 
 `--check` 는 설치 상태, 수행 예정 작업, **현재 메뉴 권한이 어느 화면을 막게 되는지**(`preflight-perms.cjs`)까지 출력한다.
 

@@ -59,6 +59,8 @@
          · 앱만 교체 (data.db · .env · tls · backups 는 그대로)
          · 번들 Node 버전이 다르면 node 교체 (구판은 롤백본에 보관)
          · nginx itam.conf 의 X-Forwarded-For 한 줄 현행화 (nginx -t 통과 시만 reload)
+         · nginx2root 완화 — itam.conf HTTP/2·HTTP/3 끄기 (nginx -t 통과 시만 restart, 실패 시 원복)
+           + SCTP 모듈 로딩 차단 + 공존시스템 설정 점검(수정 안 함)
          · 서비스 재시작 (최초 요청에서 스키마 마이그레이션)
          · 재기동 유실 값 복구 — 소유 팀·랙 L/R·현행 확인 도장·일괄등록 배치를
            감사로그에서 되살림 (빈 값만 채움 · 현재 값은 그대로)
@@ -88,6 +90,10 @@
     /api/health → 200 (서비스: active)
     ✓ 가동 버전 v<새 버전> (커밋)
     ✓ itam.conf 갱신 + nginx reload   (또는 "이미 최신")
+    ALPN 443/itam.example.go.kr → http/1.1 (h2 아님)   (또는 none)
+    ✓ nginx2root 완화 상태 정상
+      △ "조치 필요" 가 뜨면 그 위 [조치 필요] 줄을 확인 — 대개 공존시스템(share) 설정의 http2.
+        share 담당이 그 줄에서 http2 를 지우고 nginx restart 해야 끝납니다 (itam 은 share 설정을 고치지 않음)
     [restore] 복구 대상 자산 N건 … 적용 N건   (유실이 없었으면 0건)
     내부 /login → 200
     ✓ nonce CSP 적용
@@ -113,6 +119,30 @@
     ※ 구판으로 되돌리면 "재시작하면 소유 팀 등이 비워지는 결함"도 되돌아옵니다.
       원인 해결 후 새 판을 다시 적용하면 자동으로 다시 복구됩니다.
 
+
+[v1.8.0 변경 요약]
+  - [보안] nginx 수정판 1.30.7 으로 교체 (KISA 보호나라 2026-11-19 NGINX 보안 업데이트 권고)
+      배포 스크립트가 자동으로 교체합니다 — 설정 파일은 그대로, nginx 재시작 1회
+      (같은 nginx 를 쓰는 공존시스템도 잠깐 끊길 수 있음 — 작업 시간 협의)
+      사전 점검:  sudo bash asset-inventory/scripts/deploy/nginx-upgrade.sh --check
+      적용 후 확인: nginx -v   → nginx/1.30.7
+      "[조치 필요]"가 나오면 nginx 는 바뀌지 않은 것입니다 — 출력된 사유(동적 모듈 등)를 담당과 협의
+  - 반입 이동을 "완료"로 바꿀 때 오류(500)가 나고 자산이 등록되지 않던 결함 수정
+      v1.7.0 이하에서 완료 처리했는데 자산이 없는 반입 건은 자산을 직접 등록해 주세요
+  - 팀 간 격리 보강: 유지보수 대상 "전체 교체" 가져오기는 총괄만,
+      가져오기 시 다른 팀 자산 연결 차단, 랙·분전반이 남은 위치는 삭제 거부
+  - 서브넷 마스크는 /16~/32 연속 마스크만 허용
+  - 전체열람 계정 화면에서 등록·수정·삭제 버튼이 보이지 않음 (기능은 이전에도 거부됨)
+  - 자산 엑셀 양식에 구매일·보증만료·EoS 열 추가
+  - 되돌리기는 앱만으로 충분합니다 (--with-db 불필요 · 스키마 변경 없음)
+
+[v1.7.0 변경 요약]
+  - 기능 변화 없음. nginx2root(nginx 원격 코드 실행, CVE-2026-123007 등) 완화판.
+  - itam 의 nginx 설정에서 HTTP/2 를 끕니다 (화면·기능 동일, HTTP/1.1 로 접속)
+  - SCTP 커널 모듈 로딩 차단 (/etc/modprobe.d/nginx2root-sctp.conf)
+  - 점검만: sudo bash /opt/asset-inventory/scripts/deploy/nginx-harden.sh --check
+  - 임시 조치입니다 — nginx 수정판 RPM 이 나오면 별도 반입
+  - 되돌리기는 앱만으로 충분합니다 (--with-db 불필요 · 되돌려도 HTTP/2 는 다시 켜지지 않음)
 
 [v1.6.1 변경 요약]
   - 기능 변화 없음. v1.6.0 과 같은 기능의 정식 릴리스판 (빌드 메타 수정)

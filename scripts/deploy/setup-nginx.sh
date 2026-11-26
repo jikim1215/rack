@@ -42,16 +42,20 @@ setup_nginx() {
   local IP="$1"
   echo "== nginx 외부 HTTPS 설정 — IP=$IP  FQDN=$PUBLIC_FQDN =="
 
-  # 1) nginx 오프라인 설치 (번들 RPM — 의존 RPM 전체를 함께 설치: nginx-filesystem 등 noarch 포함)
+  # 1) nginx 오프라인 설치 (번들 nginx.org 고정판 RPM — nginx-pin.sh, 서명 확인 후 설치)
+  #    이미 있는 nginx(공존시스템)는 재설치하지 않고, 취약 판이면 nginx-upgrade.sh 가 패키지만 교체한다(설정 불변).
+  # shellcheck source=nginx-pin.sh
+  source "$HERE/nginx-pin.sh"
+  local NGX_RPM="$BUNDLE_ROOT/rpms/$NGINX_PIN_RPM"
   if ! command -v nginx >/dev/null 2>&1; then
-    local RPMS=("$BUNDLE_ROOT"/rpms/*.rpm)
-    if [ -e "${RPMS[0]}" ]; then
-      dnf install -y --disablerepo='*' --nogpgcheck "${RPMS[@]}" 2>/dev/null \
-        || rpm -Uvh --replacepkgs "${RPMS[@]}" 2>/dev/null \
-        || rpm -Uvh --nodeps "${RPMS[@]}"
-    else
-      echo "  [nginx][오류] 번들 RPM 없음($BUNDLE_ROOT/rpms) — 빌드시 vendor/rpms 동봉 확인"; return 1
-    fi
+    nginx_verify_rpm "$NGX_RPM" "$BUNDLE_ROOT/rpms/$NGINX_KEY_FILE" \
+      || { echo "  [nginx][오류] 번들 nginx RPM 없음/검증 실패($NGX_RPM) — SHA256SUMS 로 번들 확인"; return 1; }
+    dnf install -y --disablerepo='*' --nogpgcheck "$NGX_RPM" \
+      || { echo "  [nginx][오류] 설치 실패 — 의존 패키지(openssl-libs·pcre2·zlib·procps-ng·shadow-utils) 확인"; return 1; }
+  else
+    local urc=0
+    bash "$HERE/nginx-upgrade.sh" || urc=$?
+    [ "$urc" -eq 0 ] || echo "  [nginx][경고] nginx 수정판 교체 미완료(위 출력) — 설치는 계속. 재시도: sudo bash ${APP_DIR}/scripts/deploy/nginx-upgrade.sh"
   fi
   command -v nginx >/dev/null 2>&1 || { echo "  [nginx][오류] 설치 실패"; return 1; }
 
@@ -70,33 +74,16 @@ setup_nginx() {
   echo "  [인증서] 공존시스템 공유: $SSL_CRT (subject=$(openssl x509 -in "$SSL_CRT" -noout -subject 2>/dev/null | sed 's/subject=//'))"
   echo "  [인증서] 만료: $(openssl x509 -in "$SSL_CRT" -noout -enddate 2>/dev/null | sed 's/notAfter=//')"
 
-  # 3) nginx 사이트 설정 배치 (+ upstream 포트 & http2 구문 치환)
+  # 3) nginx 사이트 설정 배치 (+ upstream 포트 치환)
   #    server_name 이 itam.example.go.kr 로 명시돼 SNI 로 매칭되므로, share 등 기존
   #    default_server 를 건드리지 않는다(공존 안전). 접속 도메인은 반드시
   #    itam.example.go.kr 로 들어와야 이 블록이 선택된다(IP 직접 접속은 default 서버로 감).
-  #    http2 구문은 nginx 버전별로 갈린다:
-  #      - 1.25.1+ : 'listen 443 ssl;' + 'http2 on;'  (listen...http2 는 deprecated 경고)
-  #      - 1.25 미만: 'listen 443 ssl http2;'          (http2 on; 은 미지원)
-  local NGXVER H2
-  NGXVER="$(nginx -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-  if [ -n "$NGXVER" ] && printf '%s\n1.25.1\n' "$NGXVER" | sort -V -C; then
-    # NGXVER <= 1.25.0 → 구식 구문 (listen 라인에 http2)
-    H2=""
-    sed -e "s|__ITAM_PORT__|${NEXT_PORT}|g" \
-        -e "s|__PUBLIC_FQDN__|${PUBLIC_FQDN}|g" \
-        -e "s|__SSL_CRT__|${SSL_CRT}|g" \
-        -e "s|__SSL_KEY__|${SSL_KEY}|g" \
-        -e "s|    listen 443 ssl;|    listen 443 ssl http2;|" \
-        -e "/^__HTTP2__$/d" "$HERE/nginx-itam.conf" > /etc/nginx/conf.d/itam.conf
-  else
-    # NGXVER >= 1.25.1 (또는 감지 실패 시 최신 가정) → http2 on;
-    sed -e "s|__ITAM_PORT__|${NEXT_PORT}|g" \
-        -e "s|__PUBLIC_FQDN__|${PUBLIC_FQDN}|g" \
-        -e "s|__SSL_CRT__|${SSL_CRT}|g" \
-        -e "s|__SSL_KEY__|${SSL_KEY}|g" \
-        -e "s|^__HTTP2__$|    http2 on;|" "$HERE/nginx-itam.conf" > /etc/nginx/conf.d/itam.conf
-  fi
-  echo "  [nginx] conf.d/itam.conf 배치 (nginx ${NGXVER:-?}, server_name=${PUBLIC_FQDN}, upstream 127.0.0.1:${NEXT_PORT})"
+  #    HTTP/2 는 켜지 않는다 — nginx2root(CVE-2026-123007 등, HTTP/2 처리 중 원격 코드 실행).
+  sed -e "s|__ITAM_PORT__|${NEXT_PORT}|g" \
+      -e "s|__PUBLIC_FQDN__|${PUBLIC_FQDN}|g" \
+      -e "s|__SSL_CRT__|${SSL_CRT}|g" \
+      -e "s|__SSL_KEY__|${SSL_KEY}|g" "$HERE/nginx-itam.conf" > /etc/nginx/conf.d/itam.conf
+  echo "  [nginx] conf.d/itam.conf 배치 ($(nginx -v 2>&1 | sed 's/^nginx version: //'), server_name=${PUBLIC_FQDN}, upstream 127.0.0.1:${NEXT_PORT}, HTTP/1.1)"
 
   # 4) SELinux (enforcing 대응)
   if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce)" != "Disabled" ]; then
@@ -126,6 +113,12 @@ setup_nginx() {
   # 공존 모드: IP 직접 접속은 default_server(share 등)로 갈 수 있으므로 SNI(도메인)로 확인.
   local code; code=$(curl -sk --resolve "${PUBLIC_FQDN}:443:${IP}" -o /dev/null -w '%{http_code}' "https://${PUBLIC_FQDN}/login" || echo "000")
   echo "  -> https://${PUBLIC_FQDN}/login (SNI→${IP}) → ${code} (200/302/307 기대)"
+
+  # 7) nginx2root 완화 점검·적용 (HTTP/2·HTTP/3 잔존, 공존 설정, SCTP 모듈 차단) — 경고가 있어도 설치는 계속
+  local rc=0
+  PUBLIC_FQDN="$PUBLIC_FQDN" bash "$HERE/nginx-harden.sh" || rc=$?
+  [ "$rc" -eq 1 ] && echo "  [nginx2root][오류] 완화 실패 — 위 출력 확인 후 'sudo bash ${APP_DIR}/scripts/deploy/nginx-harden.sh' 재실행"
+  return 0
 }
 
 detect_ip() { hostname -I 2>/dev/null | awk '{print $1}'; }

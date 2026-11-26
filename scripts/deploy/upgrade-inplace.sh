@@ -5,6 +5,8 @@
 #   교체: .next · src · scripts · docs · node_modules · package*.json · next.config.ts · VERSION
 #         node/ — 번들 Node 버전이 다를 때만(보안 패치 반영, 예: CVE-2026-111497). 구판 런타임은 롤백본에 보관
 #   nginx: itam.conf 의 X-Forwarded-For 한 줄만 현행화(백업 → nginx -t → reload, 실패 시 복원)
+#          + nginx 수정판 교체(nginx-upgrade.sh — 취약 판일 때만 번들 nginx.org RPM 으로, 설정 불변)
+#          + nginx2root 완화(nginx-harden.sh — itam.conf HTTP/2·HTTP/3 끄기, 공존 설정 점검, SCTP 차단)
 #   롤백: /opt/asset-inventory.rollback-<TS> 에 이전 앱 트리 + rollback.sh 보관 (스크립트 말미에 명령 출력)
 #
 # 사용: sudo bash upgrade-inplace.sh [번들경로 | __BUNDLE_TREE__:<이미_풀린_번들디렉터>]
@@ -25,7 +27,7 @@ FQDN="$(grep -E '^PUBLIC_FQDN=' "$APP/.env" 2>/dev/null | cut -d= -f2 || hostnam
 TS=$(date +%Y%m%d_%H%M%S)
 ROLLBACK="/opt/asset-inventory.rollback-${TS}"
 STAGE="/tmp/asset-upgrade-${TS}"
-REPLACE=(.next src scripts docs node_modules package.json package-lock.json next.config.ts VERSION)
+REPLACE=(.next src scripts docs node_modules package.json package-lock.json next.config.ts VERSION rpms)   # rpms: nginx 고정판(nginx-upgrade.sh 재실행용)
 
 # 버전 표기 — 번들은 VERSION 파일, 가동 중인 앱은 /api/health (둘 다 빌드 때 박힌 값). 형식은 version-label.sh 한 곳.
 #   버전 표기 도입 이전 판은 health 가 항상 1.0.0 만 낸다.
@@ -88,6 +90,9 @@ mkdir -p "$ROLLBACK"
 for d in "${REPLACE[@]}"; do [[ -e "$APP/$d" ]] && cp -a "$APP/$d" "$ROLLBACK/"; done
 # 되돌리기 스크립트는 새 판 것을 롯백본 최상위에도 둔다(구판 트리에는 없을 수 있다)
 [[ -f "$SRC/scripts/deploy/rollback.sh" ]] && cp -a "$SRC/scripts/deploy/rollback.sh" "$ROLLBACK/rollback.sh"
+# 되돌린 뒤에도 nginx2root 완화를 다시 거는 데 쓴다(rollback.sh 가 같은 폴더에서 찾는다)
+[[ -f "$SRC/scripts/deploy/nginx-harden.sh" ]] && cp -a "$SRC/scripts/deploy/nginx-harden.sh" "$ROLLBACK/nginx-harden.sh"
+[[ -f "$SRC/scripts/deploy/nginx-pin.sh" ]] && cp -a "$SRC/scripts/deploy/nginx-pin.sh" "$ROLLBACK/nginx-pin.sh"   # harden 의 취약 판 판정
 echo "   $ROLLBACK ($(du -sh "$ROLLBACK" | cut -f1))"
 
 echo "== 5) 앱 트리 교체 (data.db/.env/tls/backups 미변경) =="
@@ -142,6 +147,35 @@ elif [[ -f "$NGX_CONF" ]]; then
   echo "   이미 최신 (변경 없음)"
 else
   echo "   $NGX_CONF 없음 — 건너뜀(nginx 미사용 구성)"
+fi
+
+echo "== 6-2) nginx 수정판 교체 (2026-11 F5 권고 해결판 — 취약 판일 때만) =="
+# 번들 rpms/ 의 nginx.org 고정판으로 바이너리 패키지만 교체(설정 불변). 새 바이너리로 현재 설정을 먼저 검사해 통과할 때만.
+# 자동으로 못 하는 경우(동적 모듈 등)는 아무것도 바꾸지 않고 알린다. 결과와 무관하게 업그레이드는 계속.
+if command -v nginx >/dev/null 2>&1 && [[ -f "$APP/scripts/deploy/nginx-upgrade.sh" ]]; then
+  NGXUP_RC=0
+  bash "$APP/scripts/deploy/nginx-upgrade.sh" || NGXUP_RC=$?
+  case "$NGXUP_RC" in
+    0) echo "   ✓ nginx 해결판 ($(nginx -v 2>&1 | sed 's#^nginx version: ##'))" ;;
+    2) echo "   △ nginx 자동 교체 불가 — 위 [조치 필요] 참고 (앱 업그레이드는 계속)" ;;
+    *) echo "   ✗ nginx 교체 실패 — 위 오류 확인. 재시도: sudo bash $APP/scripts/deploy/nginx-upgrade.sh" ;;
+  esac
+else
+  echo "   nginx 없음 — 건너뜀"
+fi
+
+echo "== 6-3) nginx2root 완화 (HTTP/2·HTTP/3 끄기 — CVE-2026-123007 등 원격 코드 실행) =="
+# itam.conf 만 고친다(백업 → nginx -t → restart, 실패 시 원복). 공존 설정은 점검만. 결과와 무관하게 업그레이드는 계속.
+if command -v nginx >/dev/null 2>&1; then
+  HARDEN_RC=0
+  PUBLIC_FQDN="$FQDN" bash "$APP/scripts/deploy/nginx-harden.sh" || HARDEN_RC=$?
+  case "$HARDEN_RC" in
+    0) echo "   ✓ nginx2root 완화 상태 정상" ;;
+    2) echo "   △ nginx2root 조치 필요 항목 있음 — 위 [조치 필요] 참고 (앱 업그레이드는 계속)" ;;
+    *) echo "   ✗ nginx2root 완화 실패 — itam.conf 는 원복됨. 'sudo bash $APP/scripts/deploy/nginx-harden.sh' 로 재시도" ;;
+  esac
+else
+  echo "   nginx 없음 — 건너뜀"
 fi
 
 # /api/health 는 getDb() 를 호출한다 = 스키마 마이그레이션이 끝난 뒤에야 200. (DB 는 첫 요청에서 열린다 — 기동만으로는 미실행)

@@ -75,7 +75,14 @@ if [[ "$CHECK_ONLY" == "1" ]]; then
       NODE_BUNDLE="$(tar -tJf "${BUNDLE_ROOT}/node-linux-x64.tar.xz" | awk -F/ 'NR==1{sub(/^node-/,"",$1); sub(/-linux-x64$/,"",$1); print $1}')"
       if [[ "$NODE_CUR" != "$NODE_BUNDLE" ]]; then say "      Node ${NODE_CUR} → ${NODE_BUNDLE} 교체 (구판은 롤백본)"; else say "      Node ${NODE_CUR} (변경 없음)"; fi
     fi
-    say "   3) 서비스 재시작 + 스모크(로그인 화면·CSP·마이그레이션 결과)"
+    say "   3) nginx 수정판 교체(취약 판일 때만, 설정 불변) + nginx2root 완화(itam.conf HTTP/2·HTTP/3 끄기 → nginx restart, SCTP 모듈 차단) — 현재 상태:"
+    if command -v nginx >/dev/null 2>&1; then
+      bash "${HERE}/nginx-upgrade.sh" --check 2>&1 | sed 's/^/   /' || true
+      PUBLIC_FQDN="${CUR_FQDN:-}" bash "${HERE}/nginx-harden.sh" --check 2>&1 | sed 's/^/   /' || true
+    else
+      say "      nginx 없음 — 건너뜀"
+    fi
+    say "   4) 서비스 재시작 + 스모크(로그인 화면·CSP·마이그레이션 결과)"
     say "   * 첫 요청 시 스키마 마이그레이션 자동 실행(메뉴권한 시드·감사로그 확장·날짜 정규화)"
     if [[ -f "${HERE}/preflight-perms.cjs" && -x "${APP_DIR}/node/bin/node" ]]; then
       say ""; say " 현재 메뉴 권한이 실제로 막게 될 범위:"
@@ -91,7 +98,8 @@ if [[ "$CHECK_ONLY" == "1" ]]; then
       rm -rf "$PF_TMP"
     fi
   else
-    say " 수행 예정: nginx 설치(번들 RPM) + 앱 배치 + systemd 등록 + 최소 DB 초기화"
+    command -v nginx >/dev/null 2>&1 && { bash "${HERE}/nginx-upgrade.sh" --check 2>&1 | sed 's/^/   /' || true; }
+    say " 수행 예정: nginx 설치(번들 nginx.org RPM — 이미 있으면 취약 판만 교체) + 앱 배치 + systemd 등록 + 최소 DB 초기화"
     say " 필요 조건: 공유 인증서(${SSL_CRT:-/etc/ssl/certs/shared.crt}) 존재, 내부 DNS 에 도메인 등록"
   fi
   hr; exit 0

@@ -7,6 +7,7 @@
 #
 # 앱 트리는 **통째로 교체**한다(덮어쓰기 아님): 새 판에만 있는 파일(.next 청크·스크립트)이 남아
 # 구판과 섞이지 않게. nginx itam.conf 는 업그레이드가 바꿨을 때만(백업 파일이 있을 때) 되돌린다.
+# 단, nginx2root 완화(HTTP/2·HTTP/3 끄기)는 되돌리지 않는다 — 구판 itam.conf 를 복원해도 다시 건다.
 # 이 스크립트는 업그레이드가 롤백본 안에도 복사해 둔다 — 되돌린 뒤 구판 트리에 없어도 다시 쓸 수 있다.
 # ============================================================
 set -euo pipefail
@@ -61,6 +62,11 @@ if [[ -f "${NGX_CONF}.bak-${TS}" ]]; then
   else mv -f "${NGX_CONF}.pre-rollback-${TS}" "$NGX_CONF"; echo "   ✗ nginx -t 실패 — 현재 설정 유지"; fi
 else
   echo "   업그레이드가 itam.conf 를 바꾸지 않음 — 그대로"
+fi
+# 구판 설정에 http2 가 있어도 원격 코드 실행 경로를 다시 열지 않는다 (실패해도 되돌리기는 계속)
+HARDEN="$(cd "$(dirname "$0")" && pwd)/nginx-harden.sh"
+if [[ -f "$HARDEN" ]] && command -v nginx >/dev/null 2>&1; then
+  PUBLIC_FQDN="$FQDN" bash "$HARDEN" || echo "   △ nginx2root 완화 점검 결과 확인 필요 (위 출력)"
 fi
 
 echo "== 5) 기동 =="

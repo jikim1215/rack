@@ -2,7 +2,7 @@
 # ============================================================
 # 원샷 오프라인 번들 빌드 (Rocky Linux 8.10 빌드머신, 인터넷 ON)
 #   VM/빌드서버에서 딱 한 번 실행하면:
-#     빌드툴 확인 → nginx RPM 8종 확보 → npm ci(소스빌드) → native 검증
+#     빌드툴 확인 → nginx 고정판 RPM 확보(nginx.org, 서명 검증) → npm ci(소스빌드) → native 검증
 #     → next build → build-release.sh → dist/asset-inventory-offline-v<버전>.tar.gz
 #
 #   사용법 (공유폴더 소스 기준):
@@ -61,17 +61,11 @@ log "1) 소스 로컬 복사 (공유폴더 symlink 회피) → $WORK"
 [ -f "$SRC/package.json" ] || die "소스 없음: $SRC (SRC=... 로 지정)"
 rm -rf "$WORK" && cp -a "$SRC" "$WORK" && cd "$WORK"
 
-log "2) nginx RPM 8종 오프라인 확보 → vendor/rpms"
-mkdir -p vendor/rpms
-dnf clean expire-cache >/dev/null 2>&1 || true
-# el8 nginx 는 modular — 본체+모듈+filesystem 을 명시해 8종을 강제 확보
-NGX_PKGS=(nginx nginx-all-modules nginx-filesystem nginx-mod-http-image-filter \
-          nginx-mod-http-perl nginx-mod-http-xslt-filter nginx-mod-mail nginx-mod-stream)
-dnf download --resolve --destdir vendor/rpms "${NGX_PKGS[@]}" 2>/dev/null \
-  || dnf download --destdir vendor/rpms "${NGX_PKGS[@]}"
-RPM_CNT=$(ls vendor/rpms/*.rpm 2>/dev/null | wc -l)
-echo "  vendor/rpms: ${RPM_CNT}개"
-[ "$RPM_CNT" -ge 8 ] || die "nginx RPM ${RPM_CNT}개(8 미만) — module 저장소 활성 확인: 'dnf module enable nginx'"
+log "2) nginx 고정판 RPM 확보 → vendor/rpms (nginx-pin.sh)"
+# AppStream nginx(1.14~1.24)는 2026-11 F5 권고 해결판이 없다 — nginx.org 공식 el8 RPM 을 받는다
+source scripts/deploy/nginx-pin.sh
+nginx_fetch_pinned vendor/rpms || die "nginx ${NGINX_PIN_VERSION} RPM 내려받기/서명 검증 실패"
+echo "  vendor/rpms/${NGINX_PIN_RPM} (서명 OK)"
 
 log "3) 번들 Node tar 배치"
 cp -f "$NODE_TAR" vendor/node-linux-x64.tar.xz
@@ -99,7 +93,7 @@ TARBALL="$WORK/dist/asset-inventory-offline-v$(node -p "require('./package.json'
 [ -f "$TARBALL" ] || die "번들 생성 실패"
 ls -lh "$TARBALL"
 echo "  번들 내용 점검:"
-tar -tzf "$TARBALL" | grep -cE 'rpms/.*\.rpm' | xargs echo "   - RPM:"
+tar -tzf "$TARBALL" | grep -E 'rpms/.*\.rpm' | sed 's#.*/#   - nginx RPM: #'
 tar -tzf "$TARBALL" | grep -cE 'ssl/.*\.pem' | xargs echo "   - 인증서 PEM:"
 tar -tzf "$TARBALL" | grep -q 'node-linux-x64.tar.xz' && echo "   - 번들 Node: OK" || echo "   - 번들 Node: 없음(경고)"
 tar -tzf "$TARBALL" | grep -q 'standalone/node_modules/better-sqlite3' && echo "   - native: OK" || echo "   - native: 없음(경고)"
