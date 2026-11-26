@@ -31,6 +31,8 @@
 3. `build-release.sh` → `verify-build.mjs` → 번들 점검(체크섬 · `VERSION` 의 버전=태그 · 커밋 `-dirty` 아님 · server.js/native/Node/RPM 동봉 · `.env`/`*.db` 잔재 없음)
 4. Release `v<x.y.z>` 에 세 파일(`asset-inventory-offline-v<버전>.tar.gz` · `SHA256SUMS-v<버전>.txt` · `deploy-guide-v<버전>.txt`) 첨부 — `deploy-guide-v<버전>.txt` 는 `배포방법-v<버전>.txt` 와 같은 파일이다(GitHub 이 비ASCII 파일명을 바꾸므로 ASCII 로 올린다)
 
+같은 태그로 Windows 번들도 만든다(`bundle-windows` job, windows-2022 x64): Node 22 win-x64 zip(SHA256 검증) → `npm ci` · `npm run check` · `npm test` → `scripts/deploy/windows/build-release.mjs` → `verify-build.mjs` → `VERSION` 점검(버전=태그 · 커밋 `-dirty` 아님) → `scripts/deploy/windows/verify-bundle.mjs`(zip 을 풀어 번들 Node 로 init → 기동 → `/api/health` 200 → 초기 총괄 로그인 → 온라인 백업까지 실제 실행). Release 에 `asset-inventory-windows-v<버전>.zip` · `SHA256SUMS-windows-v<버전>.txt` 를 함께 첨부한다. Windows 번들은 nginx·systemd 없이 앱 하나로 도는 단독 설치판이다(`start.cmd` 로 기동, HTTPS 는 `.env` 의 `TLS_CERT_PATH`·`TLS_KEY_PATH` 로 `server-tls.mjs` 종단, 보존기간 정리 타이머 없음) — 사용법은 번들 안 `README-windows.txt`(원본 `scripts/deploy/windows/README-windows.txt`). 수동 빌드는 Windows x64 에서 Node 22 를 PATH 앞에 두고 `vendor/node-win-x64.zip` 을 놓은 뒤 `node scripts/deploy/windows/build-release.mjs` → `node scripts/deploy/windows/verify-bundle.mjs`.
+
 반입 담당자는 Releases 페이지에서 세 파일을 받아 그대로 반입한다. 이미 push 된 태그를 다시 빌드하려면 Actions → Release → Run workflow 에 태그를 넣는다(같은 이름 자산은 덮어쓴다). `main` push·PR 마다 `.github/workflows/ci.yml` 이 타입검사·테스트·빌드·`verify-build` 를 돌린다.
 
 ### 2-2. 수동 빌드 (스테이징/빌드 머신, Rocky 8.10)

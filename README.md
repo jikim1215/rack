@@ -152,6 +152,10 @@ curl -sk -H 'Host: <PUBLIC_FQDN>' https://127.0.0.1/api/health   # {"ok":true}  
 > 미등록 상태의 총괄은 로그인은 되지만 모든 API 가 `403 MFA_SETUP_REQUIRED` 다(설계된 동작).
 > 배포 후 `smoke.mjs` 검증도 이 단계를 먼저 마쳐야 통과한다. 상세는 [docs/DEPLOY.md §6](docs/DEPLOY.md).
 
+> **Windows** — GitHub Release 의 `asset-inventory-windows-v<버전>.zip`(Windows 10/11·Server 2016+ x64, 번들 Node 22 동봉)을 풀고
+> `start.cmd` 를 실행하면 `http://127.0.0.1:3100` 으로 단독 기동한다(nginx·systemd 없음). 설정·HTTPS·백업·업그레이드는
+> 번들 안 `README-windows.txt`, 빌드는 [docs/DEPLOY.md §2-1](docs/DEPLOY.md).
+
 > 실제 자산 데이터는 배포 후 **엑셀 임포트**로 투입합니다(번들·저장소에는 데모/시드 데이터만 포함).
 > 운영 DB(`data.db`)·엑셀 원장·`.env`·인증서 등 민감·산출물은 저장소에서 제외됩니다(`.gitignore`).
 

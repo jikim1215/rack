@@ -86,9 +86,9 @@ cp -a scripts "$STAGE/scripts"
 #   유지: db-seed.mjs(설치 최소초기화) + smoke.mjs(배포 후 확인 — DEPLOY.md §6 이 지시하는 게이트,
 #         외부 의존 없이 node 내장 crypto/fetch 만 쓴다) + deploy/*(설치·백업·systemd).
 #         ※ deploy/ 하위는 아래에서 별도 정리.
-#   제거: 루트의 1회용 데이터가공/검증/e2e 스크립트(*.mjs,*.ts) + AI 리뷰 닷파일(scripts/.*) + 모든 Windows .ps1.
+#   제거: 루트의 1회용 데이터가공/검증/e2e 스크립트(*.mjs,*.ts) + AI 리뷰 닷파일(scripts/.*) + Windows 번들 전용(deploy/windows).
 find "$STAGE/scripts" -maxdepth 1 -type f ! -name 'db-seed.mjs' ! -name 'smoke.mjs' -delete
-find "$STAGE/scripts" -name '*.ps1' -delete
+rm -rf "$STAGE/scripts/deploy/windows"
 # next 빌드가 standalone 으로 잘못 트레이스한 개발 산출물(scripts/.serial-verify-list.json 등) 제거.
 #   런타임은 standalone/scripts 를 참조하지 않는다(라우트는 src/lib 만 사용).
 rm -rf "$STAGE/.next/standalone/scripts"

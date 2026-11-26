@@ -113,6 +113,7 @@ gltmp/
 /asset-inventory-offline*.tar.gz
 # 번들 빌드 입력 (빌드 시점에 내려받음 — 번들 Node 런타임, nginx 오프라인 RPM)
 /vendor/node-linux-x64.tar.xz
+/vendor/node-win-x64.zip
 /vendor/rpms/
 
 # E2E 검증 임시 산출물 (스크래치 DB·스크린샷·런처)
