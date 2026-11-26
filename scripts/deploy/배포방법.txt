@@ -120,10 +120,10 @@
       원인 해결 후 새 판을 다시 적용하면 자동으로 다시 복구됩니다.
 
 
-[v1.9.0 변경 요약]
+[v1.9.1 변경 요약]   (v1.9.0 은 게시되지 않았습니다 — 같은 내용의 정식판)
   - 기능 변화 없음. 이 Linux 번들의 내용과 적용 절차는 v1.8.0 과 같습니다
       (v1.8.0 을 아직 적용하지 않았다면 아래 v1.8.0 요약의 nginx 교체도 그대로 해당)
-  - GitHub Release 에 Windows x64 용 단독 실행판(asset-inventory-windows-v1.9.0.zip)이 함께 올라갑니다
+  - GitHub Release 에 Windows x64 용 단독 실행판(asset-inventory-windows-v1.9.1.zip)이 함께 올라갑니다
       — 운영 서버 반입에는 필요 없음 (사용법: zip 안 README-windows.txt)
   - 되돌리기는 앱만으로 충분합니다 (--with-db 불필요 · 스키마 변경 없음)
 

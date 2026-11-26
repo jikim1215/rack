@@ -15,6 +15,12 @@
 
 ---
 
+## v1.9.1 — 2026-11-26
+
+기능 변화 없음. v1.9.0(Windows x64 번들 추가)의 정식 릴리스판 — 내용은 아래 v1.9.0 과 같다.
+
+- v1.9.0 은 Release CI 의 Windows 번들 실기동 검증이 zip 을 풀다 실패해 게시되지 않았다(태그만 있음). 검증이 Windows 내장 `tar.exe` 로 풀었는데, 영문 Windows 에서는 한글 파일명(`docs/사용자매뉴얼.md` 등)을 풀지 못한다 → 사용자와 같은 .NET ZipFile(탐색기·`Expand-Archive`)로 푼다. zip 자체는 그대로다
+
 ## v1.9.0 — 2026-11-26
 
 기능 변화 없음. Windows x64 용 단독 실행 번들 추가 — Release 에 Linux 번들과 함께 올라간다.
