@@ -15,6 +15,43 @@
 
 ---
 
+## v1.8.0 — 2026-11-23
+
+nginx 수정판(1.30.7) 반입, 외부 코드 리뷰 반영 — 팀 격리 누수·반입 완료 500 수정, 읽기 전용 계정 화면 정리.
+
+- **nginx 1.30.7** — KISA 보호나라 「NGINX 제품 보안 업데이트 권고」(2026-11-19, CVE-2026-123007 · 123634 · 123633 · 121810 · 113425)와 nginx.org 공지(118899 TLS 1.3 무한루프 등)의 해결판. v1.7.0 은 설정 완화만 했고 번들 nginx 는 취약한 1.14.1(AppStream)이었다
+  - 번들 RPM 을 nginx.org 공식 el8 `nginx-1.30.7-1.el8.ngx` 하나로 교체(AppStream 에는 해결판 없음). 판·서명키는 새 `scripts/deploy/nginx-pin.sh` 한 곳 — 빌드(`oneshot-build.sh` · Release CI · `build-release.sh`)는 고정 키로 서명을 확인하고, 없거나 다르면 중단
+  - 신규 `scripts/deploy/nginx-upgrade.sh` — 설치된 nginx 가 취약 판이면 새 바이너리로 현재 설정을 먼저 검사(`nginx -t`, 시스템 변경 없음) → `/etc/nginx` 백업 → rpm 교체 → restart. 설정 파일은 고치지 않는다. AppStream 동적 모듈(nginx-mod-*)은 ABI 가 달라 설정이 쓰지 않을 때만 함께 제거. nginx.org 동적 모듈·mail/stream/perl 등 사용 시에는 아무것도 안 바꾸고 「조치 필요」
+  - `setup-nginx.sh`(nginx 가 이미 있을 때) · `upgrade-inplace.sh`(6-2 단계) 자동 실행, `deploy.sh --check` 점검. `nginx-harden.sh` 는 취약 판이면 「조치 필요」
+  - nginx 는 공존시스템과 같이 쓰는 프로세스다 — 교체 시 재시작 1회. 앱 되돌리기는 nginx 판을 되돌리지 않는다
+
+- **반입 완료 500 수정** — 반입 이동을 `완료`로 바꾸면 이미 삭제된 `assets.department` 컬럼에 INSERT 해 실패하고, 상태만 `완료`로 커밋된 채 자산이 생성되지 않았다. 상태 변경과 자산 등록·반출 처리를 한 트랜잭션으로 묶고, 부서명이 팀 이름과 같으면 그 팀(`team_id`) 소유로 등록(없으면 미배정). 새 `src/lib/movement-complete.ts`
+- **유지보수 대상 가져오기** — `전체 교체`(기존 대상 전부 삭제)는 총괄 관리자만. 관리번호로 자산을 연결할 때 자기 팀 자산만 찾는다(다른 팀 자산 연결 차단)
+- **하위 자산 가져오기** — 상위 자산을 자기 팀 범위에서만 찾고, 전체열람 계정 쓰기 차단(`assertCanWrite`)
+- **위치 삭제** — 랙·분전반이 남아 있으면 409(개수 안내). 이전에는 CASCADE 로 다른 팀 랙까지 지워질 수 있었다
+- **랙 삭제** — 실장 자산의 랙·시작U·전/후면을 함께 비운다(이전에는 시작U·면이 남음). 반출 완료도 전/후면을 비운다
+- **서브넷** — 마스크는 연속 비트 /16~/32 만 등록·수정 가능(비연속·광대역 마스크 거부). 계산은 `src/lib/subnet.ts` 로 일원화
+- **대시보드** — 포트 집계를 팀 범위로 제한(다른 팀 포트 수 노출 수정). 데이터 품질·정리 대기 항목에서 해당 자산 목록으로 바로 이동
+- **날짜** — 오늘/기준일을 KST 로 계산(00~09시에 하루 전 날짜가 기본값으로 잡히던 문제). `src/lib/kst.ts`
+- **엑셀 양식** — 자산 등록 양식에 구매일·보증만료·EoS 열 추가
+- **실사 확인** — 전체열람 계정은 대상과 무관하게 항상 403
+- **화면** — 메뉴 쓰기 권한이 없는 계정(전체열람 포함)에게 자산·이동·유지보수·계약·위치·랙·IP·배포 화면의 등록/수정/삭제 버튼을 숨긴다(서버 검사와 같은 기준 `canWriteMenu`)
+- 문서: `ARCHITECTURE.md` 디렉터리 구조를 실제와 맞춤
+- 되돌리기는 앱만으로 충분합니다(`--with-db` 불필요) — 스키마 변경 없음
+
+## v1.7.0 — 2026-11-19
+
+기능 변화 없음. nginx2root(nginx 비인증 원격 코드 실행 5건 + Linux SCTP 권한 상승) 완화 — 배포 스크립트 변경.
+
+- 번들 nginx(Rocky 8 기본 스트림 1.14.1)는 **CVE-2026-123007**(HTTP/2, 1.9.5~1.31.8) 영향 범위이고, v1.6.1 이하 `setup-nginx.sh` 는 itam.conf 를 `listen 443 ssl http2;` 로 만들었다 → 외부에서 인증 없이 nginx 워커 권한 명령 실행 가능
+- `nginx-itam.conf` · `setup-nginx.sh` — HTTP/2 를 켜지 않는다(버전별 http2 구문 분기 제거). 앱은 HTTP/1.1 로 동일하게 동작
+- 신규 `scripts/deploy/nginx-harden.sh` — itam.conf 의 HTTP/2·HTTP/3 끄기(백업 → `nginx -t` → **restart**, 실패 시 원복), 공존시스템 설정의 HTTP/2·HTTP/3·resolver·mail 프록시 점검(수정 안 함 — 위치만 알림), SCTP 모듈 로딩 차단(`/etc/modprobe.d/nginx2root-sctp.conf`), ALPN 으로 h2 미협상 확인. `--check` 는 변경 없이 점검만
+- `setup-nginx.sh`(신규·`nginx` 재구성) · `upgrade-inplace.sh`(6-2 단계) · `rollback.sh`(구판 itam.conf 를 복원해도 다시 완화) · `deploy.sh --check` 가 자동 실행
+- nginx 1.25 미만은 HTTP/2 가 주소:포트 단위 — 공존시스템(share) 설정이 같은 443 에 http2 를 켜 두면 itam 도 h2 로 응답한다. 이 경우 스크립트가 「조치 필요」로 알리며 share 담당 조치가 필요하다
+- 설정 완화는 임시 조치 — nginx 수정판은 v1.8.0 에서 반입(1.30.7). 커널 수정판은 별도
+- 앱 재배포 없이 운영 중인 v1.6.1 에 걸 때는 별도 핫픽스 번들 `nginx2root-hotfix-v1.6.1.tar.gz`(dist/)
+- 되돌리기는 앱만으로 충분합니다(`--with-db` 불필요) — 스키마 변경 없음. 되돌려도 HTTP/2 는 다시 켜지지 않는다
+
 ## v1.6.1 — 2026-11-13
 
 기능 변화 없음. v1.6.0 과 같은 기능의 정식 릴리스판.
