@@ -11,9 +11,22 @@
 **확인하는 곳** — 로그인 후 사이드바 맨 아래(버전 · 커밋, 마우스를 올리면 빌드 시각), 서버 안에서 앱 포트로 부른 `/api/health` 의 `version`·`commit`·`builtAt`(nginx 경유 외부 요청은 `{"ok":true}` 만), 번들 최상위 `VERSION` 파일, 반입 안내 `배포방법.txt` 첫 줄, 업그레이드·롤백 출력(`현재 → 새`).
 커밋 뒤에 `-dirty` 가 붙어 있으면 커밋되지 않은 변경이 섞인 빌드다 — 정식 반입본이 아니다.
 
-**릴리스 절차** — `npm version <x.y.z> --no-git-tag-version` → 이 파일에 항목 추가 → 커밋 → `git tag -a v<x.y.z>` → `git push origin main v<x.y.z>` → GitHub Actions(Release)가 Rocky 8.10 에서 번들을 빌드해 Releases 에 올린다(이 파일의 해당 항목이 릴리스 노트). 상세는 `docs/DEPLOY.md` §2.
+**릴리스 절차** — `npm version <x.y.z> --no-git-tag-version` → 이 파일에 항목 추가 → 커밋 → `git tag -a v<x.y.z>` → `git push origin main v<x.y.z>` → GitHub Actions(Release)가 Rocky 8.10(Linux)·windows-2022(Windows) 에서 번들을 빌드해 Releases 에 올린다(이 파일의 해당 항목이 릴리스 노트). 상세는 `docs/DEPLOY.md` §2.
 
 ---
+
+## v1.9.0 — 2026-11-26
+
+기능 변화 없음. Windows x64 용 단독 실행 번들 추가 — Release 에 Linux 번들과 함께 올라간다.
+
+- **`asset-inventory-windows-v<버전>.zip`** (+ `SHA256SUMS-windows-v<버전>.txt`) — Windows 10/11·Server 2016+ x64. Node 22(win-x64)와 win32 용 better-sqlite3 를 동봉해 설치·인터넷·관리자 권한 없이 돈다
+  - `start.cmd` — 처음이면 `.env`(무작위 `AUTH_SECRET`)와 `data.db`(최소 초기화, 계정 3개)를 만들고 `http://127.0.0.1:3100` 으로 기동. `.env` 에 `TLS_CERT_PATH`·`TLS_KEY_PATH` 를 주면 HTTPS(`server-tls.mjs`)
+  - 앱 설정은 `.env` 만 쓴다 — PC 에 걸린 환경변수(개발용 `ASSET_DB_PATH`·`AUTH_SECRET` 등)는 앱에 넘기지 않는다
+  - `backup.cmd` — 실행 중 온라인 백업(`backups\data-<시각>.db`). 사용법은 번들 안 `README-windows.txt`
+  - nginx·systemd·보존기간 정리 타이머는 없다 — 운영 서버 표준은 계속 Rocky 8.10 번들
+- Release CI `bundle-windows` job(windows-2022) — Node 22 zip SHA256 검증 → 타입검사·테스트 → `scripts/deploy/windows/build-release.mjs` → zip 을 풀어 실제 기동·로그인·백업까지 확인(`verify-bundle.mjs`)
+- 쓰이지 않던 구 빌드 스크립트 `scripts/deploy/build-release.ps1`·`pack-portable.ps1`(Node 20·Linux 대상) 삭제
+- Linux 번들은 변화 없음(Windows 전용 스크립트는 싣지 않는다). 되돌리기는 앱만으로 충분 — 스키마 변경 없음
 
 ## v1.8.0 — 2026-11-23
 
