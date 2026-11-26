@@ -13,7 +13,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 const ZIP = resolve(process.argv[2] || join(ROOT, "dist", `asset-inventory-windows-v${VERSION}.zip`));
 const SUMS = join(dirname(ZIP), `SHA256SUMS-windows-v${VERSION}.txt`);
-const TAR = join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
+const PS = spawnSync("where", ["pwsh"], { stdio: "ignore" }).status === 0 ? "pwsh" : "powershell";
 const PORT = String(40000 + Math.floor(Math.random() * 20000));
 const BASE = `http://127.0.0.1:${PORT}`;
 
@@ -33,7 +33,13 @@ const tmp = mkdtempSync(join(tmpdir(), "asset-win-verify-"));
 const APP = join(tmp, "asset-inventory");
 let child;
 try {
-  const x = spawnSync(TAR, ["-xf", ZIP, "-C", tmp], { stdio: "inherit" });
+  // 사용자와 같은 방식(.NET ZipFile = Expand-Archive·탐색기)으로 푼다. 내장 tar.exe 는 비ASCII(UTF-8) 항목 이름을
+  // 시스템 코드페이지로 풀다 실패한다(영문 Windows 의 docs/사용자매뉴얼.md 등).
+  const x = spawnSync(PS, [
+    "-NoProfile", "-NonInteractive", "-Command",
+    "$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.IO.Compression.FileSystem; " +
+      "[IO.Compression.ZipFile]::ExtractToDirectory($env:ZIP_SRC, $env:ZIP_DST)",
+  ], { stdio: "inherit", env: { ...process.env, ZIP_SRC: ZIP, ZIP_DST: tmp } });
   if (x.status !== 0) throw new Error(`압축 해제 실패(exit ${x.status})`);
 
   const ver = readFileSync(join(APP, "VERSION"), "utf8");
